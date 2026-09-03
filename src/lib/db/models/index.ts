@@ -5,6 +5,7 @@ export { Interaction, INTERACTION_TYPES } from "./Interaction";
 export { Comment } from "./Comment";
 export { Rating } from "./Rating";
 export { Favorite } from "./Favorite";
+export { Like } from "./Like";
 export { Notification, NOTIFICATION_TYPES } from "./Notification";
 export { SavedSearch } from "./SavedSearch";
 
@@ -15,5 +16,6 @@ export type { InteractionDoc } from "./Interaction";
 export type { CommentDoc } from "./Comment";
 export type { RatingDoc } from "./Rating";
 export type { FavoriteDoc } from "./Favorite";
+export type { LikeDoc } from "./Like";
 export type { NotificationDoc } from "./Notification";
 export type { SavedSearchDoc } from "./SavedSearch";

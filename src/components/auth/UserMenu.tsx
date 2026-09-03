@@ -32,9 +32,12 @@ export function UserMenu({ compact = false }: { compact?: boolean }) {
 
   return (
     <div className="flex items-center gap-2">
-      {!compact && (
-        <span className="hidden text-sm font-medium text-text sm:inline">Hola, {firstName}</span>
-      )}
+      <Link
+        href="/perfil"
+        className="text-sm font-medium text-text-muted hover:text-text hidden sm:inline"
+      >
+        {compact ? "Mi perfil" : `Hola, ${firstName}`}
+      </Link>
       <Button variant="ghost" size="sm" onClick={() => signOut({ callbackUrl: "/" })}>
         Cerrar sesión
       </Button>

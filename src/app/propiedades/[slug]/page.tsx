@@ -6,6 +6,10 @@ import type { Metadata } from "next";
 import { connectDB } from "@/lib/db/connect";
 import { Property } from "@/lib/db/models/Property";
 import { Interaction } from "@/lib/db/models/Interaction";
+import { Like } from "@/lib/db/models/Like";
+import { Favorite } from "@/lib/db/models/Favorite";
+import { Rating } from "@/lib/db/models/Rating";
+import { Comment } from "@/lib/db/models/Comment";
 import { toPropertyDetail } from "@/lib/db/property-detail-mapper";
 import { auth } from "@/auth";
 import { Navbar } from "@/components/layout/Navbar";
@@ -15,6 +19,8 @@ import { PropertyMedia } from "@/components/property/PropertyMedia";
 import { PropertyFeaturesGrid } from "@/components/property/PropertyFeaturesGrid";
 import { AmenitiesList } from "@/components/property/AmenitiesList";
 import { AgencyContactCard } from "@/components/property/AgencyContactCard";
+import { SocialBar } from "@/components/property/SocialBar";
+import { CommentsSection, type CommentItem } from "@/components/property/CommentsSection";
 import { PropertyLocationMapLazy } from "@/components/map/PropertyLocationMapLazy";
 import { OPERATION_LABELS, PROPERTY_TYPE_LABELS, type Operation, type PropertyType } from "@/config/filters";
 import { formatCompactNumber, formatRelativeTime } from "@/lib/utils/format";
@@ -53,6 +59,30 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
   const session = await auth().catch(() => null);
   const userId = session?.user?.id ?? null;
   after(() => trackView(property.id, property.agency?.id, userId).catch(() => {}));
+
+  const [likeDoc, favoriteDoc, ratingDoc, commentDocs, commentsTotal] = await connectDB().then(() =>
+    Promise.all([
+      userId ? Like.exists({ userId, propertyId: property.id }) : null,
+      userId ? Favorite.exists({ userId, propertyId: property.id }) : null,
+      userId ? Rating.findOne({ userId, propertyId: property.id }).select("value").lean() : null,
+      Comment.find({ propertyId: property.id, deletedAt: null })
+        .populate({ path: "userId", select: "name" })
+        .sort({ createdAt: -1 })
+        .limit(20)
+        .lean(),
+      Comment.countDocuments({ propertyId: property.id, deletedAt: null }),
+    ])
+  );
+
+  const initialComments: CommentItem[] = commentDocs.map((c) => ({
+    id: String(c._id),
+    body: c.body,
+    createdAt: c.createdAt?.toISOString?.() ?? new Date().toISOString(),
+    user: {
+      id: String((c.userId as unknown as { _id: unknown })._id),
+      name: (c.userId as unknown as { name: string }).name ?? "Usuario",
+    },
+  }));
 
   const addressLine = [property.address.neighborhood, property.address.city]
     .filter(Boolean)
@@ -96,6 +126,20 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
                 )}
                 {property.publishedAt && <span>Publicado {formatRelativeTime(property.publishedAt)}</span>}
               </div>
+
+              <div className="mt-4">
+                <SocialBar
+                  propertyId={property.id}
+                  isAuthenticated={!!userId}
+                  initialLiked={!!likeDoc}
+                  initialFavorited={!!favoriteDoc}
+                  initialLikes={property.stats.likes}
+                  initialSaves={property.stats.saves}
+                  initialRatingAvg={property.stats.ratingAvg}
+                  initialRatingCount={property.stats.ratingCount}
+                  initialMyRating={ratingDoc?.value ?? null}
+                />
+              </div>
             </div>
 
             <PropertyFeaturesGrid features={property.features} />
@@ -137,6 +181,8 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
                 />
               </div>
             </section>
+
+            <CommentsSection propertyId={property.id} initialComments={initialComments} initialTotal={commentsTotal} />
           </div>
 
           <aside className="flex flex-col gap-4 lg:sticky lg:top-24 lg:self-start">
