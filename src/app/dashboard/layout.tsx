@@ -6,6 +6,7 @@ import { DashboardNav } from "@/components/dashboard/DashboardNav";
 import { Logo } from "@/components/layout/Logo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { UserMenu } from "@/components/auth/UserMenu";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 export default async function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
   const agencyUser = await requireAgencyUser();
@@ -25,6 +26,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
             <span className="hidden font-medium text-text sm:inline">{agency.name}</span>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
+            <NotificationBell />
             <UserMenu compact />
             <ThemeToggle />
           </div>

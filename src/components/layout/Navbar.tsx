@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Logo } from "./Logo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { UserMenu } from "@/components/auth/UserMenu";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 const LINKS = [
   { href: "/mapa", label: "Mapa" },
@@ -30,6 +31,7 @@ export function Navbar() {
           ))}
         </nav>
         <div className="flex items-center gap-2 sm:gap-3">
+          <NotificationBell />
           <UserMenu compact />
           <ThemeToggle />
         </div>

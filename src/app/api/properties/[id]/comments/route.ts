@@ -1,11 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { z } from "zod";
 import { Types } from "mongoose";
 import { connectDB } from "@/lib/db/connect";
 import { Property } from "@/lib/db/models/Property";
 import { Comment } from "@/lib/db/models/Comment";
 import { Interaction } from "@/lib/db/models/Interaction";
+import { Like } from "@/lib/db/models/Like";
+import { Favorite } from "@/lib/db/models/Favorite";
 import { requireUser } from "@/lib/auth/require-user";
+import { createNotificationForMany } from "@/lib/notifications/create";
 
 const bodySchema = z.object({
   body: z.string().trim().min(1, "Escribí algo").max(1000),
@@ -63,7 +66,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   try {
     await connectDB();
-    const property = await Property.findById(id).select("agencyId");
+    const property = await Property.findById(id).select("agencyId title slug");
     if (!property) return NextResponse.json({ error: "Propiedad no encontrada" }, { status: 404 });
 
     const comment = await Comment.create({
@@ -74,6 +77,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
     await Property.updateOne({ _id: id }, { $inc: { "stats.comments": 1 } });
     await Interaction.create({ type: "comment", userId: user.id, propertyId: id, agencyId: property.agencyId });
+
+    after(() => notifyInterestedUsers(id, user.id, property.title, property.slug));
 
     return NextResponse.json(
       {
@@ -88,5 +93,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   } catch (err) {
     console.error("POST /api/properties/[id]/comments failed:", err);
     return NextResponse.json({ error: "No se pudo publicar el comentario." }, { status: 503 });
+  }
+}
+
+/** Avisa a quienes likearon/guardaron la propiedad (menos a quien comentó). */
+async function notifyInterestedUsers(propertyId: string, commenterId: string, title: string, slug: string) {
+  try {
+    await connectDB();
+    const [likes, favorites] = await Promise.all([
+      Like.find({ propertyId }).select("userId").lean(),
+      Favorite.find({ propertyId }).select("userId").lean(),
+    ]);
+    const userIds = [...new Set([...likes, ...favorites].map((d) => String(d.userId)))].filter(
+      (id) => id !== commenterId
+    );
+    await createNotificationForMany(userIds, {
+      type: "activity",
+      title: "Nuevo comentario en una propiedad que seguís",
+      body: title,
+      href: `/propiedades/${slug}`,
+      propertyId,
+    });
+  } catch (err) {
+    console.error("notifyInterestedUsers failed:", err);
   }
 }

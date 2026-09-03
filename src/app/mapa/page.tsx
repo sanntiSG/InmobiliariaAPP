@@ -6,6 +6,7 @@ import type { MapLibreMap } from "maplibre-gl";
 import { Logo } from "@/components/layout/Logo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { UserMenu } from "@/components/auth/UserMenu";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { MapFilters } from "@/components/map/MapFilters";
 import { MapControls } from "@/components/map/MapControls";
@@ -101,6 +102,7 @@ export default function MapaPage() {
             <div className="pl-1.5">
               <UserMenu compact />
             </div>
+            <NotificationBell />
             <ThemeToggle />
           </div>
         </div>

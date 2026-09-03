@@ -1,9 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { Types } from "mongoose";
 import { propertyInputSchema } from "@/lib/validation/property";
 import { requireAgencyUser } from "@/lib/auth/require-agency-user";
 import { connectDB } from "@/lib/db/connect";
 import { Property } from "@/lib/db/models/Property";
+import { Favorite } from "@/lib/db/models/Favorite";
+import { createNotificationForMany } from "@/lib/notifications/create";
 
 const updateSchema = propertyInputSchema.omit({ agencyId: true });
 
@@ -26,8 +28,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (!property) return NextResponse.json({ error: "No encontrada" }, { status: 404 });
 
     const data = parsed.data;
+    const previousAmount = property.price?.amount;
     const priceChanged =
       data.price.amount !== property.price?.amount || data.price.currency !== property.price?.currency;
+    const priceDropped = priceChanged && previousAmount != null && data.price.amount < previousAmount;
 
     property.set({ ...data, location: { type: "Point", coordinates: data.location } });
 
@@ -39,10 +43,31 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
     await property.save();
 
+    if (priceDropped) {
+      after(() => notifyPriceDrop(property));
+    }
+
     return NextResponse.json({ id: String(property._id), slug: property.slug });
   } catch (err) {
     console.error("PATCH /api/dashboard/properties/[id] failed:", err);
     return NextResponse.json({ error: "No se pudo actualizar la propiedad." }, { status: 503 });
+  }
+}
+
+async function notifyPriceDrop(property: InstanceType<typeof Property>) {
+  try {
+    await connectDB();
+    const favorites = await Favorite.find({ propertyId: property._id }).select("userId").lean();
+    const userIds = favorites.map((f) => String(f.userId));
+    await createNotificationForMany(userIds, {
+      type: "price_drop",
+      title: "Bajó el precio de una propiedad que guardaste",
+      body: property.title,
+      href: `/propiedades/${property.slug}`,
+      propertyId: String(property._id),
+    });
+  } catch (err) {
+    console.error("notifyPriceDrop failed:", err);
   }
 }
 

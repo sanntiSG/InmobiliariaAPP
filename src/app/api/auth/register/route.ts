@@ -3,6 +3,8 @@ import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/db/connect";
 import { User } from "@/lib/db/models/User";
 import { registerSchema } from "@/lib/validation/auth";
+import { createNotification } from "@/lib/notifications/create";
+import { brand } from "@/config/brand";
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
@@ -22,7 +24,15 @@ export async function POST(req: NextRequest) {
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    await User.create({ name, email: email.toLowerCase(), passwordHash, role: "user" });
+    const user = await User.create({ name, email: email.toLowerCase(), passwordHash, role: "user" });
+
+    await createNotification({
+      userId: String(user._id),
+      type: "system",
+      title: `¡Bienvenido a ${brand.name}!`,
+      body: "Contanos tus preferencias en tu perfil para empezar a recibir recomendaciones personalizadas.",
+      href: "/perfil",
+    });
 
     return NextResponse.json({ ok: true }, { status: 201 });
   } catch (err) {

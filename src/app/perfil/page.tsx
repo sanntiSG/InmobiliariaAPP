@@ -1,12 +1,16 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { connectDB } from "@/lib/db/connect";
 import { Favorite } from "@/lib/db/models/Favorite";
+import { User } from "@/lib/db/models/User";
 import { PROPERTY_CARD_PROJECTION } from "@/lib/db/property-query";
 import { toPropertyCardData } from "@/lib/db/property-card-mapper";
 import { Navbar } from "@/components/layout/Navbar";
-import { FavoritesGrid } from "@/components/property/FavoritesGrid";
+import { PropertyGrid } from "@/components/property/PropertyGrid";
+import { PreferencesForm } from "@/components/profile/PreferencesForm";
 import type { PropertyCardData } from "@/components/property/types";
+import type { PreferencesInput } from "@/lib/validation/preferences";
 
 export const metadata = { title: "Mi perfil" };
 
@@ -15,6 +19,16 @@ export default async function PerfilPage() {
   if (!session?.user) redirect("/ingresar");
 
   await connectDB();
+  const userDoc = await User.findById(session.user.id).select("preferences").lean();
+  const preferences: PreferencesInput = {
+    operations: (userDoc?.preferences?.operations ?? []) as PreferencesInput["operations"],
+    propertyTypes: (userDoc?.preferences?.propertyTypes ?? []) as PreferencesInput["propertyTypes"],
+    locations: userDoc?.preferences?.locations ?? [],
+    priceMin: userDoc?.preferences?.priceMin ?? undefined,
+    priceMax: userDoc?.preferences?.priceMax ?? undefined,
+    minRooms: userDoc?.preferences?.minRooms ?? undefined,
+  };
+
   const favoriteDocs = await Favorite.find({ userId: session.user.id })
     .populate({
       path: "propertyId",
@@ -46,6 +60,19 @@ export default async function PerfilPage() {
         </div>
 
         <section className="mt-10">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="font-display text-lg font-semibold text-text">Mis preferencias</h2>
+            <Link href="/recomendaciones" className="text-sm font-medium text-accent hover:underline">
+              Ver recomendaciones →
+            </Link>
+          </div>
+          <p className="mb-3 text-sm text-text-muted">
+            Usamos esto (y tu actividad) para recomendarte propiedades — sin IA, por lógica tradicional.
+          </p>
+          <PreferencesForm initial={preferences} />
+        </section>
+
+        <section className="mt-10">
           <h2 className="font-display text-lg font-semibold text-text">
             Mis favoritos {favorites.length > 0 && <span className="text-text-muted">({favorites.length})</span>}
           </h2>
@@ -56,7 +83,7 @@ export default async function PerfilPage() {
             </p>
           ) : (
             <div className="mt-4">
-              <FavoritesGrid favorites={favorites} />
+              <PropertyGrid properties={favorites} />
             </div>
           )}
         </section>

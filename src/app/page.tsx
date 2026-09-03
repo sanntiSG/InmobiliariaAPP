@@ -3,6 +3,7 @@ import { Logo } from "@/components/layout/Logo";
 import { buttonClasses } from "@/components/ui/Button";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { UserMenu } from "@/components/auth/UserMenu";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { brand } from "@/config/brand";
 import { buildWhatsappLink } from "@/config/site";
 
@@ -30,6 +31,7 @@ export default function Home() {
       <header className="relative flex items-center justify-between px-5 py-5 sm:px-8">
         <Logo href={null} />
         <div className="flex items-center gap-2 sm:gap-3">
+          <NotificationBell />
           <UserMenu compact />
           <ThemeToggle />
         </div>
