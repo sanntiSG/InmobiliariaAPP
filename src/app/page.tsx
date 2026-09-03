@@ -1,14 +1,15 @@
 import Link from "next/link";
 import { Logo } from "@/components/layout/Logo";
-import { Button, buttonClasses } from "@/components/ui/Button";
+import { buttonClasses } from "@/components/ui/Button";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { UserMenu } from "@/components/auth/UserMenu";
 import { brand } from "@/config/brand";
 import { buildWhatsappLink } from "@/config/site";
 
 /**
- * Landing placeholder de esta sesión: la versión completa (los 3 caminos —
- * Explorar / Ingresar / Publicá tu inmobiliaria — con auth funcionando) es
- * la sesión 2 del plan. Acá el único camino ya operativo es "Explorar".
+ * Landing con los 3 caminos del brief: Explorar (sin cuenta), Ingresar /
+ * Crear cuenta (auth real, ver src/auth.ts), y Publicá tu inmobiliaria
+ * (contacto directo por WhatsApp — solo el proveedor da de alta inmobiliarias).
  */
 export default function Home() {
   const whatsappHref = buildWhatsappLink(
@@ -28,7 +29,10 @@ export default function Home() {
 
       <header className="relative flex items-center justify-between px-5 py-5 sm:px-8">
         <Logo href={null} />
-        <ThemeToggle />
+        <div className="flex items-center gap-2 sm:gap-3">
+          <UserMenu compact />
+          <ThemeToggle />
+        </div>
       </header>
 
       <div className="relative flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
@@ -50,15 +54,10 @@ export default function Home() {
             Publicá tu inmobiliaria
           </a>
         </div>
-
-        <div className="mt-4 flex items-center gap-2">
-          <Button variant="ghost" size="sm" disabled>
-            Iniciar sesión
-          </Button>
-          <span className="rounded-pill bg-surface-2 px-2.5 py-1 text-xs font-medium text-text-muted">
-            Próximamente
-          </span>
-        </div>
+        <p className="mt-4 max-w-md text-balance text-sm text-text-muted">
+          Explorar no necesita cuenta. Creá una para guardar propiedades, comentar y recibir
+          recomendaciones.
+        </p>
       </div>
 
       <footer className="relative px-6 pb-8 text-center text-xs text-text-muted">

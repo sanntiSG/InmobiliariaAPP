@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Manrope } from "next/font/google";
 import "./globals.css";
 import { brand } from "@/config/brand";
+import { auth } from "@/auth";
+import { SessionProvider } from "@/components/providers/SessionProvider";
 
 // Bricolage Grotesque: títulos y precios — con carácter propio, no genérica.
 const bricolage = Bricolage_Grotesque({
@@ -47,7 +49,9 @@ const themeInitScript = `
 })();
 `;
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const session = await auth().catch(() => null);
+
   return (
     <html
       lang="es"
@@ -57,7 +61,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
-      <body className="min-h-full flex flex-col bg-bg text-text font-sans">{children}</body>
+      <body className="min-h-full flex flex-col bg-bg text-text font-sans">
+        <SessionProvider session={session}>{children}</SessionProvider>
+      </body>
     </html>
   );
 }

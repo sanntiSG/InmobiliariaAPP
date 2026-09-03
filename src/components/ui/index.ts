@@ -3,6 +3,7 @@ export { IconButton } from "./IconButton";
 export { Badge } from "./Badge";
 export { Card } from "./Card";
 export { FilterPill } from "./FilterPill";
+export { FormField } from "./FormField";
 export { Input } from "./Input";
 export { RangeSlider } from "./RangeSlider";
 export { Sheet } from "./Sheet";

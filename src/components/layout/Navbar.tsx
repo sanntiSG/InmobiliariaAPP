@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Logo } from "./Logo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { UserMenu } from "@/components/auth/UserMenu";
 
 const LINKS = [
   { href: "/mapa", label: "Mapa" },
@@ -28,7 +29,8 @@ export function Navbar() {
             </Link>
           ))}
         </nav>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <UserMenu compact />
           <ThemeToggle />
         </div>
       </div>

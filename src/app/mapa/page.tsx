@@ -5,11 +5,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { MapLibreMap } from "maplibre-gl";
 import { Logo } from "@/components/layout/Logo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { UserMenu } from "@/components/auth/UserMenu";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { MapFilters } from "@/components/map/MapFilters";
 import { MapControls } from "@/components/map/MapControls";
 import { ResultsPanel } from "@/components/map/ResultsPanel";
-import { DEFAULT_FILTERS, PRICE_BOUNDS, type MapFiltersState } from "@/components/map/types";
+import { DEFAULT_FILTERS, type MapFiltersState } from "@/components/map/types";
+import { filtersToSearchParams } from "@/lib/filters/state";
 import type { PropertyFeature } from "@/lib/map/useClusteredMarkers";
 import type { BBox } from "@/lib/map/geo";
 
@@ -19,15 +21,8 @@ const MapCanvas = dynamic(() => import("@/components/map/MapCanvas").then((m) =>
 });
 
 async function fetchProperties(bbox: BBox, filters: MapFiltersState, signal: AbortSignal) {
-  const params = new URLSearchParams();
+  const params = filtersToSearchParams(filters);
   params.set("bbox", `${bbox.west},${bbox.south},${bbox.east},${bbox.north}`);
-  if (filters.q.trim()) params.set("q", filters.q.trim());
-  if (filters.operation !== "todas") params.set("operation", filters.operation);
-  if (filters.types.length > 0) params.set("type", filters.types.join(","));
-  if (filters.priceRange[0] !== PRICE_BOUNDS[0]) params.set("priceMin", String(filters.priceRange[0]));
-  if (filters.priceRange[1] !== PRICE_BOUNDS[1]) params.set("priceMax", String(filters.priceRange[1]));
-  if (filters.minRooms) params.set("minRooms", String(filters.minRooms));
-  if (filters.tour3dOnly) params.set("tour3d", "true");
   params.set("limit", "300");
 
   const res = await fetch(`/api/map/properties?${params.toString()}`, { signal });
@@ -102,10 +97,11 @@ export default function MapaPage() {
           <div className="pointer-events-auto flex-1 sm:max-w-2xl">
             <MapFilters value={filters} onChange={setFilters} resultCount={properties.length} />
           </div>
-          <div className="pointer-events-auto hidden shrink-0 sm:block">
-            <div className="rounded-pill bg-surface/90 p-1 shadow-pop backdrop-blur-md">
-              <ThemeToggle />
+          <div className="pointer-events-auto hidden shrink-0 items-center gap-2 rounded-pill bg-surface/90 p-1 shadow-pop backdrop-blur-md sm:flex">
+            <div className="pl-1.5">
+              <UserMenu compact />
             </div>
+            <ThemeToggle />
           </div>
         </div>
 
