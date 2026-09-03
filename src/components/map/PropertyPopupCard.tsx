@@ -1,0 +1,139 @@
+"use client";
+
+import { useRef, useState } from "react";
+import Image from "next/image";
+import gsap from "gsap";
+import { useGSAP } from "@gsap/react";
+import { IconButton } from "@/components/ui/IconButton";
+import { Badge } from "@/components/ui/Badge";
+import { PriceTag } from "@/components/property/PriceTag";
+import { PropertyFeatures } from "@/components/property/PropertyFeatures";
+import { TourBadge } from "@/components/property/TourBadge";
+import { OPERATION_LABELS } from "@/config/filters";
+import { cn } from "@/lib/utils/cn";
+import type { PropertyCardData } from "@/components/property/types";
+
+/**
+ * Card flotante sobre el pin seleccionado, con "pico" propio (el tip nativo
+ * de MapLibre queda deshabilitado en globals.css) y entrada animada con
+ * origen en el pico — ver .impeccable.md y emil-design-eng.
+ */
+export function PropertyPopupCard({
+  property,
+  onClose,
+}: {
+  property: PropertyCardData;
+  onClose: () => void;
+}) {
+  const [favorited, setFavorited] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(
+    () => {
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (reduceMotion || !cardRef.current) return;
+      gsap.fromTo(
+        cardRef.current,
+        { opacity: 0, y: 8, scale: 0.95 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.22, ease: "expo.out" }
+      );
+    },
+    { scope: cardRef }
+  );
+
+  return (
+    <div className="relative w-[272px]" style={{ transformOrigin: "50% 100%" }}>
+      <div ref={cardRef} className="overflow-visible rounded-card bg-surface shadow-float">
+        <div className="relative aspect-[16/10] w-full overflow-hidden rounded-t-card bg-surface-2">
+          {property.image ? (
+            <Image
+              src={property.image}
+              alt={property.title}
+              fill
+              sizes="272px"
+              className="object-cover"
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-text-muted">Sin foto</div>
+          )}
+
+          <div className="absolute left-2.5 top-2.5 flex flex-wrap gap-1.5">
+            <Badge variant="overlay">
+              {OPERATION_LABELS[property.operation as keyof typeof OPERATION_LABELS] ?? property.operation}
+            </Badge>
+          </div>
+
+          <IconButton
+            size={30}
+            aria-label="Cerrar"
+            className="absolute right-2.5 top-2.5"
+            onClick={onClose}
+          >
+            <CloseIcon />
+          </IconButton>
+
+          {property.tour3d && <TourBadge compact className="absolute bottom-2.5 left-2.5" />}
+
+          <IconButton
+            size={30}
+            aria-label={favorited ? "Quitar de favoritos" : "Guardar en favoritos"}
+            className="absolute bottom-2.5 right-2.5"
+            onClick={() => setFavorited((v) => !v)}
+          >
+            <HeartIcon filled={favorited} />
+          </IconButton>
+        </div>
+
+        <div className="flex flex-col gap-1.5 p-3.5">
+          <PriceTag amount={property.price} currency={property.currency} period={property.period} className="text-lg" />
+          <p className="truncate text-sm text-text-muted">{property.title}</p>
+          <p className="truncate text-xs text-text-muted">
+            {[property.neighborhood, property.city].filter(Boolean).join(", ")}
+          </p>
+          <PropertyFeatures
+            bedrooms={property.bedrooms}
+            bathrooms={property.bathrooms}
+            area={property.area}
+            className="mt-1 flex flex-wrap items-center gap-1.5"
+          />
+          {property.agencyName && (
+            <p className="mt-1 truncate text-[11px] font-medium text-text-muted">{property.agencyName}</p>
+          )}
+        </div>
+
+        {/* Pico: cuadrado rotado, mismo color que la card, apuntando al pin.
+            Vive dentro de cardRef para animar como una sola pieza con el resto. */}
+        <div
+          className="absolute left-1/2 bottom-0 h-3.5 w-3.5 -translate-x-1/2 translate-y-1/2 rotate-45 rounded-[2px] bg-surface"
+          aria-hidden
+        />
+      </div>
+    </div>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5" aria-hidden>
+      <path d="M5 5l14 14M19 5L5 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function HeartIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={cn("h-4 w-4 transition-[transform,color] duration-150 [transition-timing-function:var(--ease-out)]", filled ? "text-danger scale-110" : "text-text")}
+      fill={filled ? "currentColor" : "none"}
+      aria-hidden
+    >
+      <path
+        d="M12 20s-7-4.35-9.5-8.5C.5 8 2 4.5 5.5 4c2-.3 3.5.8 4.5 2.2C11 4.8 12.5 3.7 14.5 4 18 4.5 19.5 8 21.5 11.5 19 15.65 12 20 12 20Z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
