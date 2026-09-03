@@ -15,10 +15,11 @@ export type IconButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 
 /** Botón circular para acciones puntuales: favorito, zoom del mapa, cerrar. */
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
-  ({ className, variant = "solid", size = 40, style, ...props }, ref) => {
+  ({ className, variant = "solid", size = 40, style, type = "button", ...props }, ref) => {
     return (
       <button
         ref={ref}
+        type={type}
         style={{ width: size, height: size, ...style }}
         className={cn(
           "inline-flex items-center justify-center rounded-full shrink-0",

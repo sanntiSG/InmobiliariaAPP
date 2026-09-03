@@ -1,0 +1,331 @@
+"use client";
+
+import { useState } from "react";
+import dynamicImport from "next/dynamic";
+import { useRouter } from "next/navigation";
+import { FormField } from "@/components/ui/FormField";
+import { SelectField } from "@/components/ui/SelectField";
+import { Button } from "@/components/ui/Button";
+import { FilterPill } from "@/components/ui/FilterPill";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { ImageUploader, type UploadedImage } from "./ImageUploader";
+import {
+  OPERATIONS,
+  OPERATION_LABELS,
+  PROPERTY_TYPES,
+  PROPERTY_TYPE_LABELS,
+  PROPERTY_STATUSES,
+  PROPERTY_STATUS_LABELS,
+  AMENITIES,
+  AMENITY_LABELS,
+  CURRENCIES,
+  type Amenity,
+} from "@/config/filters";
+import { MAP_DEFAULTS } from "@/config/site";
+
+const LocationPicker = dynamicImport(() => import("./LocationPicker").then((m) => m.LocationPicker), {
+  ssr: false,
+  loading: () => <Skeleton className="h-64 w-full rounded-card" />,
+});
+
+export type PropertyFormValues = {
+  title: string;
+  description: string;
+  operation: (typeof OPERATIONS)[number];
+  type: (typeof PROPERTY_TYPES)[number];
+  status: (typeof PROPERTY_STATUSES)[number];
+  priceAmount: string;
+  currency: (typeof CURRENCIES)[number];
+  expenses: string;
+  period: "total" | "mensual";
+  street: string;
+  number: string;
+  neighborhood: string;
+  city: string;
+  province: string;
+  showExact: boolean;
+  lng: number;
+  lat: number;
+  rooms: string;
+  bedrooms: string;
+  bathrooms: string;
+  garages: string;
+  coveredArea: string;
+  totalArea: string;
+  age: string;
+  floor: string;
+  orientation: string;
+  amenities: Amenity[];
+  images: UploadedImage[];
+  tourEnabled: boolean;
+  tourEmbedUrl: string;
+};
+
+export const emptyPropertyForm: PropertyFormValues = {
+  title: "",
+  description: "",
+  operation: "venta",
+  type: "departamento",
+  status: "draft",
+  priceAmount: "",
+  currency: "USD",
+  expenses: "",
+  period: "total",
+  street: "",
+  number: "",
+  neighborhood: "",
+  city: "",
+  province: "",
+  showExact: true,
+  lng: MAP_DEFAULTS.center[0],
+  lat: MAP_DEFAULTS.center[1],
+  rooms: "",
+  bedrooms: "",
+  bathrooms: "",
+  garages: "",
+  coveredArea: "",
+  totalArea: "",
+  age: "",
+  floor: "",
+  orientation: "",
+  amenities: [],
+  images: [],
+  tourEnabled: false,
+  tourEmbedUrl: "",
+};
+
+function toPayload(v: PropertyFormValues) {
+  return {
+    title: v.title,
+    description: v.description,
+    operation: v.operation,
+    type: v.type,
+    status: v.status,
+    price: {
+      amount: Number(v.priceAmount) || 0,
+      currency: v.currency,
+      expenses: Number(v.expenses) || 0,
+      period: v.period,
+    },
+    address: {
+      street: v.street || undefined,
+      number: v.number || undefined,
+      neighborhood: v.neighborhood || undefined,
+      city: v.city,
+      province: v.province || undefined,
+      country: "Argentina",
+      showExact: v.showExact,
+    },
+    location: [v.lng, v.lat] as [number, number],
+    features: {
+      rooms: v.rooms ? Number(v.rooms) : undefined,
+      bedrooms: v.bedrooms ? Number(v.bedrooms) : undefined,
+      bathrooms: v.bathrooms ? Number(v.bathrooms) : undefined,
+      garages: v.garages ? Number(v.garages) : 0,
+      coveredArea: v.coveredArea ? Number(v.coveredArea) : undefined,
+      totalArea: v.totalArea ? Number(v.totalArea) : undefined,
+      age: v.age ? Number(v.age) : undefined,
+      floor: v.floor ? Number(v.floor) : undefined,
+      orientation: v.orientation || undefined,
+    },
+    amenities: v.amenities,
+    media: {
+      images: v.images.map((img) => ({ url: img.url, alt: img.alt || v.title, order: img.order })),
+      videos: [],
+      floorPlans: [],
+      tour3d: {
+        enabled: v.tourEnabled && v.tourEmbedUrl.trim().length > 0,
+        provider: "matterport" as const,
+        embedUrl: v.tourEnabled && v.tourEmbedUrl.trim() ? v.tourEmbedUrl.trim() : undefined,
+      },
+    },
+  };
+}
+
+export function PropertyForm({
+  mode,
+  propertyId,
+  initialValues,
+}: {
+  mode: "create" | "edit";
+  propertyId?: string;
+  initialValues?: PropertyFormValues;
+}) {
+  const router = useRouter();
+  const [values, setValues] = useState<PropertyFormValues>(initialValues ?? emptyPropertyForm);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function set<K extends keyof PropertyFormValues>(key: K, value: PropertyFormValues[K]) {
+    setValues((v) => ({ ...v, [key]: value }));
+  }
+
+  function toggleAmenity(a: Amenity) {
+    setValues((v) => ({
+      ...v,
+      amenities: v.amenities.includes(a) ? v.amenities.filter((x) => x !== a) : [...v.amenities, a],
+    }));
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+
+    const url = mode === "create" ? "/api/dashboard/properties" : `/api/dashboard/properties/${propertyId}`;
+    const method = mode === "create" ? "POST" : "PATCH";
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(toPayload(values)),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.issues?.[0]?.message ?? data.error ?? "No se pudo guardar la propiedad.");
+      router.push("/dashboard/propiedades");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo guardar la propiedad.");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-8">
+      <section className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
+        <h2 className="font-display text-lg font-semibold text-text">Información básica</h2>
+        <FormField label="Título" required value={values.title} onChange={(e) => set("title", e.target.value)} />
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium text-text">Descripción</label>
+          <textarea
+            value={values.description}
+            onChange={(e) => set("description", e.target.value)}
+            rows={5}
+            className="w-full resize-none rounded-media border border-border bg-surface px-4 py-3 text-[15px] text-text placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
+          />
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <SelectField label="Operación" value={values.operation} onChange={(e) => set("operation", e.target.value as PropertyFormValues["operation"])}>
+            {OPERATIONS.map((o) => (
+              <option key={o} value={o}>
+                {OPERATION_LABELS[o]}
+              </option>
+            ))}
+          </SelectField>
+          <SelectField label="Tipo" value={values.type} onChange={(e) => set("type", e.target.value as PropertyFormValues["type"])}>
+            {PROPERTY_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {PROPERTY_TYPE_LABELS[t]}
+              </option>
+            ))}
+          </SelectField>
+          <SelectField label="Estado" value={values.status} onChange={(e) => set("status", e.target.value as PropertyFormValues["status"])}>
+            {PROPERTY_STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {PROPERTY_STATUS_LABELS[s]}
+              </option>
+            ))}
+          </SelectField>
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
+        <h2 className="font-display text-lg font-semibold text-text">Precio</h2>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <FormField label="Monto" type="number" min={0} value={values.priceAmount} onChange={(e) => set("priceAmount", e.target.value)} />
+          <SelectField label="Moneda" value={values.currency} onChange={(e) => set("currency", e.target.value as PropertyFormValues["currency"])}>
+            {CURRENCIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </SelectField>
+          <FormField label="Expensas" type="number" min={0} value={values.expenses} onChange={(e) => set("expenses", e.target.value)} />
+          <SelectField label="Período" value={values.period} onChange={(e) => set("period", e.target.value as PropertyFormValues["period"])}>
+            <option value="total">Total</option>
+            <option value="mensual">Mensual</option>
+          </SelectField>
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
+        <h2 className="font-display text-lg font-semibold text-text">Ubicación</h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <FormField label="Calle" value={values.street} onChange={(e) => set("street", e.target.value)} />
+          <FormField label="Número" value={values.number} onChange={(e) => set("number", e.target.value)} />
+          <FormField label="Barrio" value={values.neighborhood} onChange={(e) => set("neighborhood", e.target.value)} />
+          <FormField label="Ciudad" required value={values.city} onChange={(e) => set("city", e.target.value)} />
+          <FormField label="Provincia" value={values.province} onChange={(e) => set("province", e.target.value)} />
+        </div>
+        <label className="flex items-center gap-2 text-sm text-text">
+          <input type="checkbox" checked={values.showExact} onChange={(e) => set("showExact", e.target.checked)} className="h-4 w-4 accent-accent" />
+          Mostrar dirección exacta públicamente
+        </label>
+        <LocationPicker lng={values.lng} lat={values.lat} onChange={(lng, lat) => setValues((v) => ({ ...v, lng, lat }))} />
+      </section>
+
+      <section className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
+        <h2 className="font-display text-lg font-semibold text-text">Características</h2>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <FormField label="Ambientes" type="number" min={0} value={values.rooms} onChange={(e) => set("rooms", e.target.value)} />
+          <FormField label="Dormitorios" type="number" min={0} value={values.bedrooms} onChange={(e) => set("bedrooms", e.target.value)} />
+          <FormField label="Baños" type="number" min={0} value={values.bathrooms} onChange={(e) => set("bathrooms", e.target.value)} />
+          <FormField label="Cocheras" type="number" min={0} value={values.garages} onChange={(e) => set("garages", e.target.value)} />
+          <FormField label="Sup. cubierta (m²)" type="number" min={0} value={values.coveredArea} onChange={(e) => set("coveredArea", e.target.value)} />
+          <FormField label="Sup. total (m²)" type="number" min={0} value={values.totalArea} onChange={(e) => set("totalArea", e.target.value)} />
+          <FormField label="Antigüedad (años)" type="number" min={0} value={values.age} onChange={(e) => set("age", e.target.value)} />
+          <FormField label="Piso" type="number" value={values.floor} onChange={(e) => set("floor", e.target.value)} />
+        </div>
+        <FormField label="Orientación" value={values.orientation} onChange={(e) => set("orientation", e.target.value)} placeholder="Norte, Sur..." />
+      </section>
+
+      <section className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
+        <h2 className="font-display text-lg font-semibold text-text">Comodidades</h2>
+        <div className="flex flex-wrap gap-2">
+          {AMENITIES.map((a) => (
+            <FilterPill key={a} type="button" active={values.amenities.includes(a)} onClick={() => toggleAmenity(a)}>
+              {AMENITY_LABELS[a]}
+            </FilterPill>
+          ))}
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
+        <h2 className="font-display text-lg font-semibold text-text">Fotos</h2>
+        <ImageUploader images={values.images} onChange={(images) => set("images", images)} />
+      </section>
+
+      <section className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
+        <h2 className="font-display text-lg font-semibold text-text">Recorrido 3D (Matterport)</h2>
+        <label className="flex items-center gap-2 text-sm text-text">
+          <input type="checkbox" checked={values.tourEnabled} onChange={(e) => set("tourEnabled", e.target.checked)} className="h-4 w-4 accent-accent" />
+          Esta propiedad tiene un recorrido 3D
+        </label>
+        {values.tourEnabled && (
+          <FormField
+            label="URL de embed de Matterport"
+            placeholder="https://my.matterport.com/show/?m=..."
+            value={values.tourEmbedUrl}
+            onChange={(e) => set("tourEmbedUrl", e.target.value)}
+          />
+        )}
+      </section>
+
+      {error && (
+        <p className="rounded-card bg-danger-soft p-4 text-sm text-danger" role="alert">
+          {error}
+        </p>
+      )}
+
+      <div className="flex justify-end gap-3">
+        <Button type="button" variant="secondary" onClick={() => router.push("/dashboard/propiedades")}>
+          Cancelar
+        </Button>
+        <Button type="submit" disabled={saving}>
+          {saving ? "Guardando…" : mode === "create" ? "Publicar propiedad" : "Guardar cambios"}
+        </Button>
+      </div>
+    </form>
+  );
+}

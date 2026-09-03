@@ -5,6 +5,8 @@ export { Card } from "./Card";
 export { FilterPill } from "./FilterPill";
 export { FormField } from "./FormField";
 export { Input } from "./Input";
+export { Select } from "./Select";
+export { SelectField } from "./SelectField";
 export { RangeSlider } from "./RangeSlider";
 export { Sheet } from "./Sheet";
 export { Skeleton } from "./Skeleton";

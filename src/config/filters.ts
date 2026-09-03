@@ -46,6 +46,15 @@ export const PROPERTY_STATUSES = [
 ] as const;
 export type PropertyStatus = (typeof PROPERTY_STATUSES)[number];
 
+export const PROPERTY_STATUS_LABELS: Record<PropertyStatus, string> = {
+  draft: "Borrador",
+  published: "Publicada",
+  reserved: "Reservada",
+  sold: "Vendida",
+  rented: "Alquilada",
+  archived: "Archivada",
+};
+
 export const AMENITIES = [
   "pileta",
   "parrilla",
