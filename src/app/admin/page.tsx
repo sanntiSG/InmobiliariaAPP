@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { requireAdminUser } from "@/lib/auth/require-admin";
 import { connectDB } from "@/lib/db/connect";
 import { Agency } from "@/lib/db/models/Agency";
 import { Property } from "@/lib/db/models/Property";
@@ -10,6 +12,9 @@ import { cn } from "@/lib/utils/cn";
 export const metadata = { title: "Admin — Inmobiliarias" };
 
 export default async function AdminPage() {
+  const admin = await requireAdminUser();
+  if (!admin) redirect("/ingresar");
+
   await connectDB();
   const agencies = await Agency.find({}).sort({ createdAt: -1 }).lean();
   const counts = await Property.aggregate([{ $group: { _id: "$agencyId", count: { $sum: 1 } } }]);

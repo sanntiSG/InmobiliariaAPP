@@ -1,5 +1,6 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Types } from "mongoose";
+import { requireAdminUser } from "@/lib/auth/require-admin";
 import { connectDB } from "@/lib/db/connect";
 import { Agency } from "@/lib/db/models/Agency";
 import { AgencyForm, type AgencyFormValues } from "@/components/admin/AgencyForm";
@@ -7,6 +8,9 @@ import { AgencyForm, type AgencyFormValues } from "@/components/admin/AgencyForm
 export const metadata = { title: "Editar inmobiliaria" };
 
 export default async function EditAgencyPage({ params }: PageProps<"/admin/inmobiliarias/[id]/editar">) {
+  const admin = await requireAdminUser();
+  if (!admin) redirect("/ingresar");
+
   const { id } = await params;
   if (!Types.ObjectId.isValid(id)) notFound();
 
