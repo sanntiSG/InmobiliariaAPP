@@ -2,13 +2,13 @@
 
 > Entrá antes de entrar.
 
-Plataforma multi-tenant para inmobiliarias: cada inmobiliaria publica y administra su catálogo de propiedades, y quien busca puede explorarlas en un mapa interactivo, guardarlas, comentarlas y — a futuro — recorrerlas en 3D con Digital Twins (Matterport).
+Plataforma multi-tenant para inmobiliarias ("Shopify de las inmobiliarias"): cada inmobiliaria publica y administra su catálogo desde su propio dashboard, y quien busca puede explorar propiedades en un mapa interactivo, guardarlas, comentarlas, calificarlas y recorrerlas en 3D con Digital Twins (Matterport).
 
-No es un catálogo más: combina portal inmobiliario, red social de propiedades, mapa interactivo, recomendaciones por lógica tradicional (sin IA de pago) y notificaciones internas, con panel de gestión propio para cada inmobiliaria.
+No es un catálogo más: combina portal inmobiliario, red social de propiedades, mapa interactivo, recomendaciones por lógica tradicional (sin IA de pago), notificaciones internas, dashboard de inmobiliaria con estadísticas, y panel de administración para el proveedor de la plataforma.
 
 ## Stack
 
-Next.js 16 (App Router) · TypeScript · TailwindCSS v4 · MongoDB / Mongoose · MapLibre GL + OpenFreeMap (mapas gratis, sin API key) · GSAP · Auth.js · Cloudinary (opcional).
+Next.js 16 (App Router) · TypeScript · TailwindCSS v4 · MongoDB / Mongoose · MapLibre GL + OpenFreeMap (mapas gratis, sin API key) · GSAP · Auth.js v5 · Cloudinary.
 
 Todo el stack es gratuito — sin APIs de IA de pago, sin límites de tokens en el mapa.
 
@@ -27,18 +27,18 @@ Abrir [http://localhost:3000](http://localhost:3000).
 
 ## Estado del proyecto
 
-Este es un desarrollo incremental por sesiones. Estado actual:
+Las 7 sesiones del plan original están completas:
 
-- ✅ Fundación: design system (tokens OKLCH, tipografía, componentes UI), modelos de datos completos (Agency, User, Property, Interaction, Comment, Rating, Favorite, Notification, SavedSearch), storage abstraído (Cloudinary/local).
+- ✅ Fundación: design system (tokens OKLCH, tipografía, componentes UI), modelos de datos completos, storage abstraído (Cloudinary/local).
 - ✅ Mapa interactivo (`/mapa`): clustering, pins, popup animada, filtros, panel de resultados, tema claro/oscuro.
-- 🔜 Landing de 3 caminos (Explorar / Ingresar / Publicá tu inmobiliaria) + autenticación completa.
-- 🔜 Listado con filtros avanzados + detalle de propiedad con galería y recorrido 3D.
-- 🔜 Capa social (likes, favoritos, comentarios, ratings).
-- 🔜 Dashboard de inmobiliaria (ABM de propiedades, estadísticas, recomendaciones).
-- 🔜 Recomendador personalizado + notificaciones internas.
-- 🔜 Panel de admin/proveedor + deploy.
+- ✅ Landing de 3 caminos (Explorar / Ingresar / Publicá tu inmobiliaria) + autenticación completa (Auth.js).
+- ✅ Listado (`/propiedades`) + detalle con galería, lightbox y recorrido 3D (Matterport embed).
+- ✅ Capa social: likes, favoritos, comentarios, ratings, perfil de usuario.
+- ✅ Dashboard de inmobiliaria (`/dashboard`): ABM de propiedades, subida de fotos, estadísticas semanales, recomendaciones por umbrales.
+- ✅ Recomendador personalizado (`/recomendaciones`) + notificaciones internas.
+- ✅ Panel de admin/proveedor (`/admin`) para dar de alta inmobiliarias + config de deploy (Netlify).
 
-Ver el plan completo en `C:\Users\Mi PC\.claude\plans\clever-roaming-micali.md`.
+Ver el plan original en `C:\Users\Mi PC\.claude\plans\clever-roaming-micali.md`. El producto sigue abierto a nuevas iteraciones (más tipos de Digital Twin, notificaciones por email/push, moderación de contenido, etc.).
 
 ## Comandos
 

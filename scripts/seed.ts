@@ -113,6 +113,14 @@ async function main() {
 
   const passwordHash = await bcrypt.hash("Umbral2026!", 10);
 
+  await User.create({
+    name: "Admin Umbral",
+    email: "admin@umbral.app",
+    passwordHash,
+    role: "admin",
+  });
+  console.log("Usuario admin creado: admin@umbral.app / Umbral2026!");
+
   const agencies = [];
   for (const seed of AGENCY_SEEDS) {
     const office = pick(NEIGHBORHOODS);

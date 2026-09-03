@@ -36,12 +36,12 @@ Generá un secreto y pegalo en `AUTH_SECRET`:
 npx auth secret
 ```
 
-### 3.3 Cloudinary (fotos de propiedades) — opcional por ahora
+### 3.3 Cloudinary (fotos de propiedades)
 
 1. Entrá a https://cloudinary.com/users/register/free
 2. En el Dashboard copiá `Cloud name`, `API Key` y `API Secret` a las variables `CLOUDINARY_*`.
 
-> Sin Cloudinary configurado, la app sigue funcionando: el seed usa URLs de imágenes públicas (Unsplash) y el mapa/las cards no dependen de Cloudinary todavía. Se vuelve necesario cuando la inmobiliaria empiece a subir fotos propias desde el dashboard (sesión futura).
+> Sin Cloudinary configurado, la app sigue funcionando: el seed usa URLs de imágenes públicas (Unsplash), y el dashboard de cada inmobiliaria guarda las fotos que suban en `/public/uploads` (solo development — en producción ese filesystem es efímero). **Para producción, Cloudinary es obligatorio** si vas a subir fotos desde el dashboard.
 
 ## 4. Cargar datos de prueba
 
@@ -50,6 +50,15 @@ npm run seed
 ```
 
 Esto crea ~4 inmobiliarias y ~40 propiedades demo distribuidas en CABA/AMBA (coordenadas reales), con features variadas y ~30% con recorrido 3D simulado, para poder ver el mapa poblado sin cargar nada a mano.
+
+**Cuentas demo creadas por el seed** (todas con contraseña `Umbral2026!`):
+
+| Rol | Email | Para qué |
+|---|---|---|
+| Admin (proveedor) | `admin@umbral.app` | `/admin` — dar de alta/baja inmobiliarias |
+| Dueño de inmobiliaria | `admin@<slug-inmobiliaria>.com.ar` (ver log del seed) | `/dashboard` — ABM de propiedades de esa inmobiliaria |
+
+Un usuario común (rol `user`, sin inmobiliaria) se crea normalmente desde `/crear-cuenta`.
 
 ## 5. Levantar el proyecto
 
@@ -68,6 +77,30 @@ Abrí http://localhost:3000/mapa
 | `npm run lint` | ESLint |
 | `npm run typecheck` | Chequeo de tipos TypeScript |
 | `npm run seed` | Carga datos demo en MongoDB |
+
+## 7. Deploy (Netlify + MongoDB Atlas)
+
+El repo ya incluye `netlify.toml` (build command + `@netlify/plugin-nextjs`). No hace falta configurar nada más ahí — Netlify detecta Next.js automáticamente.
+
+1. **MongoDB Atlas para producción**
+   - En **Network Access**, además de tu IP, dejá habilitado `0.0.0.0/0` (o la lista de IPs salientes de Netlify si preferís restringir) para que las funciones de Netlify puedan conectarse.
+   - Usá el mismo cluster M0 gratuito, o creá uno separado de "producción" si querés aislar los datos demo.
+
+2. **Crear el sitio en Netlify**
+   - [app.netlify.com](https://app.netlify.com) → **Add new site → Import an existing project** → conectá el repo `InmobiliariaAPP` de GitHub.
+   - Build command y publish directory ya vienen de `netlify.toml`, no hace falta tocarlos.
+
+3. **Variables de entorno en Netlify** (Site settings → Environment variables) — las mismas de `.env.local`, con valores de producción:
+
+   | Variable | Valor |
+   |---|---|
+   | `MONGODB_URI` | connection string de Atlas |
+   | `AUTH_SECRET` | uno **nuevo**, generado con `npx auth secret` (no reuses el de dev) |
+   | `NEXTAUTH_URL` | la URL final del sitio, ej. `https://umbral.netlify.app` |
+   | `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | de tu cuenta de Cloudinary (obligatorio en producción, ver punto 3.3) |
+   | `NEXT_PUBLIC_PROVIDER_WHATSAPP` | tu número real, si es distinto al de `.env.example` |
+
+4. **Deploy** — Netlify buildea y publica automáticamente en cada push a la rama principal. Corré `npm run seed` apuntando a la base de producción (variable `MONGODB_URI` de prod en tu shell local) solo si querés datos de demo ahí; para un lanzamiento real, las inmobiliarias se dan de alta a mano desde `/admin`.
 
 ## Nota de seguridad
 

@@ -30,12 +30,18 @@ export function UserMenu({ compact = false }: { compact?: boolean }) {
 
   const firstName = session.user.name?.split(" ")[0] ?? "Vos";
   const isAgency = session.user.role === "agency_owner" || session.user.role === "agency_agent";
+  const isAdmin = session.user.role === "admin";
 
   return (
     <div className="flex items-center gap-2">
       {isAgency && (
         <Link href="/dashboard" className="hidden text-sm font-medium text-accent hover:underline sm:inline">
           Panel
+        </Link>
+      )}
+      {isAdmin && (
+        <Link href="/admin" className="hidden text-sm font-medium text-accent hover:underline sm:inline">
+          Admin
         </Link>
       )}
       <Link
