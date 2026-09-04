@@ -5,7 +5,8 @@ import { MapLibreMap, Marker } from "maplibre-gl";
 import { useEffect, useEffectEvent, useRef } from "react";
 import { LIGHT_STYLE_URL, applyLightBrandTint } from "@/lib/map/style-light";
 import { DARK_STYLE_URL, applyDarkBrandTint } from "@/lib/map/style-dark";
-import { MAP_DEFAULTS } from "@/config/site";
+import { MAP_DEFAULTS, ARGENTINA_BOUNDS } from "@/config/site";
+import { AddressSearch, type GeocodeResult } from "@/components/ui/AddressSearch";
 
 function getEffectiveTheme(): "light" | "dark" {
   const explicit = document.documentElement.getAttribute("data-theme");
@@ -13,7 +14,7 @@ function getEffectiveTheme(): "light" | "dark" {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
-/** Mapa con un pin arrastrable — clickear o arrastrar fija lng/lat en el formulario. */
+/** Mapa con un pin arrastrable — buscar una dirección, clickear o arrastrar fija lng/lat en el formulario. */
 export function LocationPicker({
   lng,
   lat,
@@ -24,6 +25,7 @@ export function LocationPicker({
   onChange: (lng: number, lat: number) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<MapLibreMap | null>(null);
   const markerRef = useRef<Marker | null>(null);
 
   // Effect Event (React 19.2): siempre ve el último `onChange` sin que el
@@ -40,8 +42,15 @@ export function LocationPicker({
       style: getEffectiveTheme() === "dark" ? DARK_STYLE_URL : LIGHT_STYLE_URL,
       center: [lng, lat],
       zoom: 14,
+      // Limita el paneo a Argentina — evita fijar por error una ubicación
+      // fuera del país donde todavía no operan inmobiliarias en la plataforma.
+      maxBounds: [
+        [ARGENTINA_BOUNDS.west, ARGENTINA_BOUNDS.south],
+        [ARGENTINA_BOUNDS.east, ARGENTINA_BOUNDS.north],
+      ],
       attributionControl: false,
     });
+    mapRef.current = map;
 
     map.on("load", () => {
       if (getEffectiveTheme() === "dark") applyDarkBrandTint(map);
@@ -71,7 +80,10 @@ export function LocationPicker({
       notifyChange(e.lngLat.lng, e.lngLat.lat);
     });
 
-    return () => map.remove();
+    return () => {
+      map.remove();
+      mapRef.current = null;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -79,12 +91,25 @@ export function LocationPicker({
     markerRef.current?.setLngLat([lng, lat]);
   }, [lng, lat]);
 
+  function handleAddressSelect(result: GeocodeResult) {
+    // Llamado desde un click normal (fuera del efecto de montaje), así que
+    // acá se usa `onChange` directo — la clausura ya está fresca en cada
+    // render, no necesita el Effect Event (ese es solo para listeners
+    // nativos registrados una sola vez dentro del efecto de montaje).
+    markerRef.current?.setLngLat([result.lng, result.lat]);
+    mapRef.current?.flyTo({ center: [result.lng, result.lat], zoom: 16, duration: 800 });
+    onChange(result.lng, result.lat);
+  }
+
   return (
-    <div className="overflow-hidden rounded-card">
-      <div ref={containerRef} className="h-64 w-full" />
-      <p className="mt-1.5 text-xs text-text-muted">
-        Hacé click en el mapa o arrastrá el pin para fijar la ubicación exacta.
-      </p>
+    <div>
+      <AddressSearch onSelect={handleAddressSelect} className="mb-2" placeholder="Buscar dirección, barrio o ciudad en Argentina…" />
+      <div className="overflow-hidden rounded-card">
+        <div ref={containerRef} className="h-64 w-full" />
+        <p className="mt-1.5 text-xs text-text-muted">
+          Buscá una dirección, o hacé click en el mapa / arrastrá el pin para ajustar la ubicación exacta.
+        </p>
+      </div>
     </div>
   );
 }

@@ -1,17 +1,23 @@
 import { NextResponse, after } from "next/server";
 import { Types } from "mongoose";
+import { z } from "zod";
 import { propertyInputSchema } from "@/lib/validation/property";
-import { requireAgencyUser } from "@/lib/auth/require-agency-user";
+import { requireDashboardAccess } from "@/lib/auth/require-dashboard-access";
 import { connectDB } from "@/lib/db/connect";
+import { Agency } from "@/lib/db/models/Agency";
 import { Property } from "@/lib/db/models/Property";
 import { Favorite } from "@/lib/db/models/Favorite";
 import { createNotificationForMany } from "@/lib/notifications/create";
 
-const updateSchema = propertyInputSchema.omit({ agencyId: true });
+const updateSchema = propertyInputSchema.omit({ agencyId: true }).extend({
+  // Solo tiene efecto para un admin (reasignar la propiedad a otra
+  // inmobiliaria); para dueños/agentes se ignora.
+  agencyId: z.string().length(24).optional(),
+});
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const agencyUser = await requireAgencyUser();
-  if (!agencyUser) return NextResponse.json({ error: "Necesitás iniciar sesión." }, { status: 401 });
+  const access = await requireDashboardAccess();
+  if (!access) return NextResponse.json({ error: "Necesitás iniciar sesión." }, { status: 401 });
 
   const { id } = await params;
   if (!Types.ObjectId.isValid(id)) return NextResponse.json({ error: "Id inválido" }, { status: 400 });
@@ -24,10 +30,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   try {
     await connectDB();
-    const property = await Property.findOne({ _id: id, agencyId: agencyUser.agencyId });
+    const scopeQuery = access.isAdmin ? { _id: id } : { _id: id, agencyId: access.agencyId };
+    const property = await Property.findOne(scopeQuery);
     if (!property) return NextResponse.json({ error: "No encontrada" }, { status: 404 });
 
-    const data = parsed.data;
+    const { agencyId: requestedAgencyId, ...data } = parsed.data;
+
+    if (access.isAdmin && requestedAgencyId && requestedAgencyId !== String(property.agencyId)) {
+      const exists = await Agency.exists({ _id: requestedAgencyId });
+      if (!exists) return NextResponse.json({ error: "Inmobiliaria inválida." }, { status: 400 });
+      property.agencyId = new Types.ObjectId(requestedAgencyId);
+    }
+
     const previousAmount = property.price?.amount;
     const priceChanged =
       data.price.amount !== property.price?.amount || data.price.currency !== property.price?.currency;
@@ -72,15 +86,16 @@ async function notifyPriceDrop(property: InstanceType<typeof Property>) {
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const agencyUser = await requireAgencyUser();
-  if (!agencyUser) return NextResponse.json({ error: "Necesitás iniciar sesión." }, { status: 401 });
+  const access = await requireDashboardAccess();
+  if (!access) return NextResponse.json({ error: "Necesitás iniciar sesión." }, { status: 401 });
 
   const { id } = await params;
   if (!Types.ObjectId.isValid(id)) return NextResponse.json({ error: "Id inválido" }, { status: 400 });
 
   try {
     await connectDB();
-    const result = await Property.deleteOne({ _id: id, agencyId: agencyUser.agencyId });
+    const scopeQuery = access.isAdmin ? { _id: id } : { _id: id, agencyId: access.agencyId };
+    const result = await Property.deleteOne(scopeQuery);
     if (result.deletedCount === 0) return NextResponse.json({ error: "No encontrada" }, { status: 404 });
     return NextResponse.json({ ok: true });
   } catch (err) {

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { requireAgencyUser } from "@/lib/auth/require-agency-user";
+import { requireDashboardAccess } from "@/lib/auth/require-dashboard-access";
 import { connectDB } from "@/lib/db/connect";
 import { Agency } from "@/lib/db/models/Agency";
 import { DashboardNav } from "@/components/dashboard/DashboardNav";
@@ -9,12 +9,16 @@ import { UserMenu } from "@/components/auth/UserMenu";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 export default async function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
-  const agencyUser = await requireAgencyUser();
-  if (!agencyUser) redirect("/ingresar");
+  const access = await requireDashboardAccess();
+  if (!access) redirect("/ingresar");
 
-  await connectDB();
-  const agency = await Agency.findById(agencyUser.agencyId).select("name slug").lean();
-  if (!agency) redirect("/");
+  let scopeLabel = "Panel — todas las inmobiliarias";
+  if (!access.isAdmin) {
+    await connectDB();
+    const agency = await Agency.findById(access.agencyId).select("name").lean();
+    if (!agency) redirect("/");
+    scopeLabel = agency.name;
+  }
 
   return (
     <div className="min-h-dvh bg-bg">
@@ -23,7 +27,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
           <div className="flex items-center gap-3">
             <Logo href="/" />
             <span className="hidden text-text-muted sm:inline">/</span>
-            <span className="hidden font-medium text-text sm:inline">{agency.name}</span>
+            <span className="hidden font-medium text-text sm:inline">{scopeLabel}</span>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             <NotificationBell />

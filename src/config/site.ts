@@ -27,6 +27,14 @@ export const MAP_DEFAULTS = {
   },
 } as const;
 
+/** Bounding box aproximado de Argentina continental + insular — usado para acotar búsquedas y mapas al país. */
+export const ARGENTINA_BOUNDS = {
+  west: -73.6,
+  south: -55.1,
+  east: -53.6,
+  north: -21.8,
+} as const;
+
 export const CURRENCY_SYMBOLS: Record<string, string> = {
   USD: "US$",
   ARS: "$",

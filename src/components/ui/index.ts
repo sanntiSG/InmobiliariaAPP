@@ -1,3 +1,4 @@
+export { AddressSearch, type GeocodeResult } from "./AddressSearch";
 export { Button, buttonClasses } from "./Button";
 export { IconButton } from "./IconButton";
 export { Badge } from "./Badge";

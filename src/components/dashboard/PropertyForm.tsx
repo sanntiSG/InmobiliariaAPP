@@ -30,6 +30,8 @@ const LocationPicker = dynamicImport(() => import("./LocationPicker").then((m) =
 });
 
 export type PropertyFormValues = {
+  /** Solo se usa/edita cuando el usuario es admin (ve el selector de inmobiliaria). */
+  agencyId: string;
   title: string;
   description: string;
   operation: (typeof OPERATIONS)[number];
@@ -66,6 +68,7 @@ export type PropertyFormValues = {
 };
 
 export const emptyPropertyForm: PropertyFormValues = {
+  agencyId: "",
   title: "",
   description: "",
   operation: "venta",
@@ -102,6 +105,9 @@ export const emptyPropertyForm: PropertyFormValues = {
 
 function toPayload(v: PropertyFormValues) {
   return {
+    // Solo tiene efecto para un admin — el servidor ignora este campo para
+    // dueños/agentes de inmobiliaria y siempre fuerza su propio agencyId.
+    ...(v.agencyId ? { agencyId: v.agencyId } : {}),
     title: v.title,
     description: v.description,
     operation: v.operation,
@@ -177,13 +183,19 @@ export function PropertyForm({
   mode,
   propertyId,
   initialValues,
+  agencies,
 }: {
   mode: "create" | "edit";
   propertyId?: string;
   initialValues?: PropertyFormValues;
+  /** Presente solo para el admin — muestra el selector de inmobiliaria. */
+  agencies?: { id: string; name: string }[];
 }) {
   const router = useRouter();
-  const [values, setValues] = useState<PropertyFormValues>(initialValues ?? emptyPropertyForm);
+  const [values, setValues] = useState<PropertyFormValues>(() => {
+    if (initialValues) return initialValues;
+    return { ...emptyPropertyForm, agencyId: agencies?.[0]?.id ?? "" };
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -226,6 +238,20 @@ export function PropertyForm({
     <form onSubmit={handleSubmit} className="flex flex-col gap-8">
       <section className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
         <h2 className="font-display text-lg font-semibold text-text">Información básica</h2>
+        {agencies && (
+          <SelectField
+            label="Inmobiliaria"
+            required
+            value={values.agencyId}
+            onChange={(e) => set("agencyId", e.target.value)}
+          >
+            {agencies.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </SelectField>
+        )}
         <FormField label="Título" required value={values.title} onChange={(e) => set("title", e.target.value)} />
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-text">Descripción</label>

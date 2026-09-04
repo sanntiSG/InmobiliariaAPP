@@ -13,6 +13,7 @@ import { MapControls } from "@/components/map/MapControls";
 import { ResultsPanel } from "@/components/map/ResultsPanel";
 import { DEFAULT_FILTERS, type MapFiltersState } from "@/components/map/types";
 import { filtersToSearchParams } from "@/lib/filters/state";
+import { MAP_DEFAULTS } from "@/config/site";
 import type { PropertyFeature } from "@/lib/map/useClusteredMarkers";
 import type { BBox } from "@/lib/map/geo";
 
@@ -34,7 +35,15 @@ async function fetchProperties(bbox: BBox, filters: MapFiltersState, signal: Abo
 
 export default function MapaPage() {
   const [filters, setFilters] = useState<MapFiltersState>(DEFAULT_FILTERS);
-  const [bounds, setBounds] = useState<{ bbox: BBox; zoom: number } | null>(null);
+  // Arranca con el bbox por defecto (AMBA) en vez de null: así el primer
+  // fetch de propiedades sale en paralelo con la descarga del bundle del
+  // mapa (maplibre-gl es pesado) en vez de esperar a que el mapa termine
+  // de cargar para recién ahí empezar a pedir datos — la lista y los pines
+  // aparecen apenas responde la API, no cuando el mapa "decide" arrancar.
+  const [bounds, setBounds] = useState<{ bbox: BBox; zoom: number }>({
+    bbox: MAP_DEFAULTS.bounds,
+    zoom: MAP_DEFAULTS.zoom,
+  });
   const [features, setFeatures] = useState<PropertyFeature[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -42,13 +51,19 @@ export default function MapaPage() {
   const [mapInstance, setMapInstance] = useState<MapLibreMap | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
+  const isFirstFetchRef = useRef(true);
 
   const handleBoundsChange = useCallback((bbox: BBox, zoom: number) => {
     setBounds({ bbox, zoom });
   }, []);
 
   useEffect(() => {
-    if (!bounds) return;
+    // El fetch inicial no espera los 300ms de debounce (no hay nada que
+    // debouncear todavía); solo los cambios posteriores (arrastrar el mapa,
+    // tocar filtros) lo hacen.
+    const delay = isFirstFetchRef.current ? 0 : 300;
+    isFirstFetchRef.current = false;
+
     const timeout = setTimeout(() => {
       abortRef.current?.abort();
       const controller = new AbortController();
@@ -62,7 +77,7 @@ export default function MapaPage() {
         .catch((err) => {
           if (err.name !== "AbortError") setLoading(false);
         });
-    }, 300);
+    }, delay);
     return () => clearTimeout(timeout);
   }, [bounds, filters]);
 
@@ -97,7 +112,14 @@ export default function MapaPage() {
             <Logo href="/" />
           </div>
           <div className="pointer-events-auto flex-1 sm:max-w-2xl">
-            <MapFilters value={filters} onChange={setFilters} resultCount={properties.length} />
+            <MapFilters
+              value={filters}
+              onChange={setFilters}
+              resultCount={properties.length}
+              onLocationSelect={(result) =>
+                mapInstance?.flyTo({ center: [result.lng, result.lat], zoom: 15, duration: 800 })
+              }
+            />
           </div>
           <div className="pointer-events-auto hidden shrink-0 items-center gap-2 rounded-pill bg-surface/90 p-1 shadow-pop backdrop-blur-md sm:flex">
             <div className="pl-1.5">

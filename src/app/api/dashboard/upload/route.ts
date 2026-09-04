@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAgencyUser } from "@/lib/auth/require-agency-user";
+import { requireDashboardAccess } from "@/lib/auth/require-dashboard-access";
 import { getStorageProvider } from "@/lib/storage";
 
 const IMAGE_MAX_SIZE = 8 * 1024 * 1024; // 8MB
@@ -12,8 +12,8 @@ const MESH_MAX_SIZE = 30 * 1024 * 1024; // 30MB — el plan free de Cloudinary p
 const MESH_EXTENSIONS = [".glb", ".gltf", ".usdz"];
 
 export async function POST(req: Request) {
-  const agencyUser = await requireAgencyUser();
-  if (!agencyUser) return NextResponse.json({ error: "Necesitás iniciar sesión." }, { status: 401 });
+  const access = await requireDashboardAccess();
+  if (!access) return NextResponse.json({ error: "Necesitás iniciar sesión." }, { status: 401 });
 
   const formData = await req.formData().catch(() => null);
   const file = formData?.get("file");
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     const result = await provider.upload({
       buffer,
       filename: file.name,
-      folder: `agencies/${agencyUser.agencyId}/properties`,
+      folder: `agencies/${access.agencyId ?? "admin"}/properties`,
       resourceType: kind === "mesh" ? "raw" : "image",
     });
     return NextResponse.json(result, { status: 201 });

@@ -4,7 +4,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { MapLibreMap, Marker, Popup, AttributionControl } from "maplibre-gl";
 import { useEffect, useRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { MAP_DEFAULTS } from "@/config/site";
+import { MAP_DEFAULTS, ARGENTINA_BOUNDS } from "@/config/site";
 import { LIGHT_STYLE_URL, applyLightBrandTint } from "@/lib/map/style-light";
 import { DARK_STYLE_URL, applyDarkBrandTint } from "@/lib/map/style-dark";
 import type { BBox } from "@/lib/map/geo";
@@ -61,6 +61,11 @@ export function MapCanvas({
       zoom: MAP_DEFAULTS.zoom,
       minZoom: MAP_DEFAULTS.minZoom,
       maxZoom: MAP_DEFAULTS.maxZoom,
+      // Acota el paneo a Argentina — la plataforma solo opera acá por ahora.
+      maxBounds: [
+        [ARGENTINA_BOUNDS.west, ARGENTINA_BOUNDS.south],
+        [ARGENTINA_BOUNDS.east, ARGENTINA_BOUNDS.north],
+      ],
       attributionControl: false,
     });
     instance.addControl(new AttributionControl({ compact: true }), "bottom-right");

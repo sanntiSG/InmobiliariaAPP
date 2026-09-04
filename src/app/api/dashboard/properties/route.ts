@@ -1,18 +1,24 @@
 import { NextResponse } from "next/server";
 import { after } from "next/server";
+import { z } from "zod";
 import { propertyInputSchema } from "@/lib/validation/property";
-import { requireAgencyUser } from "@/lib/auth/require-agency-user";
+import { requireDashboardAccess } from "@/lib/auth/require-dashboard-access";
 import { connectDB } from "@/lib/db/connect";
+import { Agency } from "@/lib/db/models/Agency";
 import { Property } from "@/lib/db/models/Property";
 import { slugify } from "@/lib/utils/slugify";
 import { findMatchingUsers } from "@/lib/notifications/match-users";
 import { createNotificationForMany } from "@/lib/notifications/create";
 
-const createSchema = propertyInputSchema.omit({ agencyId: true });
+const createSchema = propertyInputSchema.omit({ agencyId: true }).extend({
+  // Solo se usa si quien publica es admin (sin inmobiliaria fija); para
+  // dueños/agentes se ignora y se fuerza su propio agencyId.
+  agencyId: z.string().length(24).optional(),
+});
 
 export async function POST(req: Request) {
-  const agencyUser = await requireAgencyUser();
-  if (!agencyUser) return NextResponse.json({ error: "Necesitás iniciar sesión." }, { status: 401 });
+  const access = await requireDashboardAccess();
+  if (!access) return NextResponse.json({ error: "Necesitás iniciar sesión." }, { status: 401 });
 
   const body = await req.json().catch(() => null);
   const parsed = createSchema.safeParse(body);
@@ -22,12 +28,25 @@ export async function POST(req: Request) {
 
   try {
     await connectDB();
+
+    let agencyId: string;
+    if (access.isAdmin) {
+      if (!parsed.data.agencyId) {
+        return NextResponse.json({ error: "Elegí una inmobiliaria." }, { status: 400 });
+      }
+      const exists = await Agency.exists({ _id: parsed.data.agencyId });
+      if (!exists) return NextResponse.json({ error: "Inmobiliaria inválida." }, { status: 400 });
+      agencyId = parsed.data.agencyId;
+    } else {
+      agencyId = access.agencyId!;
+    }
+
     const data = parsed.data;
     const slug = `${slugify(data.title)}-${Date.now().toString(36)}`;
 
     const property = await Property.create({
       ...data,
-      agencyId: agencyUser.agencyId,
+      agencyId,
       slug,
       location: { type: "Point", coordinates: data.location },
       priceHistory: [{ amount: data.price.amount, currency: data.price.currency, changedAt: new Date() }],
