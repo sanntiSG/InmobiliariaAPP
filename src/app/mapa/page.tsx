@@ -78,6 +78,7 @@ export default function MapaPage() {
         onSelect={handleSelect}
         hoveredId={hoveredId}
         onHoverChange={setHoveredId}
+        map={mapInstance}
       />
 
       <div className="relative flex-1 overflow-hidden">

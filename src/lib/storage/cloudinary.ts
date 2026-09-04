@@ -8,14 +8,14 @@ cloudinary.config({
   secure: true,
 });
 
-async function upload({ buffer, folder }: UploadInput): Promise<UploadResult> {
+async function upload({ buffer, folder, resourceType = "image" }: UploadInput): Promise<UploadResult> {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
       {
         folder: folder ? `umbral/${folder}` : "umbral",
-        resource_type: "image",
-        // Cloudinary optimiza formato/calidad automáticamente (free tier).
-        transformation: [{ fetch_format: "auto", quality: "auto" }],
+        resource_type: resourceType,
+        // Cloudinary optimiza formato/calidad automáticamente (free tier) — solo aplica a imágenes.
+        ...(resourceType === "image" ? { transformation: [{ fetch_format: "auto", quality: "auto" }] } : {}),
       },
       (error, result) => {
         if (error || !result) return reject(error ?? new Error("Upload sin resultado"));

@@ -99,6 +99,20 @@ export function PropertyPopupCard({
           {property.agencyName && (
             <p className="mt-1 truncate text-[11px] font-medium text-text-muted">{property.agencyName}</p>
           )}
+          {/*
+            <a> plano a propósito, no next/link: este componente se monta con
+            ReactDOM.createRoot() sobre un div suelto que le pasamos a
+            maplibregl.Popup.setDOMContent() (ver MapCanvas.tsx) — vive fuera
+            del árbol de React de la app, sin el contexto del router de Next.
+            useRouter()/Link fallarían sin ese Provider; un <a> normal navega
+            con una carga de página completa, que acá es lo correcto.
+          */}
+          <a
+            href={`/propiedades/${property.slug}`}
+            className="mt-2 inline-flex items-center justify-center rounded-pill bg-accent px-3 py-2 text-center text-sm font-medium text-accent-contrast transition-colors hover:bg-accent-hover"
+          >
+            Ver propiedad completa
+          </a>
         </div>
 
         {/* Pico: cuadrado rotado, mismo color que la card, apuntando al pin.

@@ -3,6 +3,8 @@ export type UploadInput = {
   filename: string;
   /** Carpeta lógica, ej: "agencies/{slug}/properties/{id}" */
   folder?: string;
+  /** "image" (default) optimiza/transforma; "raw" sirve el archivo tal cual (ej. mesh .glb/.gltf/.usdz). */
+  resourceType?: "image" | "raw";
 };
 
 export type UploadResult = {

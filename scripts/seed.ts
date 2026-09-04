@@ -15,6 +15,16 @@ import { Interaction } from "../src/lib/db/models/Interaction";
 import { slugify } from "../src/lib/utils/slugify";
 import { AMENITIES, type PropertyType } from "../src/config/filters";
 
+// Assets públicos verificados (200 OK) para demostrar el visor de mesh 3D
+// (<model-viewer>) sin depender de una cuenta de Polycam real.
+const MESH_SAMPLES: { url: string; format: "glb" }[] = [
+  { url: "https://modelviewer.dev/shared-assets/models/Astronaut.glb", format: "glb" },
+  {
+    url: "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb",
+    format: "glb",
+  },
+];
+
 const UNSPLASH_IDS = [
   "1600585154340-be6161a56a0c",
   "1600596542815-ffad4c1539a9",
@@ -209,15 +219,7 @@ async function main() {
         images: shuffled.map((id, idx) => ({ url: imageUrl(id), alt: title, order: idx })),
         videos: [],
         floorPlans: [],
-        tour3d: hasTour
-          ? {
-              enabled: true,
-              provider: "matterport",
-              modelId: `demo-${i}`,
-              embedUrl: "https://my.matterport.com/show/?m=SxQL3iGyvS0",
-              thumbnail: imageUrl(shuffled[0]),
-            }
-          : { enabled: false },
+        tour3d: buildTour3d(hasTour, i, shuffled[0]),
       },
       stats: {
         views: randInt(0, 400),
@@ -243,6 +245,36 @@ async function main() {
   console.log(`Listo: ${agencies.length} inmobiliarias, ${created} propiedades.`);
   console.log(`Login demo (cuando exista auth): admin@<slug-inmobiliaria>.com.ar / Umbral2026!`);
   await mongoose.disconnect();
+}
+
+/**
+ * Mezcla ambos caminos del Digital Twin para probar los dos renders:
+ * "iframe" (Matterport, verificado alcanzable) y "mesh" (glb propio vía
+ * <model-viewer>, como lo exportaría alguien desde Polycam).
+ */
+function buildTour3d(hasTour: boolean, index: number, thumbnailImageId: string) {
+  if (!hasTour) return { enabled: false, kind: "iframe" as const };
+
+  if (index % 2 === 0) {
+    const sample = MESH_SAMPLES[index % MESH_SAMPLES.length];
+    return {
+      enabled: true,
+      kind: "mesh" as const,
+      provider: "polycam" as const,
+      meshUrl: sample.url,
+      meshFormat: sample.format,
+      thumbnail: imageUrl(thumbnailImageId),
+    };
+  }
+
+  return {
+    enabled: true,
+    kind: "iframe" as const,
+    provider: "matterport" as const,
+    modelId: `demo-${index}`,
+    embedUrl: "https://my.matterport.com/show/?m=SxQL3iGyvS0",
+    thumbnail: imageUrl(thumbnailImageId),
+  };
 }
 
 function typeLabel(type: string) {

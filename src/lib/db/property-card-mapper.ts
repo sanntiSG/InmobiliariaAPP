@@ -16,7 +16,7 @@ export type LeanPropertyDoc = {
   features?:
     | { bedrooms?: number | null; bathrooms?: number | null; totalArea?: number | null; coveredArea?: number | null }
     | null;
-  media?: { images?: { url: string }[]; tour3d?: { enabled?: boolean } | null } | null;
+  media?: { images?: { url: string; order?: number | null }[]; tour3d?: { enabled?: boolean } | null } | null;
   publishedAt?: Date | string | null;
   agencyId?: unknown;
 };
@@ -29,6 +29,10 @@ export function toPropertyCardData(doc: LeanPropertyDoc, now: number = Date.now(
 
   const agency = doc.agencyId as unknown as { name?: string } | null;
 
+  const coverImage = doc.media?.images?.length
+    ? [...doc.media.images].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))[0]
+    : undefined;
+
   return {
     id: String(doc._id),
     slug: doc.slug,
@@ -40,7 +44,7 @@ export function toPropertyCardData(doc: LeanPropertyDoc, now: number = Date.now(
     type: doc.type,
     neighborhood: doc.address?.neighborhood ?? undefined,
     city: doc.address?.city ?? "",
-    image: doc.media?.images?.[0]?.url ?? null,
+    image: coverImage?.url ?? null,
     bedrooms: doc.features?.bedrooms ?? undefined,
     bathrooms: doc.features?.bathrooms ?? undefined,
     area: doc.features?.totalArea ?? doc.features?.coveredArea ?? undefined,

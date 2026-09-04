@@ -55,7 +55,12 @@ export default async function EditPropertyPage({ params }: PageProps<"/dashboard
       providerId: img.providerId ?? undefined,
     })),
     tourEnabled: !!doc.media?.tour3d?.enabled,
+    tourKind: (doc.media?.tour3d?.kind as PropertyFormValues["tourKind"]) ?? "iframe",
     tourEmbedUrl: doc.media?.tour3d?.embedUrl ?? "",
+    tourMesh:
+      doc.media?.tour3d?.meshUrl && doc.media.tour3d.meshFormat
+        ? { url: doc.media.tour3d.meshUrl, format: doc.media.tour3d.meshFormat as "glb" | "gltf" | "usdz" }
+        : null,
   };
 
   return (

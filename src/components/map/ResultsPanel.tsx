@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import type { MapLibreMap } from "maplibre-gl";
 import { PropertyCard } from "@/components/property/PropertyCard";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Sheet } from "@/components/ui/Sheet";
 import { Button } from "@/components/ui/Button";
+import { MAP_DEFAULTS } from "@/config/site";
 import type { PropertyCardData } from "@/components/property/types";
 
 type Props = {
@@ -14,6 +16,8 @@ type Props = {
   onSelect: (id: string) => void;
   hoveredId: string | null;
   onHoverChange: (id: string | null) => void;
+  /** Instancia del mapa — se usa solo para el botón "volver a donde hay propiedades". */
+  map: MapLibreMap | null;
 };
 
 /**
@@ -21,8 +25,12 @@ type Props = {
  * flotante en mobile (ver plan — versión no arrastrable de esta sesión,
  * el Sheet ya trae su propio affordance de "agarre").
  */
-export function ResultsPanel({ properties, loading, selectedId, onSelect, hoveredId, onHoverChange }: Props) {
+export function ResultsPanel({ properties, loading, selectedId, onSelect, hoveredId, onHoverChange, map }: Props) {
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  function recenter() {
+    map?.flyTo({ center: MAP_DEFAULTS.center, zoom: MAP_DEFAULTS.zoom, duration: 800 });
+  }
 
   const list = loading ? (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-1">
@@ -35,9 +43,14 @@ export function ResultsPanel({ properties, loading, selectedId, onSelect, hovere
       ))}
     </div>
   ) : properties.length === 0 ? (
-    <div className="flex flex-col items-center gap-2 py-16 text-center text-text-muted">
+    <div className="flex flex-col items-center gap-3 py-16 text-center text-text-muted">
       <p className="font-display text-base font-semibold text-text">No hay propiedades acá</p>
-      <p className="max-w-[220px] text-sm">Movete por el mapa o probá con otros filtros.</p>
+      <p className="max-w-[220px] text-sm">
+        Movete por el mapa, probá con otros filtros, o mirá dónde está la mayoría.
+      </p>
+      <Button variant="secondary" size="sm" onClick={recenter}>
+        Ver dónde hay más propiedades
+      </Button>
     </div>
   ) : (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-1">

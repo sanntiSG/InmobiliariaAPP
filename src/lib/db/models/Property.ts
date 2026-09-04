@@ -41,16 +41,26 @@ const videoSchema = new Schema(
 
 /**
  * Slot del Digital Twin / recorrido 3D. Es completamente opcional: una
- * propiedad simplemente lo tiene (`enabled: true` + `embedUrl`) o no.
- * `provider` deja la puerta abierta a otras tecnologías 3D/360° a futuro
- * sin tener que tocar el resto del modelo.
+ * propiedad simplemente lo tiene (`enabled: true`) o no.
+ *
+ * `kind` determina cómo se renderiza:
+ * - "iframe": embed hosteado por el proveedor (Matterport, el visor propio
+ *   de Polycam en poly.cam/capture/[id]/embed, Kuula, etc.) vía `embedUrl`.
+ * - "mesh": un archivo 3D propio (glb/gltf/usdz, ej. exportado de Polycam)
+ *   servido por nuestro storage y renderizado con <model-viewer> — ver
+ *   `meshUrl`/`meshFormat`.
+ *
+ * `provider` es solo metadata/branding, no afecta el render.
  */
 const tour3dSchema = new Schema(
   {
     enabled: { type: Boolean, default: false },
-    provider: { type: String, enum: ["matterport", "kuula", "custom"], default: "matterport" },
+    kind: { type: String, enum: ["iframe", "mesh"], default: "iframe" },
+    provider: { type: String, enum: ["matterport", "polycam", "kuula", "custom"], default: "polycam" },
     modelId: { type: String },
     embedUrl: { type: String },
+    meshUrl: { type: String },
+    meshFormat: { type: String, enum: ["glb", "gltf", "usdz"] },
     thumbnail: { type: String },
   },
   { _id: false }
@@ -74,7 +84,7 @@ const propertySchema = new Schema(
     },
 
     price: {
-      amount: { type: Number, required: true, index: true },
+      amount: { type: Number, required: true },
       currency: { type: String, enum: CURRENCIES, default: "USD" },
       expenses: { type: Number, default: 0 },
       period: { type: String, enum: ["total", "mensual"], default: "total" },

@@ -62,8 +62,11 @@ export function toPropertyDetail(doc: any): PropertyDetail {
     tour3d: doc.media?.tour3d?.enabled
       ? {
           enabled: true,
+          kind: doc.media.tour3d.kind ?? "iframe",
           provider: doc.media.tour3d.provider,
           embedUrl: doc.media.tour3d.embedUrl,
+          meshUrl: doc.media.tour3d.meshUrl,
+          meshFormat: doc.media.tour3d.meshFormat,
           thumbnail: doc.media.tour3d.thumbnail,
         }
       : null,

@@ -1,4 +1,10 @@
 import mongoose from "mongoose";
+// Side-effect: registra TODOS los modelos apenas se toca la DB. Sin esto,
+// Mongoose resuelve los `ref` de .populate() contra su registro global en
+// tiempo de ejecución — si la primera ruta en tocar la DB en un proceso
+// nunca importó, p.ej., Agency.ts, .populate("agencyId") tira
+// MissingSchemaError. Ver plan de sesión: bug del mapa/detalle vacío.
+import "./models";
 
 const MONGODB_URI = process.env.MONGODB_URI;
 

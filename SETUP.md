@@ -42,6 +42,8 @@ npx auth secret
 2. En el Dashboard copiá `Cloud name`, `API Key` y `API Secret` a las variables `CLOUDINARY_*`.
 
 > Sin Cloudinary configurado, la app sigue funcionando: el seed usa URLs de imágenes públicas (Unsplash), y el dashboard de cada inmobiliaria guarda las fotos que suban en `/public/uploads` (solo development — en producción ese filesystem es efímero). **Para producción, Cloudinary es obligatorio** si vas a subir fotos desde el dashboard.
+>
+> El mismo storage se usa para subir el **recorrido 3D como archivo** (`.glb`/`.gltf`/`.usdz`, ej. exportado de Polycam) desde "Recorrido 3D → Subir escaneo 3D" en el dashboard — límite 30MB. El plan free de Cloudinary puede rechazar archivos grandes; si tu escaneo no entra, usá "Link de recorrido" en su lugar y pegá el link que te da Polycam/Matterport/Kuula (sin límite de tamaño, no pasa por nuestro storage).
 
 ## 4. Cargar datos de prueba
 
@@ -49,7 +51,7 @@ npx auth secret
 npm run seed
 ```
 
-Esto crea ~4 inmobiliarias y ~40 propiedades demo distribuidas en CABA/AMBA (coordenadas reales), con features variadas y ~30% con recorrido 3D simulado, para poder ver el mapa poblado sin cargar nada a mano.
+Esto crea ~4 inmobiliarias y ~40 propiedades demo distribuidas en CABA/AMBA (coordenadas reales), con features variadas y ~30% con recorrido 3D (mitad con un mesh `.glb` de muestra vía `<model-viewer>`, mitad con un link de Matterport de demo), para poder ver el mapa y los dos tipos de recorrido poblados sin cargar nada a mano.
 
 **Cuentas demo creadas por el seed** (todas con contraseña `Umbral2026!`):
 

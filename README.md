@@ -2,7 +2,7 @@
 
 > Entrá antes de entrar.
 
-Plataforma multi-tenant para inmobiliarias ("Shopify de las inmobiliarias"): cada inmobiliaria publica y administra su catálogo desde su propio dashboard, y quien busca puede explorar propiedades en un mapa interactivo, guardarlas, comentarlas, calificarlas y recorrerlas en 3D con Digital Twins (Matterport).
+Plataforma multi-tenant para inmobiliarias ("Shopify de las inmobiliarias"): cada inmobiliaria publica y administra su catálogo desde su propio dashboard, y quien busca puede explorar propiedades en un mapa interactivo, guardarlas, comentarlas, calificarlas y recorrerlas en 3D con Digital Twins (link a Matterport/Polycam/Kuula, o un escaneo propio en glb/gltf/usdz).
 
 No es un catálogo más: combina portal inmobiliario, red social de propiedades, mapa interactivo, recomendaciones por lógica tradicional (sin IA de pago), notificaciones internas, dashboard de inmobiliaria con estadísticas, y panel de administración para el proveedor de la plataforma.
 
@@ -32,7 +32,7 @@ Las 7 sesiones del plan original están completas:
 - ✅ Fundación: design system (tokens OKLCH, tipografía, componentes UI), modelos de datos completos, storage abstraído (Cloudinary/local).
 - ✅ Mapa interactivo (`/mapa`): clustering, pins, popup animada, filtros, panel de resultados, tema claro/oscuro.
 - ✅ Landing de 3 caminos (Explorar / Ingresar / Publicá tu inmobiliaria) + autenticación completa (Auth.js).
-- ✅ Listado (`/propiedades`) + detalle con galería, lightbox y recorrido 3D (Matterport embed).
+- ✅ Listado (`/propiedades`) + detalle con galería, lightbox y recorrido 3D (link embebido o mesh propio con `<model-viewer>`).
 - ✅ Capa social: likes, favoritos, comentarios, ratings, perfil de usuario.
 - ✅ Dashboard de inmobiliaria (`/dashboard`): ABM de propiedades, subida de fotos, estadísticas semanales, recomendaciones por umbrales.
 - ✅ Recomendador personalizado (`/recomendaciones`) + notificaciones internas.
