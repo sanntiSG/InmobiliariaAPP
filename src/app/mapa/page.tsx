@@ -46,6 +46,7 @@ export default function MapaPage() {
   });
   const [features, setFeatures] = useState<PropertyFeature[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [mapInstance, setMapInstance] = useState<MapLibreMap | null>(null);
@@ -72,10 +73,17 @@ export default function MapaPage() {
       fetchProperties(bounds.bbox, filters, controller.signal)
         .then((next) => {
           setFeatures(next);
+          setLoadError(false);
           setLoading(false);
         })
         .catch((err) => {
-          if (err.name !== "AbortError") setLoading(false);
+          if (err.name === "AbortError") return;
+          // Importante: NO vaciamos `features` acá. Si la falla es transitoria
+          // (ej. la DB tardó en despertar) preferimos seguir mostrando los
+          // pines/cards que ya teníamos antes que un mapa vacío, y marcamos el
+          // error aparte para que el panel lo distinga de "no hay propiedades".
+          setLoadError(true);
+          setLoading(false);
         });
     }, delay);
     return () => clearTimeout(timeout);
@@ -89,6 +97,7 @@ export default function MapaPage() {
       <ResultsPanel
         properties={properties}
         loading={loading}
+        error={loadError}
         selectedId={selectedId}
         onSelect={handleSelect}
         hoveredId={hoveredId}

@@ -12,6 +12,8 @@ import type { PropertyCardData } from "@/components/property/types";
 type Props = {
   properties: PropertyCardData[];
   loading: boolean;
+  /** La API falló (ej. DB caída) — se muestra distinto de "no hay propiedades acá", que no es un error. */
+  error?: boolean;
   selectedId: string | null;
   onSelect: (id: string) => void;
   hoveredId: string | null;
@@ -25,7 +27,7 @@ type Props = {
  * flotante en mobile (ver plan — versión no arrastrable de esta sesión,
  * el Sheet ya trae su propio affordance de "agarre").
  */
-export function ResultsPanel({ properties, loading, selectedId, onSelect, hoveredId, onHoverChange, map }: Props) {
+export function ResultsPanel({ properties, loading, error, selectedId, onSelect, hoveredId, onHoverChange, map }: Props) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   function recenter() {
@@ -41,6 +43,11 @@ export function ResultsPanel({ properties, loading, selectedId, onSelect, hovere
           <Skeleton className="h-3 w-36" />
         </div>
       ))}
+    </div>
+  ) : error && properties.length === 0 ? (
+    <div className="flex flex-col items-center gap-3 py-16 text-center text-text-muted">
+      <p className="font-display text-base font-semibold text-text">No pudimos cargar las propiedades</p>
+      <p className="max-w-[220px] text-sm">Revisá tu conexión e intentá de nuevo en un momento.</p>
     </div>
   ) : properties.length === 0 ? (
     <div className="flex flex-col items-center gap-3 py-16 text-center text-text-muted">

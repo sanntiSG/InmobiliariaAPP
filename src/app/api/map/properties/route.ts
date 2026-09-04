@@ -22,10 +22,10 @@ export async function GET(req: NextRequest) {
     return await getProperties(filters);
   } catch (err) {
     console.error("GET /api/map/properties failed:", err);
-    return NextResponse.json(
-      { error: "No se pudo conectar a la base de datos. Ver SETUP.md.", type: "FeatureCollection", features: [] },
-      { status: 503 }
-    );
+    // Sin `features: []` a propósito: si el cliente viera un FeatureCollection
+    // vacío no podría distinguir "no hay propiedades acá" de "la DB está
+    // caída", y mostraba el mismo estado vacío para ambos casos.
+    return NextResponse.json({ error: "No se pudo conectar a la base de datos. Ver SETUP.md." }, { status: 503 });
   }
 }
 

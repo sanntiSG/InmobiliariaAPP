@@ -2,8 +2,9 @@
 
 import "maplibre-gl/dist/maplibre-gl.css";
 import { MapLibreMap, Marker, Popup, AttributionControl } from "maplibre-gl";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { Button } from "@/components/ui/Button";
 import { MAP_DEFAULTS, ARGENTINA_BOUNDS } from "@/config/site";
 import { LIGHT_STYLE_URL, applyLightBrandTint } from "@/lib/map/style-light";
 import { DARK_STYLE_URL, applyDarkBrandTint } from "@/lib/map/style-dark";
@@ -13,7 +14,15 @@ import {
   isCluster,
   type PropertyFeature,
 } from "@/lib/map/useClusteredMarkers";
-import { createClusterElement, createPropertyPinElement, setPinHighlighted } from "@/lib/map/markers";
+import {
+  createClusterElement,
+  updateClusterElement,
+  setClusterTarget,
+  getClusterTarget,
+  createPropertyPinElement,
+  updatePropertyPinElement,
+  setPinHighlighted,
+} from "@/lib/map/markers";
 import { PropertyPopupCard } from "./PropertyPopupCard";
 
 type EffectiveTheme = "light" | "dark";
@@ -22,6 +31,24 @@ function getEffectiveTheme(): EffectiveTheme {
   const explicit = document.documentElement.getAttribute("data-theme");
   if (explicit === "light" || explicit === "dark") return explicit;
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+/** Padding sobre ARGENTINA_BOUNDS para el `maxBounds` del paneo — evita que
+ * el borde del país quede pegado al borde del viewport. */
+const MAX_BOUNDS_PADDING_DEG = 2;
+
+const LOAD_TIMEOUT_MS = 8000;
+
+function supportsWebGL(): boolean {
+  try {
+    const canvas = document.createElement("canvas");
+    return !!(
+      window.WebGLRenderingContext &&
+      (canvas.getContext("webgl") || canvas.getContext("experimental-webgl"))
+    );
+  } catch {
+    return false;
+  }
 }
 
 export type MapCanvasProps = {
@@ -45,6 +72,10 @@ export function MapCanvas({
 }: MapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<MapLibreMap | null>(null);
+  const [webglSupported] = useState(() => supportsWebGL());
+  const [mapError, setMapError] = useState(false);
+  const [mapDegraded, setMapDegraded] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
   const markersRef = useRef(new Map<string, Marker>());
   const popupRef = useRef<{ popup: Popup; root: Root; container: HTMLDivElement } | null>(null);
 
@@ -52,7 +83,8 @@ export function MapCanvas({
 
   // ── Creación del mapa ──────────────────────────────────────────
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !webglSupported) return;
+    setMapError(false);
 
     const instance = new MapLibreMap({
       container: containerRef.current,
@@ -61,26 +93,17 @@ export function MapCanvas({
       zoom: MAP_DEFAULTS.zoom,
       minZoom: MAP_DEFAULTS.minZoom,
       maxZoom: MAP_DEFAULTS.maxZoom,
-      // Acota el paneo a Argentina — la plataforma solo opera acá por ahora.
-      maxBounds: [
-        [ARGENTINA_BOUNDS.west, ARGENTINA_BOUNDS.south],
-        [ARGENTINA_BOUNDS.east, ARGENTINA_BOUNDS.north],
-      ],
       attributionControl: false,
     });
     instance.addControl(new AttributionControl({ compact: true }), "bottom-right");
 
-    instance.on("load", () => {
-      if (getEffectiveTheme() === "light") applyLightBrandTint(instance);
-      else applyDarkBrandTint(instance);
-      const b = instance.getBounds();
-      onBoundsChange(
-        { west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() },
-        instance.getZoom()
-      );
-      setMap(instance);
-      onMapReady?.(instance);
-    });
+    // Publicamos la instancia YA, sin esperar a "load": los markers/popups de
+    // MapLibre sólo dependen de la proyección (disponible desde el center/zoom
+    // iniciales), no del estilo/tiles. Así los pins aparecen apenas hay datos,
+    // en vez de esperar a que bajen los tiles — antes `setMap` sólo pasaba
+    // dentro de "load" y una falla ahí dejaba el mapa en blanco para siempre.
+    setMap(instance);
+    onMapReady?.(instance);
 
     const emitBounds = () => {
       const b = instance.getBounds();
@@ -89,20 +112,61 @@ export function MapCanvas({
         instance.getZoom()
       );
     };
+    emitBounds();
     instance.on("moveend", emitBounds);
 
     // Click en el mapa vacío deselecciona (los pins están en elementos DOM
     // aparte y nunca disparan este evento — ver comentario en markers.ts).
     instance.on("click", () => onSelectChange(null));
 
+    let loaded = false;
+
+    instance.on("error", (e) => {
+      console.error("MapLibre error:", e.error);
+      // El evento "error" de MapLibre dispara también para fallas puntuales
+      // y recuperables (un tile o un glyph que no bajó) — tratarlas todas
+      // como fatales taparía el mapa entero por un hipo de red intrascendente.
+      // Sólo lo mostramos como fatal si el mapa nunca llegó a cargar el
+      // estilo inicial: eso sí es "el mapa no aparece".
+      if (!loaded) setMapError(true);
+    });
+
+    const loadTimeout = setTimeout(() => {
+      if (!loaded) setMapDegraded(true);
+    }, LOAD_TIMEOUT_MS);
+
+    instance.on("load", () => {
+      loaded = true;
+      clearTimeout(loadTimeout);
+      setMapDegraded(false);
+      if (getEffectiveTheme() === "light") applyLightBrandTint(instance);
+      else applyDarkBrandTint(instance);
+      // Acota el paneo a Argentina (con margen) recién acá: aplicarlo en el
+      // constructor junto con minZoom obligaba a MapLibre a reconciliar un
+      // viewport más ancho que el propio bound antes del primer render, y el
+      // mapa quedaba en blanco.
+      instance.setMaxBounds([
+        [ARGENTINA_BOUNDS.west - MAX_BOUNDS_PADDING_DEG, ARGENTINA_BOUNDS.south - MAX_BOUNDS_PADDING_DEG],
+        [ARGENTINA_BOUNDS.east + MAX_BOUNDS_PADDING_DEG, ARGENTINA_BOUNDS.north + MAX_BOUNDS_PADDING_DEG],
+      ]);
+    });
+
+    // Redimensiona el canvas cuando el contenedor cambia de tamaño (ej: el
+    // panel de resultados se colapsa/expande) — MapLibre no lo detecta solo
+    // cuando el cambio viene del layout, no de la ventana.
+    const resizeObserver = new ResizeObserver(() => instance.resize());
+    resizeObserver.observe(containerRef.current);
+
     return () => {
+      clearTimeout(loadTimeout);
+      resizeObserver.disconnect();
       instance.off("moveend", emitBounds);
       instance.remove();
       setMap(null);
       onMapReady?.(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [webglSupported, retryKey]);
 
   // ── Tema: sigue el toggle explícito y la preferencia del sistema ──
   useEffect(() => {
@@ -141,12 +205,19 @@ export function MapCanvas({
         const id = `cluster-${feature.properties.cluster_id}`;
         seen.add(id);
         let marker = current.get(id);
+        const el = marker ? (marker.getElement() as HTMLDivElement) : createClusterElement(feature.properties.point_count);
+        updateClusterElement(el, feature.properties.point_count);
+        // Guardamos siempre el centro/cluster_id vigentes en dataset — si este
+        // mismo id se reutiliza para un cluster distinto entre recomputes, el
+        // handler de click (registrado una sola vez, abajo) los relee frescos
+        // en vez de quedarse con los de la clausura original.
+        setClusterTarget(el, feature.properties.cluster_id, lng, lat);
         if (!marker) {
-          const el = createClusterElement(feature.properties.point_count);
           el.addEventListener("click", (e) => {
             e.stopPropagation();
-            const zoom = getExpansionZoom(feature.properties.cluster_id);
-            map.flyTo({ center: [lng, lat], zoom, duration: 500 });
+            const target = getClusterTarget(el);
+            const zoom = getExpansionZoom(target.clusterId);
+            map.flyTo({ center: [target.lng, target.lat], zoom, duration: 500 });
           });
           marker = new Marker({ element: el, anchor: "center" }).setLngLat([lng, lat]).addTo(map);
           current.set(id, marker);
@@ -158,8 +229,9 @@ export function MapCanvas({
         const id = `point-${property.id}`;
         seen.add(id);
         let marker = current.get(id);
+        const el = marker ? (marker.getElement() as HTMLDivElement) : createPropertyPinElement(property);
+        if (marker) updatePropertyPinElement(el, property);
         if (!marker) {
-          const el = createPropertyPinElement(property);
           el.addEventListener("click", (e) => {
             e.stopPropagation();
             onSelectChange(property.id);
@@ -242,5 +314,62 @@ export function MapCanvas({
     return () => document.removeEventListener("keydown", onKey);
   }, [selectedId, onSelectChange]);
 
-  return <div ref={containerRef} className="absolute inset-0" />;
+  return (
+    <div className="absolute inset-0 bg-surface-2">
+      <div ref={containerRef} className="absolute inset-0" />
+
+      {!webglSupported && (
+        <MapStatusMessage
+          title="Tu navegador no soporta el mapa interactivo"
+          description="Falta soporte de WebGL. Probá actualizar el navegador o activar la aceleración por hardware en su configuración."
+        />
+      )}
+
+      {webglSupported && mapError && (
+        <MapStatusMessage
+          title="No pudimos cargar el mapa"
+          description="Revisá tu conexión a internet e intentá de nuevo."
+          action={
+            <Button
+              size="sm"
+              onClick={() => {
+                setMapError(false);
+                setRetryKey((k) => k + 1);
+              }}
+            >
+              Reintentar
+            </Button>
+          }
+        />
+      )}
+
+      {webglSupported && !mapError && mapDegraded && (
+        <div className="pointer-events-none absolute inset-x-0 top-4 z-10 flex justify-center">
+          <div className="rounded-pill bg-surface px-4 py-2 text-sm text-text-muted shadow-float">
+            El mapa está tardando en cargar…
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MapStatusMessage({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="absolute inset-0 z-10 flex items-center justify-center p-6">
+      <div className="flex max-w-xs flex-col items-center gap-3 rounded-card bg-surface p-6 text-center shadow-float">
+        <p className="font-display text-base font-semibold text-text">{title}</p>
+        <p className="text-sm text-text-muted">{description}</p>
+        {action}
+      </div>
+    </div>
+  );
 }

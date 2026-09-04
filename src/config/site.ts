@@ -16,7 +16,10 @@ export function buildWhatsappLink(message: string, phone = PROVIDER_WHATSAPP) {
 export const MAP_DEFAULTS = {
   center: [-58.4173, -34.6118] as [number, number],
   zoom: 11,
-  minZoom: 4,
+  // 5 y no 4: a zoom 4 el viewport pedido es más ancho que los ~20° de
+  // longitud de ARGENTINA_BOUNDS, y MapLibre tiene que reconciliar eso en
+  // el constructor antes del primer render — eso dejaba el mapa en blanco.
+  minZoom: 5,
   maxZoom: 19,
   bounds: {
     // AMBA aproximado — usado para clamping y seed de datos demo.
