@@ -69,7 +69,10 @@ const tour3dSchema = new Schema(
 const propertySchema = new Schema(
   {
     agencyId: { type: Schema.Types.ObjectId, ref: "Agency", required: true, index: true },
-    slug: { type: String, required: true, unique: true, index: true },
+    // `unique: true` ya crea su propio índice — agregar `index: true` acá
+    // hacía que Mongoose declarara dos índices distintos sobre el mismo
+    // campo (warning "Duplicate schema index" al levantar el server).
+    slug: { type: String, required: true, unique: true },
 
     title: { type: String, required: true, trim: true, maxlength: 160 },
     description: { type: String, maxlength: 5000, default: "" },
@@ -139,10 +142,16 @@ const propertySchema = new Schema(
   { timestamps: true }
 );
 
-propertySchema.index({ location: "2dsphere" });
+// El mapa filtra siempre por `status` + `location` juntos (ver
+// buildPropertyQuery + bboxToGeoWithin) — sin este compuesto, Mongo elige
+// uno de los dos índices y filtra el otro campo en memoria. Un índice
+// 2dsphere no puede ser el segundo campo de un compuesto (limitación de
+// Mongo), así que va primero.
+propertySchema.index({ location: "2dsphere", status: 1 });
 propertySchema.index({ status: 1, publishedAt: -1 });
 propertySchema.index({ agencyId: 1, status: 1 });
-propertySchema.index({ "price.amount": 1 });
+// El listado ordena por precio con el mismo filtro de `status` siempre activo.
+propertySchema.index({ status: 1, "price.amount": 1 });
 propertySchema.index({ title: "text", description: "text", "address.neighborhood": "text" });
 
 export type PropertyDoc = InferSchemaType<typeof propertySchema>;

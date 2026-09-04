@@ -37,6 +37,13 @@ export async function connectDB(): Promise<typeof mongoose> {
     cache.promise = mongoose.connect(MONGODB_URI, {
       bufferCommands: false,
       maxPoolSize: 10,
+      // Sin esto, un cluster Atlas M0 "dormido" o una URI mal armada puede
+      // colgar el primer request varios segundos sin ningún feedback antes
+      // de fallar. Con esto falla rápido y visible (ver instrumentation.ts,
+      // que llama a connectDB() al arrancar el server para pagar este costo
+      // ahí en vez de en el primer request de un usuario real).
+      serverSelectionTimeoutMS: 8000,
+      connectTimeoutMS: 8000,
     });
   }
 

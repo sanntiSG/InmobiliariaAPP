@@ -11,6 +11,32 @@ export function parseBBox(raw: string | null): BBox | null {
   return { west, south, east, north };
 }
 
+/**
+ * Expande un bbox un `ratio` (0.3 = 30%) hacia cada lado. Se usa para pedir
+ * de más alrededor del viewport visible: mientras el usuario se mueva
+ * dentro de ese margen no hace falta un fetch nuevo (ver `bboxContains`).
+ */
+export function padBBox(bbox: BBox, ratio: number): BBox {
+  const width = bbox.east - bbox.west;
+  const height = bbox.north - bbox.south;
+  return {
+    west: bbox.west - width * ratio,
+    south: bbox.south - height * ratio,
+    east: bbox.east + width * ratio,
+    north: bbox.north + height * ratio,
+  };
+}
+
+/** True si `inner` cae completamente dentro de `outer`. */
+export function bboxContains(outer: BBox, inner: BBox): boolean {
+  return (
+    inner.west >= outer.west &&
+    inner.east <= outer.east &&
+    inner.south >= outer.south &&
+    inner.north <= outer.north
+  );
+}
+
 /** Construye el filtro geoespacial de Mongo ($geoWithin + $box) a partir de un bbox. */
 export function bboxToGeoWithin(bbox: BBox) {
   return {

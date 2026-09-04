@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useState } from "react";
 import Image from "next/image";
 import { Badge } from "@/components/ui/Badge";
 import { IconButton } from "@/components/ui/IconButton";
@@ -11,17 +11,20 @@ import { OPERATION_LABELS } from "@/config/filters";
 import { cn } from "@/lib/utils/cn";
 import type { PropertyCardData } from "./types";
 
-export function PropertyCard({
+function PropertyCardImpl({
   property,
   selected = false,
   onSelect,
   onHoverChange,
+  /** true para las primeras cards visibles (above the fold) — evita competir por ancho de banda con el resto. */
+  priority = false,
   className,
 }: {
   property: PropertyCardData;
   selected?: boolean;
   onSelect?: (id: string) => void;
   onHoverChange?: (id: string | null) => void;
+  priority?: boolean;
   className?: string;
 }) {
   // Favoritos requiere sesión (ver CLAUDE.md: modo "solo explorar" no persiste
@@ -57,6 +60,8 @@ export function PropertyCard({
             alt={property.title}
             fill
             sizes="(min-width: 1024px) 320px, 90vw"
+            priority={priority}
+            loading={priority ? undefined : "lazy"}
             className="object-cover transition-transform duration-700 ease-out group-hover:scale-105"
           />
         ) : (
@@ -93,6 +98,10 @@ export function PropertyCard({
     </article>
   );
 }
+
+// Las cards se re-renderizan en cada hover sobre CUALQUIER pin/card del mapa
+// (ver ResultsPanel/MapCanvas) — memo evita recalcular las ~50 que no cambiaron.
+export const PropertyCard = memo(PropertyCardImpl);
 
 function HeartIcon({ filled }: { filled: boolean }) {
   return (

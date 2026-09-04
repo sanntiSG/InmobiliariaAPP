@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MapLibreMap } from "maplibre-gl";
 import { Logo } from "@/components/layout/Logo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
@@ -15,12 +15,18 @@ import { DEFAULT_FILTERS, type MapFiltersState } from "@/components/map/types";
 import { filtersToSearchParams } from "@/lib/filters/state";
 import { MAP_DEFAULTS } from "@/config/site";
 import type { PropertyFeature } from "@/lib/map/useClusteredMarkers";
-import type { BBox } from "@/lib/map/geo";
+import { padBBox, bboxContains, type BBox } from "@/lib/map/geo";
 
 const MapCanvas = dynamic(() => import("@/components/map/MapCanvas").then((m) => m.MapCanvas), {
   ssr: false,
   loading: () => <Skeleton className="absolute inset-0 rounded-none" />,
 });
+
+/** Cuánto se expande el bbox pedido más allá del viewport visible — mientras
+ * el usuario se mueva dentro de ese margen no hace falta un fetch nuevo. */
+const FETCH_PAD_RATIO = 0.3;
+/** Tope de cards renderizadas en el panel de resultados a la vez. */
+const MAX_LIST_ITEMS = 50;
 
 async function fetchProperties(bbox: BBox, filters: MapFiltersState, signal: AbortSignal) {
   const params = filtersToSearchParams(filters);
@@ -44,6 +50,12 @@ export default function MapaPage() {
     bbox: MAP_DEFAULTS.bounds,
     zoom: MAP_DEFAULTS.zoom,
   });
+  // Viewport real (sin padding) — se usa solo para filtrar qué mostrar, no
+  // para decidir cuándo refetchear (eso lo decide `bounds`, más arriba).
+  const [viewport, setViewport] = useState<{ bbox: BBox; zoom: number }>({
+    bbox: MAP_DEFAULTS.bounds,
+    zoom: MAP_DEFAULTS.zoom,
+  });
   const [features, setFeatures] = useState<PropertyFeature[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -53,9 +65,15 @@ export default function MapaPage() {
 
   const abortRef = useRef<AbortController | null>(null);
   const isFirstFetchRef = useRef(true);
+  // bbox (ya con padding) del último fetch que efectivamente completó. Mientras
+  // el viewport siga adentro, no hace falta pedir de nuevo.
+  const fetchedBBoxRef = useRef<BBox | null>(null);
 
   const handleBoundsChange = useCallback((bbox: BBox, zoom: number) => {
-    setBounds({ bbox, zoom });
+    setViewport({ bbox, zoom });
+    const fetched = fetchedBBoxRef.current;
+    if (fetched && bboxContains(fetched, bbox)) return;
+    setBounds({ bbox: padBBox(bbox, FETCH_PAD_RATIO), zoom });
   }, []);
 
   useEffect(() => {
@@ -75,6 +93,7 @@ export default function MapaPage() {
           setFeatures(next);
           setLoadError(false);
           setLoading(false);
+          fetchedBBoxRef.current = bounds.bbox;
         })
         .catch((err) => {
           if (err.name === "AbortError") return;
@@ -89,13 +108,26 @@ export default function MapaPage() {
     return () => clearTimeout(timeout);
   }, [bounds, filters]);
 
-  const properties = features.map((f) => f.properties);
+  // Filtra al viewport visible real (no al bbox con padding que se pidió al
+  // servidor) — así el contador y la lista nunca muestran algo que en
+  // realidad está fuera de pantalla.
+  const properties = useMemo(() => {
+    const { bbox } = viewport;
+    return features
+      .map((f) => f.properties)
+      .filter((p) => p.lng >= bbox.west && p.lng <= bbox.east && p.lat >= bbox.south && p.lat <= bbox.north);
+  }, [features, viewport]);
+
+  const visibleProperties = properties.slice(0, MAX_LIST_ITEMS);
+  const truncatedCount = properties.length - visibleProperties.length;
+
   const handleSelect = useCallback((id: string) => setSelectedId((cur) => (cur === id ? null : id)), []);
 
   return (
     <div className="fixed inset-0 flex">
       <ResultsPanel
-        properties={properties}
+        properties={visibleProperties}
+        truncatedCount={truncatedCount}
         loading={loading}
         error={loadError}
         selectedId={selectedId}

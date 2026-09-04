@@ -11,6 +11,8 @@ import type { PropertyCardData } from "@/components/property/types";
 
 type Props = {
   properties: PropertyCardData[];
+  /** Cuántas propiedades más hay en el viewport además de las incluidas en `properties` (lista topeada). */
+  truncatedCount?: number;
   loading: boolean;
   /** La API falló (ej. DB caída) — se muestra distinto de "no hay propiedades acá", que no es un error. */
   error?: boolean;
@@ -27,8 +29,19 @@ type Props = {
  * flotante en mobile (ver plan — versión no arrastrable de esta sesión,
  * el Sheet ya trae su propio affordance de "agarre").
  */
-export function ResultsPanel({ properties, loading, error, selectedId, onSelect, hoveredId, onHoverChange, map }: Props) {
+export function ResultsPanel({
+  properties,
+  truncatedCount = 0,
+  loading,
+  error,
+  selectedId,
+  onSelect,
+  hoveredId,
+  onHoverChange,
+  map,
+}: Props) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const totalCount = properties.length + truncatedCount;
 
   function recenter() {
     map?.flyTo({ center: MAP_DEFAULTS.center, zoom: MAP_DEFAULTS.zoom, duration: 800 });
@@ -61,16 +74,22 @@ export function ResultsPanel({ properties, loading, error, selectedId, onSelect,
     </div>
   ) : (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-1">
-      {properties.map((p) => (
+      {properties.map((p, i) => (
         <PropertyCard
           key={p.id}
           property={p}
           selected={p.id === selectedId}
           onSelect={onSelect}
           onHoverChange={onHoverChange}
+          priority={i < 4}
           className={hoveredId === p.id ? "-translate-y-0.5 shadow-float" : undefined}
         />
       ))}
+      {truncatedCount > 0 && (
+        <p className="col-span-full py-3 text-center text-sm text-text-muted">
+          Mostrando {properties.length} de {totalCount} — acercá el mapa para ver el resto.
+        </p>
+      )}
     </div>
   );
 
@@ -84,7 +103,7 @@ export function ResultsPanel({ properties, loading, error, selectedId, onSelect,
       {/* Mobile: botón flotante + drawer */}
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center pb-[calc(env(safe-area-inset-bottom)+16px)] md:hidden">
         <Button onClick={() => setMobileOpen(true)} className="pointer-events-auto shadow-float">
-          {loading ? "Buscando…" : `Ver ${properties.length} propiedades`}
+          {loading ? "Buscando…" : `Ver ${totalCount} propiedades`}
         </Button>
       </div>
       <Sheet open={mobileOpen} onClose={() => setMobileOpen(false)} title="Propiedades" side="bottom">
