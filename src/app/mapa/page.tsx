@@ -124,7 +124,44 @@ export default function MapaPage() {
   const handleSelect = useCallback((id: string) => setSelectedId((cur) => (cur === id ? null : id)), []);
 
   return (
-    <div className="fixed inset-0 flex">
+    // El mapa es la aplicación, no una sección (ver .impeccable.md): ocupa
+    // toda la pantalla y todo lo demás (top bar, panel de resultados,
+    // controles) flota encima con overlays absolutos, en vez de empujarlo a
+    // un `flex-1` que le come espacio real.
+    <div className="fixed inset-0">
+      <MapCanvas
+        features={features}
+        selectedId={selectedId}
+        onSelectChange={setSelectedId}
+        hoveredId={hoveredId}
+        onHoverChange={setHoveredId}
+        onBoundsChange={handleBoundsChange}
+        onMapReady={setMapInstance}
+      />
+
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+        <div className="pointer-events-auto flex shrink-0 items-center gap-2 rounded-pill bg-surface/90 px-3.5 py-2.5 shadow-pop backdrop-blur-md">
+          <Logo href="/" />
+        </div>
+        <div className="pointer-events-auto flex-1 sm:max-w-2xl">
+          <MapFilters
+            value={filters}
+            onChange={setFilters}
+            resultCount={properties.length}
+            onLocationSelect={(result) =>
+              mapInstance?.flyTo({ center: [result.lng, result.lat], zoom: 15, duration: 800 })
+            }
+          />
+        </div>
+        <div className="pointer-events-auto hidden shrink-0 items-center gap-2 rounded-pill bg-surface/90 p-1 shadow-pop backdrop-blur-md sm:flex">
+          <div className="pl-1.5">
+            <UserMenu compact />
+          </div>
+          <NotificationBell />
+          <ThemeToggle />
+        </div>
+      </div>
+
       <ResultsPanel
         properties={visibleProperties}
         truncatedCount={truncatedCount}
@@ -137,42 +174,7 @@ export default function MapaPage() {
         map={mapInstance}
       />
 
-      <div className="relative flex-1 overflow-hidden">
-        <MapCanvas
-          features={features}
-          selectedId={selectedId}
-          onSelectChange={setSelectedId}
-          hoveredId={hoveredId}
-          onHoverChange={setHoveredId}
-          onBoundsChange={handleBoundsChange}
-          onMapReady={setMapInstance}
-        />
-
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
-          <div className="pointer-events-auto flex shrink-0 items-center gap-2 rounded-pill bg-surface/90 px-3.5 py-2.5 shadow-pop backdrop-blur-md">
-            <Logo href="/" />
-          </div>
-          <div className="pointer-events-auto flex-1 sm:max-w-2xl">
-            <MapFilters
-              value={filters}
-              onChange={setFilters}
-              resultCount={properties.length}
-              onLocationSelect={(result) =>
-                mapInstance?.flyTo({ center: [result.lng, result.lat], zoom: 15, duration: 800 })
-              }
-            />
-          </div>
-          <div className="pointer-events-auto hidden shrink-0 items-center gap-2 rounded-pill bg-surface/90 p-1 shadow-pop backdrop-blur-md sm:flex">
-            <div className="pl-1.5">
-              <UserMenu compact />
-            </div>
-            <NotificationBell />
-            <ThemeToggle />
-          </div>
-        </div>
-
-        <MapControls map={mapInstance} className="absolute bottom-6 right-4 z-20" />
-      </div>
+      <MapControls map={mapInstance} className="absolute bottom-6 right-4 z-20" />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { formatCompactNumber } from "@/lib/utils/format";
+import { formatCompactNumber, formatPriceCompact } from "@/lib/utils/format";
 import type { PropertyCardData } from "@/components/property/types";
 
 /**
@@ -67,16 +67,40 @@ export function getClusterTarget(root: HTMLDivElement): { clusterId: number; lng
   };
 }
 
+/**
+ * Pill con el precio (estilo Redfin/Zillow/Google Maps) en vez de un
+ * teardrop genérico: es lo que hace que un mapa "se lea" como un mapa de
+ * propiedades — ver UIreference 1 y 3. `anchor: "bottom"` en MapCanvas hace
+ * que la punta de la cola (abajo del todo) sea el punto exacto de la
+ * propiedad, así que el pin crece hacia arriba sin correr las coordenadas.
+ */
+const PILL_NEUTRAL =
+  "pin-pill flex items-center gap-1 whitespace-nowrap rounded-pill border border-border bg-surface px-2.5 py-1 text-xs font-display font-semibold text-text shadow-float transition-colors duration-150 [transition-timing-function:var(--ease-out)]";
+const PILL_ACCENT =
+  "pin-pill flex items-center gap-1 whitespace-nowrap rounded-pill border border-accent bg-accent px-2.5 py-1 text-xs font-display font-semibold text-accent-contrast shadow-float transition-colors duration-150 [transition-timing-function:var(--ease-out)]";
+const TAIL_NEUTRAL =
+  "pin-tail -mt-[3px] h-2 w-2 rotate-45 rounded-[1px] border-b border-r border-border bg-surface transition-colors duration-150 [transition-timing-function:var(--ease-out)]";
+const TAIL_ACCENT =
+  "pin-tail -mt-[3px] h-2 w-2 rotate-45 rounded-[1px] border-b border-r border-accent bg-accent transition-colors duration-150 [transition-timing-function:var(--ease-out)]";
+
+/** Ícono de órbita 360° — mismo lenguaje visual que TourBadge, a escala de pin. */
+const TOUR_GLYPH = `
+  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" aria-hidden="true">
+    <ellipse cx="12" cy="12" rx="9" ry="4" stroke="currentColor" stroke-width="2" />
+    <ellipse cx="12" cy="12" rx="9" ry="4" stroke="currentColor" stroke-width="2" transform="rotate(60 12 12)" />
+    <circle cx="12" cy="12" r="2" fill="currentColor" />
+  </svg>
+`;
+
 export function createPropertyPinElement(property: PropertyCardData): HTMLDivElement {
   const root = document.createElement("div");
-  root.style.width = "30px";
-  root.style.height = "38px";
+  root.className = "inline-block";
   root.setAttribute("role", "button");
   root.setAttribute("tabindex", "0");
 
   const visual = document.createElement("div");
   visual.className =
-    "pin-visual relative cursor-pointer select-none transition-transform duration-150 [transition-timing-function:var(--ease-out)] hover:-translate-y-0.5";
+    "pin-visual flex flex-col items-center cursor-pointer select-none transition-transform duration-150 [transition-timing-function:var(--ease-out)] hover:-translate-y-0.5";
   root.appendChild(visual);
 
   applyPropertyPinVisual(root, visual, property);
@@ -99,24 +123,27 @@ function applyPropertyPinVisual(root: HTMLDivElement, visual: HTMLDivElement, pr
   );
 
   visual.innerHTML = `
-    <svg width="30" height="38" viewBox="0 0 30 38" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M15 0C6.7 0 0 6.6 0 14.7 0 24.7 15 38 15 38S30 24.7 30 14.7C30 6.6 23.3 0 15 0Z" style="fill: var(--accent)" />
-      <circle cx="15" cy="15" r="6.5" fill="white" />
-    </svg>
+    <div class="${PILL_NEUTRAL}">
+      ${property.tour3d ? TOUR_GLYPH : ""}
+      <span>${formatPriceCompact(property.price, property.currency)}</span>
+    </div>
+    <div class="${TAIL_NEUTRAL}"></div>
   `;
-
-  if (property.tour3d) {
-    const dot = document.createElement("span");
-    dot.className = "absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-warning ring-2 ring-surface";
-    dot.setAttribute("aria-hidden", "true");
-    visual.appendChild(dot);
-  }
 }
 
-/** Escala visual cuando el pin corresponde a la card en hover/selección (opera sobre `.pin-visual`, nunca sobre la raíz). */
+/**
+ * Escala visual + resalta en acento cuando el pin corresponde a la card en
+ * hover/selección (opera sobre `.pin-visual` y sus hijos, nunca sobre la
+ * raíz — ver comentario de arriba sobre por qué).
+ */
 export function setPinHighlighted(markerRoot: HTMLElement, highlighted: boolean) {
   const visual = markerRoot.querySelector<HTMLElement>(".pin-visual");
   if (!visual) return;
-  visual.style.transform = highlighted ? "scale(1.25) translateY(-2px)" : "";
+  visual.style.transform = highlighted ? "scale(1.06) translateY(-2px)" : "";
   markerRoot.style.zIndex = highlighted ? "10" : "";
+
+  const pill = visual.querySelector<HTMLElement>(".pin-pill");
+  if (pill) pill.className = highlighted ? PILL_ACCENT : PILL_NEUTRAL;
+  const tail = visual.querySelector<HTMLElement>(".pin-tail");
+  if (tail) tail.className = highlighted ? TAIL_ACCENT : TAIL_NEUTRAL;
 }

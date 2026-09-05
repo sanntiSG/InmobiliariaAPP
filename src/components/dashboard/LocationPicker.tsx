@@ -6,6 +6,7 @@ import { useEffect, useEffectEvent, useRef } from "react";
 import { LIGHT_STYLE_URL, applyLightBrandTint } from "@/lib/map/style-light";
 import { DARK_STYLE_URL, applyDarkBrandTint } from "@/lib/map/style-dark";
 import { MAP_DEFAULTS, ARGENTINA_BOUNDS } from "@/config/site";
+import { ensureMapLibreWorkerUrl } from "@/lib/map/worker-url";
 import { AddressSearch, type GeocodeResult } from "@/components/ui/AddressSearch";
 
 function getEffectiveTheme(): "light" | "dark" {
@@ -36,6 +37,7 @@ export function LocationPicker({
 
   useEffect(() => {
     if (!containerRef.current) return;
+    ensureMapLibreWorkerUrl();
 
     const map = new MapLibreMap({
       container: containerRef.current,

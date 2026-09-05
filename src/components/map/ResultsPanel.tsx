@@ -1,11 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import type { MapLibreMap } from "maplibre-gl";
+import gsap from "gsap";
+import { useGSAP } from "@gsap/react";
 import { PropertyCard } from "@/components/property/PropertyCard";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Sheet } from "@/components/ui/Sheet";
 import { Button } from "@/components/ui/Button";
+import { IconButton } from "@/components/ui/IconButton";
 import { MAP_DEFAULTS } from "@/config/site";
 import type { PropertyCardData } from "@/components/property/types";
 
@@ -25,9 +28,10 @@ type Props = {
 };
 
 /**
- * Panel de resultados: aside fijo en desktop, drawer accesible por botón
- * flotante en mobile (ver plan — versión no arrastrable de esta sesión,
- * el Sheet ya trae su propio affordance de "agarre").
+ * Panel de resultados flotante sobre el mapa full-bleed (el mapa ES la
+ * aplicación — ver .impeccable.md): en desktop, una card que flota arriba a
+ * la izquierda y se puede colapsar a una pill; en mobile, un botón flotante
+ * que abre un drawer (Sheet) de abajo hacia arriba.
  */
 export function ResultsPanel({
   properties,
@@ -95,10 +99,7 @@ export function ResultsPanel({
 
   return (
     <>
-      {/* Desktop: aside fijo */}
-      <aside className="hidden md:flex md:w-[380px] md:shrink-0 md:flex-col md:overflow-y-auto md:bg-bg md:p-4">
-        {list}
-      </aside>
+      <DesktopPanel loading={loading} totalCount={totalCount} list={list} />
 
       {/* Mobile: botón flotante + drawer */}
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center pb-[calc(env(safe-area-inset-bottom)+16px)] md:hidden">
@@ -110,5 +111,70 @@ export function ResultsPanel({
         {list}
       </Sheet>
     </>
+  );
+}
+
+/**
+ * Card flotante de escritorio, colapsable a una pill — nunca "aplasta" el
+ * mapa como un aside sólido lo haría (ver .impeccable.md, principio 4).
+ */
+function DesktopPanel({ loading, totalCount, list }: { loading: boolean; totalCount: number; list: ReactNode }) {
+  const [collapsed, setCollapsed] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(
+    () => {
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (reduceMotion || !panelRef.current) return;
+      gsap.fromTo(
+        panelRef.current,
+        { opacity: 0, y: 6, scale: 0.98 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.22, ease: "expo.out" }
+      );
+    },
+    { scope: panelRef, dependencies: [collapsed] }
+  );
+
+  return (
+    <div className="pointer-events-none absolute left-4 top-24 bottom-6 z-10 hidden md:block">
+      <div ref={panelRef} className="pointer-events-auto h-full">
+        {collapsed ? (
+          <button
+            onClick={() => setCollapsed(false)}
+            className="flex h-12 items-center gap-2 rounded-pill bg-surface px-4 shadow-float transition-[transform,box-shadow] duration-150 [transition-timing-function:var(--ease-out)] hover:shadow-none active:scale-[0.97]"
+          >
+            <span className="text-sm font-medium text-text">
+              {loading ? "Buscando…" : `${totalCount} propiedades`}
+            </span>
+            <ChevronIcon direction="right" />
+          </button>
+        ) : (
+          <div className="flex h-full w-[360px] flex-col overflow-hidden rounded-card bg-surface shadow-float">
+            <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
+              <span className="text-sm font-medium text-text">
+                {loading ? "Buscando…" : `${totalCount} propiedades`}
+              </span>
+              <IconButton variant="ghost" size={30} aria-label="Colapsar panel" onClick={() => setCollapsed(true)}>
+                <ChevronIcon direction="left" />
+              </IconButton>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">{list}</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ChevronIcon({ direction }: { direction: "left" | "right" }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      className={direction === "left" ? "h-4 w-4" : "h-4 w-4 rotate-180"}
+      aria-hidden
+    >
+      <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }

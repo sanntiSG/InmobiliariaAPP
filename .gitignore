@@ -47,3 +47,9 @@ next-env.d.ts
 # uploads locales de desarrollo (storage provider de fallback)
 /public/uploads/*
 !/public/uploads/.gitkeep
+
+# worker de maplibre-gl, copiado a public/ en cada `npm install` por
+# scripts/copy-maplibre-worker.mjs (ver src/lib/map/worker-url.ts) — no se
+# versiona, siempre se regenera desde node_modules/maplibre-gl instalado.
+/public/maplibre-gl-worker.mjs
+/public/maplibre-gl-shared.mjs

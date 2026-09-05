@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { MAP_DEFAULTS, ARGENTINA_BOUNDS } from "@/config/site";
 import { LIGHT_STYLE_URL, applyLightBrandTint } from "@/lib/map/style-light";
 import { DARK_STYLE_URL, applyDarkBrandTint } from "@/lib/map/style-dark";
+import { ensureMapLibreWorkerUrl } from "@/lib/map/worker-url";
 import type { BBox } from "@/lib/map/geo";
 import {
   useClusteredMarkers,
@@ -85,6 +86,7 @@ export function MapCanvas({
   useEffect(() => {
     if (!containerRef.current || !webglSupported) return;
     setMapError(false);
+    ensureMapLibreWorkerUrl();
 
     const instance = new MapLibreMap({
       container: containerRef.current,
@@ -104,6 +106,15 @@ export function MapCanvas({
     // dentro de "load" y una falla ahí dejaba el mapa en blanco para siempre.
     setMap(instance);
     onMapReady?.(instance);
+
+    // El worker que decodifica tiles/glyphs (ver ensureMapLibreWorkerUrl)
+    // termina su trabajo de forma asíncrona, y esa finalización no siempre
+    // dispara un repaint por sí sola — el mapa se queda "cargado" pero
+    // pintando solo el layer de fondo hasta el próximo evento que sí
+    // fuerce un frame (mover el mapa, hacer zoom). triggerRepaint() en cada
+    // "sourcedata" cierra ese hueco: pedimos un frame nuevo apenas llega
+    // data nueva, en vez de esperar a que el usuario interactúe.
+    instance.on("sourcedata", () => instance.triggerRepaint());
 
     const emitBounds = () => {
       const b = instance.getBounds();
@@ -316,7 +327,19 @@ export function MapCanvas({
 
   return (
     <div className="absolute inset-0 bg-surface-2">
-      <div ref={containerRef} className="absolute inset-0" />
+      {/*
+        NUNCA `absolute` (ni ninguna otra clase que fije `position`) en el
+        div que se pasa como `container` a `new MapLibreMap()`: MapLibre le
+        agrega su propia clase `.maplibregl-map` (position:relative) al MISMO
+        nodo, y con la misma especificidad CSS gana la que carga después en
+        el documento — el CSS de maplibre-gl, importado por este componente
+        dinámico, siempre llega después que el global. Esto pisaba nuestro
+        `position:absolute` y colapsaba la altura del mapa a 0 (el "no se ve
+        el mapa" original). `h-full w-full` no choca ninguna propiedad con
+        `.maplibregl-map`, así que alcanza con que el padre (arriba) sea
+        quien tenga `position:absolute` real.
+      */}
+      <div ref={containerRef} className="h-full w-full" />
 
       {!webglSupported && (
         <MapStatusMessage

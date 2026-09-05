@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Copiado de node_modules/maplibre-gl en cada `npm install`
+    // (scripts/copy-maplibre-worker.mjs) — código de terceros, no nuestro.
+    "public/maplibre-gl-worker.mjs",
+    "public/maplibre-gl-shared.mjs",
   ]),
 ]);
 

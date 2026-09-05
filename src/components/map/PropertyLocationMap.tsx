@@ -6,6 +6,7 @@ import { useEffect, useRef } from "react";
 import { LIGHT_STYLE_URL, applyLightBrandTint } from "@/lib/map/style-light";
 import { DARK_STYLE_URL, applyDarkBrandTint } from "@/lib/map/style-dark";
 import { createPropertyPinElement } from "@/lib/map/markers";
+import { ensureMapLibreWorkerUrl } from "@/lib/map/worker-url";
 import type { PropertyCardData } from "@/components/property/types";
 
 function getEffectiveTheme(): "light" | "dark" {
@@ -28,6 +29,7 @@ export function PropertyLocationMap({
 
   useEffect(() => {
     if (!containerRef.current) return;
+    ensureMapLibreWorkerUrl();
 
     const map = new MapLibreMap({
       container: containerRef.current,
