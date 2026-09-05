@@ -6,14 +6,15 @@ import { connectDB } from "@/lib/db/connect";
 import { User } from "@/lib/db/models/User";
 import { loginSchema } from "@/lib/validation/auth";
 import { resolveAccessForEmail } from "@/lib/auth/resolve-access";
+import { authConfig } from "@/auth.config";
 
 /** Cada cuánto (ms) se relee el rol desde la DB en un JWT ya emitido. */
 const ROLE_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  ...authConfig,
   trustHost: true,
   session: { strategy: "jwt" },
-  pages: { signIn: "/ingresar" },
   providers: [
     Google,
     Credentials({
@@ -46,6 +47,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
+    // `authorized` (usado por el middleware) viene de authConfig — acá se
+    // sobreescriben signIn/jwt/session con las versiones completas (con
+    // acceso a Mongo), que no pueden vivir en la config edge-safe.
+    ...authConfig.callbacks,
     /**
      * signIn — se ejecuta para cada intento de login (Google o credentials).
      * Para Google: crea o actualiza el usuario en MongoDB y asigna rol vía

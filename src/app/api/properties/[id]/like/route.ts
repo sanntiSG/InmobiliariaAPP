@@ -15,8 +15,10 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   try {
     await connectDB();
-    const property = await Property.findById(id).select("agencyId stats.likes");
-    if (!property) return NextResponse.json({ error: "Propiedad no encontrada" }, { status: 404 });
+    const property = await Property.findById(id).select("agencyId stats.likes status");
+    if (!property || property.status !== "published") {
+      return NextResponse.json({ error: "Propiedad no encontrada" }, { status: 404 });
+    }
 
     const existing = await Like.findOne({ userId: user.id, propertyId: id });
     let liked: boolean;

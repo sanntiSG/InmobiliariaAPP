@@ -24,6 +24,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   try {
     await connectDB();
+    const property = await Property.findById(id).select("status").lean();
+    if (!property || property.status !== "published") {
+      return NextResponse.json({ error: "Propiedad no encontrada", items: [], total: 0 }, { status: 404 });
+    }
+
     const [docs, total] = await Promise.all([
       Comment.find({ propertyId: id, deletedAt: null })
         .populate({ path: "userId", select: "name image" })
@@ -66,8 +71,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   try {
     await connectDB();
-    const property = await Property.findById(id).select("agencyId title slug");
-    if (!property) return NextResponse.json({ error: "Propiedad no encontrada" }, { status: 404 });
+    const property = await Property.findById(id).select("agencyId title slug status");
+    if (!property || property.status !== "published") {
+      return NextResponse.json({ error: "Propiedad no encontrada" }, { status: 404 });
+    }
 
     const comment = await Comment.create({
       propertyId: id,
