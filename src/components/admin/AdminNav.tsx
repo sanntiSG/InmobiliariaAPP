@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils/cn";
 
 const LINKS = [
   { href: "/admin", label: "Inmobiliarias", exact: true },
+  { href: "/dashboard/propiedades", label: "Propiedades" },
   { href: "/admin/accesos", label: "Accesos" },
   { href: "/admin/estadisticas", label: "Estadísticas" },
 ];

@@ -97,11 +97,11 @@ export function ImageUploader({
           "transition-colors hover:border-accent hover:text-accent"
         )}
       >
-        {uploading ? "Subiendo…" : "+ Agregar fotos (JPG, PNG, WEBP — máx. 8MB c/u)"}
+        {uploading ? "Subiendo…" : "+ Agregar fotos (JPG, PNG, WEBP, HEIC — máx. 8MB c/u)"}
         <input
           ref={inputRef}
           type="file"
-          accept="image/jpeg,image/png,image/webp,image/avif"
+          accept="image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif"
           multiple
           className="hidden"
           onChange={(e) => handleFiles(e.target.files)}

@@ -90,6 +90,14 @@ export function AddressSearch({
           onQueryChange?.(e.target.value);
         }}
         onFocus={() => results.length > 0 && setOpen(true)}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter") return;
+          // Nunca debe burbujear al submit del <form> que lo contenga (ej:
+          // PropertyForm) — acá Enter selecciona la primera sugerencia,
+          // como cualquier buscador con autocompletado.
+          e.preventDefault();
+          if (open && results.length > 0) handleSelect(results[0]);
+        }}
         placeholder={placeholder}
         aria-label="Buscar dirección en Argentina"
         autoComplete="off"

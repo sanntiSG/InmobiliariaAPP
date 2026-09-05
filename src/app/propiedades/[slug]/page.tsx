@@ -22,13 +22,25 @@ import { AgencyContactCard } from "@/components/property/AgencyContactCard";
 import { SocialBar } from "@/components/property/SocialBar";
 import { CommentsSection, type CommentItem } from "@/components/property/CommentsSection";
 import { PropertyLocationMapLazy } from "@/components/map/PropertyLocationMapLazy";
-import { OPERATION_LABELS, PROPERTY_TYPE_LABELS, type Operation, type PropertyType } from "@/config/filters";
+import {
+  OPERATION_LABELS,
+  PROPERTY_TYPE_LABELS,
+  PROPERTY_STATUS_LABELS,
+  type Operation,
+  type PropertyType,
+  type PropertyStatus,
+} from "@/config/filters";
 import { formatCompactNumber, formatRelativeTime } from "@/lib/utils/format";
 import { brand } from "@/config/brand";
 
+/**
+ * Sin filtro de `status` acá a propósito: el dueño (o el admin) puede
+ * previsualizar una propiedad no publicada — el chequeo de quién puede
+ * verla vive en el componente de página, donde ya hay sesión disponible.
+ */
 const getProperty = cache(async (slug: string) => {
   await connectDB();
-  const doc = await Property.findOne({ slug, status: "published" }).populate("agencyId").lean();
+  const doc = await Property.findOne({ slug }).populate("agencyId").lean();
   return doc ? toPropertyDetail(doc) : null;
 });
 
@@ -41,6 +53,7 @@ export async function generateMetadata({ params }: PageProps<"/propiedades/[slug
   return {
     title: property.title,
     description,
+    ...(property.status !== "published" ? { robots: { index: false, follow: false } } : {}),
     openGraph: {
       title: property.title,
       description,
@@ -58,7 +71,20 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
   // acceder a Request APIs (ver docs de Next.js).
   const session = await auth().catch(() => null);
   const userId = session?.user?.id ?? null;
-  after(() => trackView(property.id, property.agency?.id, userId).catch(() => {}));
+
+  const isPublished = property.status === "published";
+  const canPreview =
+    session?.user?.role === "admin" ||
+    (!!property.agency && !!session?.user?.agencyId && session.user.agencyId === property.agency.id);
+  // No publicada y quien mira no es su dueño/admin: se comporta exactamente
+  // como si no existiera (mismo 404 que antes para cualquier visitante).
+  if (!isPublished && !canPreview) notFound();
+
+  // Sólo se cuenta como visualización real si está publicada — evitar que
+  // el propio dueño infle sus stats mirando su borrador.
+  if (isPublished) {
+    after(() => trackView(property.id, property.agency?.id, userId).catch(() => {}));
+  }
 
   const [likeDoc, favoriteDoc, ratingDoc, commentDocs, commentsTotal] = await connectDB().then(() =>
     Promise.all([
@@ -93,6 +119,21 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
       <Navbar />
 
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+        {!isPublished && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-card bg-warning-soft px-4 py-3 text-sm text-text">
+            <span>
+              <strong className="font-semibold">Vista previa</strong> — esta propiedad todavía no
+              está publicada ({PROPERTY_STATUS_LABELS[property.status as PropertyStatus] ?? property.status}).
+              Sólo vos podés verla así.
+            </span>
+            <Link
+              href={`/dashboard/propiedades/${property.id}/editar`}
+              className="shrink-0 font-medium text-accent hover:underline"
+            >
+              Editar →
+            </Link>
+          </div>
+        )}
         <Link href="/propiedades" className="text-sm font-medium text-text-muted hover:text-text">
           ← Volver al listado
         </Link>

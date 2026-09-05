@@ -51,6 +51,20 @@ export default async function AdminPage() {
                   {a.address?.city ?? "—"} · {countByAgency.get(String(a._id)) ?? 0} propiedades ·{" "}
                   {a.contact?.whatsapp ?? "sin WhatsApp"}
                 </p>
+                <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
+                  <Link
+                    href={`/dashboard/propiedades?agencyId=${a._id}`}
+                    className="text-sm font-medium text-accent hover:underline"
+                  >
+                    Ver propiedades
+                  </Link>
+                  <Link
+                    href={`/dashboard/propiedades/nueva?agencyId=${a._id}`}
+                    className="text-sm font-medium text-accent hover:underline"
+                  >
+                    + Propiedad
+                  </Link>
+                </div>
               </div>
               <span
                 className={cn(

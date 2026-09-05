@@ -4,17 +4,20 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils/cn";
 
-const LINKS = [
+const BASE_LINKS = [
   { href: "/dashboard", label: "Resumen", exact: true },
   { href: "/dashboard/propiedades", label: "Propiedades" },
 ];
 
-export function DashboardNav() {
+const ADMIN_LINK = { href: "/admin", label: "Inmobiliarias", exact: false };
+
+export function DashboardNav({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
+  const links = isAdmin ? [...BASE_LINKS, ADMIN_LINK] : BASE_LINKS;
 
   return (
     <nav className="flex gap-1 overflow-x-auto lg:w-56 lg:shrink-0 lg:flex-col lg:overflow-visible">
-      {LINKS.map((link) => {
+      {links.map((link) => {
         const active = link.exact ? pathname === link.href : pathname.startsWith(link.href);
         return (
           <Link

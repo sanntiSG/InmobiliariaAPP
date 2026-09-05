@@ -2,12 +2,13 @@
 
 import "maplibre-gl/dist/maplibre-gl.css";
 import { MapLibreMap, Marker } from "maplibre-gl";
-import { useEffect, useEffectEvent, useRef } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { LIGHT_STYLE_URL, applyLightBrandTint } from "@/lib/map/style-light";
 import { DARK_STYLE_URL, applyDarkBrandTint } from "@/lib/map/style-dark";
 import { MAP_DEFAULTS, ARGENTINA_BOUNDS } from "@/config/site";
 import { ensureMapLibreWorkerUrl } from "@/lib/map/worker-url";
 import { AddressSearch, type GeocodeResult } from "@/components/ui/AddressSearch";
+import { buttonClasses } from "@/components/ui/Button";
 
 function getEffectiveTheme(): "light" | "dark" {
   const explicit = document.documentElement.getAttribute("data-theme");
@@ -28,6 +29,8 @@ export function LocationPicker({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markerRef = useRef<Marker | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [locateError, setLocateError] = useState<string | null>(null);
 
   // Effect Event (React 19.2): siempre ve el último `onChange` sin que el
   // efecto de montaje dependa de él ni tenga que re-crear el mapa.
@@ -103,13 +106,56 @@ export function LocationPicker({
     onChange(result.lng, result.lat);
   }
 
+  function handleUseMyLocation() {
+    if (!("geolocation" in navigator)) {
+      setLocateError("Tu navegador no soporta geolocalización.");
+      return;
+    }
+    setLocating(true);
+    setLocateError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { longitude, latitude } = pos.coords;
+        markerRef.current?.setLngLat([longitude, latitude]);
+        mapRef.current?.flyTo({ center: [longitude, latitude], zoom: 16, duration: 800 });
+        onChange(longitude, latitude);
+        setLocating(false);
+      },
+      (err) => {
+        setLocating(false);
+        setLocateError(
+          err.code === err.PERMISSION_DENIED
+            ? "No diste permiso de ubicación en el navegador."
+            : "No se pudo obtener tu ubicación."
+        );
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
+  }
+
   return (
     <div>
-      <AddressSearch onSelect={handleAddressSelect} className="mb-2" placeholder="Buscar dirección, barrio o ciudad en Argentina…" />
+      <div className="mb-2 flex flex-col gap-2 sm:flex-row">
+        <AddressSearch
+          onSelect={handleAddressSelect}
+          className="flex-1"
+          placeholder="Buscar dirección, barrio o ciudad en Argentina…"
+        />
+        <button
+          type="button"
+          onClick={handleUseMyLocation}
+          disabled={locating}
+          className={buttonClasses("secondary", "md", "shrink-0")}
+        >
+          {locating ? "Ubicando…" : "📍 Usar mi ubicación"}
+        </button>
+      </div>
+      {locateError && <p className="mb-2 text-xs text-danger">{locateError}</p>}
       <div className="overflow-hidden rounded-card">
         <div ref={containerRef} className="h-64 w-full" />
         <p className="mt-1.5 text-xs text-text-muted">
-          Buscá una dirección, o hacé click en el mapa / arrastrá el pin para ajustar la ubicación exacta.
+          Buscá una dirección, usá tu ubicación actual, o hacé click en el mapa / arrastrá el pin
+          para ajustar la ubicación exacta.
         </p>
       </div>
     </div>

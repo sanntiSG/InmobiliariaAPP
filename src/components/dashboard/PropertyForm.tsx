@@ -189,17 +189,20 @@ export function PropertyForm({
   propertyId,
   initialValues,
   agencies,
+  initialAgencyId,
 }: {
   mode: "create" | "edit";
   propertyId?: string;
   initialValues?: PropertyFormValues;
   /** Presente solo para el admin — muestra el selector de inmobiliaria. */
   agencies?: { id: string; name: string }[];
+  /** Preselección al crear (ej: viene de "+ Propiedad" en /admin para una inmobiliaria puntual). */
+  initialAgencyId?: string;
 }) {
   const router = useRouter();
   const [values, setValues] = useState<PropertyFormValues>(() => {
     if (initialValues) return initialValues;
-    return { ...emptyPropertyForm, agencyId: agencies?.[0]?.id ?? "" };
+    return { ...emptyPropertyForm, agencyId: initialAgencyId ?? agencies?.[0]?.id ?? "" };
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -290,6 +293,10 @@ export function PropertyForm({
             ))}
           </SelectField>
         </div>
+        <p className="text-xs text-text-muted">
+          Sólo las propiedades en estado &quot;Publicada&quot; se ven en el sitio, el mapa y las
+          recomendaciones. El resto de los estados quedan guardados pero no son públicos.
+        </p>
       </section>
 
       <section className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
@@ -417,7 +424,13 @@ export function PropertyForm({
           Cancelar
         </Button>
         <Button type="submit" disabled={saving}>
-          {saving ? "Guardando…" : mode === "create" ? "Publicar propiedad" : "Guardar cambios"}
+          {saving
+            ? "Guardando…"
+            : mode === "edit"
+              ? "Guardar cambios"
+              : values.status === "published"
+                ? "Publicar propiedad"
+                : "Guardar como borrador"}
         </Button>
       </div>
     </form>
