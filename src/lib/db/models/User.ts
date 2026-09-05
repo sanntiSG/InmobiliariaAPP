@@ -12,9 +12,14 @@ const userSchema = new Schema(
   {
     name: { type: String, required: true, trim: true, maxlength: 120 },
     email: { type: String, required: true, unique: true, index: true, lowercase: true, trim: true },
-    /** null cuando el usuario se autentica por un proveedor externo (futuro). */
+    /** null cuando el usuario se autentica por un proveedor externo (Google). */
     passwordHash: { type: String, default: null },
     image: { type: String },
+
+    /** Proveedor de autenticación usado al crear la cuenta. */
+    provider: { type: String, enum: ["credentials", "google"], default: "credentials" },
+    /** ID único de Google — solo presente si provider === "google". */
+    googleId: { type: String, sparse: true, unique: true, default: null },
 
     role: { type: String, enum: USER_ROLES, default: "user", index: true },
     /** Solo presente si role es agency_owner/agency_agent. */

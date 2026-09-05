@@ -19,6 +19,9 @@ const createSchema = propertyInputSchema.omit({ agencyId: true }).extend({
 export async function POST(req: Request) {
   const access = await requireDashboardAccess();
   if (!access) return NextResponse.json({ error: "Necesitás iniciar sesión." }, { status: 401 });
+  if (access.needsOnboarding) {
+    return NextResponse.json({ error: "Primero creá tu inmobiliaria en /publicar." }, { status: 403 });
+  }
 
   const body = await req.json().catch(() => null);
   const parsed = createSchema.safeParse(body);

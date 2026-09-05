@@ -9,9 +9,12 @@ export type UploadedImage = { url: string; alt: string; order: number; providerI
 export function ImageUploader({
   images,
   onChange,
+  agencyId,
 }: {
   images: UploadedImage[];
   onChange: (images: UploadedImage[]) => void;
+  /** Solo relevante para el admin: sube la foto a la carpeta de esta inmobiliaria. */
+  agencyId?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -26,6 +29,7 @@ export function ImageUploader({
     for (const file of Array.from(files)) {
       const formData = new FormData();
       formData.append("file", file);
+      if (agencyId) formData.append("agencyId", agencyId);
       try {
         const res = await fetch("/api/dashboard/upload", { method: "POST", body: formData });
         const data = await res.json();

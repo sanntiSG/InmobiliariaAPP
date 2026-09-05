@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { auth } from "@/auth";
 import { requireDashboardAccess } from "@/lib/auth/require-dashboard-access";
 import { connectDB } from "@/lib/db/connect";
 import { Agency } from "@/lib/db/models/Agency";
@@ -10,7 +11,13 @@ import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 export default async function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
   const access = await requireDashboardAccess();
-  if (!access) redirect("/ingresar");
+  if (!access) {
+    // Sin sesión → login. Con sesión pero sin acceso (rol sin agencia
+    // válida, inmobiliaria suspendida/borrada) → a la landing, no a /ingresar.
+    const session = await auth().catch(() => null);
+    redirect(session?.user ? "/" : "/ingresar");
+  }
+  if (access.needsOnboarding) redirect("/publicar");
 
   let scopeLabel = "Panel — todas las inmobiliarias";
   if (!access.isAdmin) {

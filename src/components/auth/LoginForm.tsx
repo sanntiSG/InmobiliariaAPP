@@ -6,6 +6,7 @@ import { signIn } from "next-auth/react";
 import { loginSchema } from "@/lib/validation/auth";
 import { FormField } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
+import { GoogleSignInButton, AuthDivider } from "@/components/auth/GoogleSignInButton";
 
 export function LoginForm() {
   const router = useRouter();
@@ -40,31 +41,35 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
-      <FormField
-        label="Email"
-        type="email"
-        autoComplete="email"
-        value={values.email}
-        onChange={(e) => setValues((v) => ({ ...v, email: e.target.value }))}
-        error={errors.email}
-      />
-      <FormField
-        label="Contraseña"
-        type="password"
-        autoComplete="current-password"
-        value={values.password}
-        onChange={(e) => setValues((v) => ({ ...v, password: e.target.value }))}
-        error={errors.password}
-      />
-      {formError && (
-        <p className="text-sm text-danger" role="alert">
-          {formError}
-        </p>
-      )}
-      <Button type="submit" disabled={loading} className="mt-1">
-        {loading ? "Ingresando…" : "Ingresar"}
-      </Button>
-    </form>
+    <div className="flex flex-col gap-0">
+      <GoogleSignInButton label="Ingresar con Google" />
+      <AuthDivider />
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
+        <FormField
+          label="Email"
+          type="email"
+          autoComplete="email"
+          value={values.email}
+          onChange={(e) => setValues((v) => ({ ...v, email: e.target.value }))}
+          error={errors.email}
+        />
+        <FormField
+          label="Contraseña"
+          type="password"
+          autoComplete="current-password"
+          value={values.password}
+          onChange={(e) => setValues((v) => ({ ...v, password: e.target.value }))}
+          error={errors.password}
+        />
+        {formError && (
+          <p className="text-sm text-danger" role="alert">
+            {formError}
+          </p>
+        )}
+        <Button type="submit" disabled={loading} className="mt-1">
+          {loading ? "Ingresando…" : "Ingresar"}
+        </Button>
+      </form>
+    </div>
   );
 }

@@ -7,6 +7,15 @@
 export const PROVIDER_WHATSAPP =
   process.env.NEXT_PUBLIC_PROVIDER_WHATSAPP ?? "5491137796683";
 
+/**
+ * Emails que reciben rol "admin" automáticamente al iniciar sesión con Google.
+ * Se leen de `ADMIN_EMAILS` (separados por coma) — ver `src/auth.ts`.
+ */
+export const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "ssantii200@gmail.com")
+  .split(",")
+  .map((email) => email.trim().toLowerCase())
+  .filter(Boolean);
+
 export function buildWhatsappLink(message: string, phone = PROVIDER_WHATSAPP) {
   const encoded = encodeURIComponent(message);
   return `https://wa.me/${phone}?text=${encoded}`;

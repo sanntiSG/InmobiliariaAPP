@@ -142,7 +142,12 @@ function toPayload(v: PropertyFormValues) {
     },
     amenities: v.amenities,
     media: {
-      images: v.images.map((img) => ({ url: img.url, alt: img.alt || v.title, order: img.order })),
+      images: v.images.map((img) => ({
+        url: img.url,
+        alt: img.alt || v.title,
+        order: img.order,
+        providerId: img.providerId,
+      })),
       videos: [],
       floorPlans: [],
       tour3d: buildTour3dPayload(v),
@@ -350,7 +355,11 @@ export function PropertyForm({
 
       <section className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
         <h2 className="font-display text-lg font-semibold text-text">Fotos</h2>
-        <ImageUploader images={values.images} onChange={(images) => set("images", images)} />
+        <ImageUploader
+          images={values.images}
+          onChange={(images) => set("images", images)}
+          agencyId={agencies ? values.agencyId : undefined}
+        />
       </section>
 
       <section className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
@@ -387,7 +396,11 @@ export function PropertyForm({
                 onChange={(e) => set("tourEmbedUrl", e.target.value)}
               />
             ) : (
-              <MeshUploader value={values.tourMesh} onChange={(tourMesh) => set("tourMesh", tourMesh)} />
+              <MeshUploader
+                value={values.tourMesh}
+                onChange={(tourMesh) => set("tourMesh", tourMesh)}
+                agencyId={agencies ? values.agencyId : undefined}
+              />
             )}
           </>
         )}

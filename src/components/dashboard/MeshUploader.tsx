@@ -12,7 +12,16 @@ const EXT_TO_FORMAT: Record<string, MeshFormat> = {
   ".usdz": "usdz",
 };
 
-export function MeshUploader({ value, onChange }: { value: MeshValue; onChange: (v: MeshValue) => void }) {
+export function MeshUploader({
+  value,
+  onChange,
+  agencyId,
+}: {
+  value: MeshValue;
+  onChange: (v: MeshValue) => void;
+  /** Solo relevante para el admin: sube el archivo a la carpeta de esta inmobiliaria. */
+  agencyId?: string;
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +43,7 @@ export function MeshUploader({ value, onChange }: { value: MeshValue; onChange: 
     const formData = new FormData();
     formData.append("file", file);
     formData.append("kind", "mesh");
+    if (agencyId) formData.append("agencyId", agencyId);
 
     try {
       const res = await fetch("/api/dashboard/upload", { method: "POST", body: formData });

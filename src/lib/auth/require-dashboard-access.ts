@@ -1,4 +1,6 @@
 import { auth } from "@/auth";
+import { connectDB } from "@/lib/db/connect";
+import { Agency } from "@/lib/db/models/Agency";
 
 /**
  * Acceso al dashboard de propiedades: dueños/agentes de una inmobiliaria
@@ -13,6 +15,8 @@ export type DashboardAccess = {
   role: string;
   isAdmin: boolean;
   agencyId: string | null;
+  /** true cuando el usuario tiene rol de agencia pero todavía no tiene una inmobiliaria (ver /publicar). */
+  needsOnboarding: boolean;
 };
 
 export async function requireDashboardAccess(): Promise<DashboardAccess | null> {
@@ -21,12 +25,26 @@ export async function requireDashboardAccess(): Promise<DashboardAccess | null> 
   if (!user?.id) return null;
 
   if (user.role === "agency_owner" || user.role === "agency_agent") {
-    if (!user.agencyId) return null;
-    return { userId: user.id, role: user.role, isAdmin: false, agencyId: user.agencyId };
+    if (!user.agencyId) {
+      return { userId: user.id, role: user.role, isAdmin: false, agencyId: null, needsOnboarding: true };
+    }
+
+    await connectDB();
+    const agency = await Agency.findById(user.agencyId).select("status").lean();
+    // Inmobiliaria borrada o suspendida: sin acceso al dashboard.
+    if (!agency || agency.status === "suspended") return null;
+
+    return {
+      userId: user.id,
+      role: user.role,
+      isAdmin: false,
+      agencyId: user.agencyId,
+      needsOnboarding: false,
+    };
   }
 
   if (user.role === "admin") {
-    return { userId: user.id, role: "admin", isAdmin: true, agencyId: null };
+    return { userId: user.id, role: "admin", isAdmin: true, agencyId: null, needsOnboarding: false };
   }
 
   return null;

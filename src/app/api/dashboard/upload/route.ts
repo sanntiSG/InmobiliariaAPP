@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
+import { Types } from "mongoose";
 import { requireDashboardAccess } from "@/lib/auth/require-dashboard-access";
 import { getStorageProvider } from "@/lib/storage";
+import { connectDB } from "@/lib/db/connect";
+import { Agency } from "@/lib/db/models/Agency";
 
 const IMAGE_MAX_SIZE = 8 * 1024 * 1024; // 8MB
 const IMAGE_ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"];
@@ -14,13 +17,30 @@ const MESH_EXTENSIONS = [".glb", ".gltf", ".usdz"];
 export async function POST(req: Request) {
   const access = await requireDashboardAccess();
   if (!access) return NextResponse.json({ error: "Necesitás iniciar sesión." }, { status: 401 });
+  if (access.needsOnboarding) {
+    return NextResponse.json({ error: "Primero creá tu inmobiliaria en /publicar." }, { status: 403 });
+  }
 
   const formData = await req.formData().catch(() => null);
   const file = formData?.get("file");
   const kind = formData?.get("kind") === "mesh" ? "mesh" : "image";
+  const requestedAgencyId = formData?.get("agencyId");
 
   if (!file || !(file instanceof File)) {
     return NextResponse.json({ error: "Falta el archivo." }, { status: 400 });
+  }
+
+  // Scope de la carpeta de destino: la propia agencia, o —solo para el
+  // admin— la agencia que esté editando (para no mezclar todo bajo "admin").
+  let agencyIdForFolder = access.agencyId;
+  if (access.isAdmin && typeof requestedAgencyId === "string" && requestedAgencyId) {
+    if (!Types.ObjectId.isValid(requestedAgencyId)) {
+      return NextResponse.json({ error: "Inmobiliaria inválida." }, { status: 400 });
+    }
+    await connectDB();
+    const exists = await Agency.exists({ _id: requestedAgencyId });
+    if (!exists) return NextResponse.json({ error: "Inmobiliaria inválida." }, { status: 400 });
+    agencyIdForFolder = requestedAgencyId;
   }
 
   if (kind === "mesh") {
@@ -46,7 +66,7 @@ export async function POST(req: Request) {
     const result = await provider.upload({
       buffer,
       filename: file.name,
-      folder: `agencies/${access.agencyId ?? "admin"}/properties`,
+      folder: `agencies/${agencyIdForFolder ?? "admin"}/properties`,
       resourceType: kind === "mesh" ? "raw" : "image",
     });
     return NextResponse.json(result, { status: 201 });

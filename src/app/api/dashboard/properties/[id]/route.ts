@@ -18,6 +18,9 @@ const updateSchema = propertyInputSchema.omit({ agencyId: true }).extend({
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const access = await requireDashboardAccess();
   if (!access) return NextResponse.json({ error: "Necesitás iniciar sesión." }, { status: 401 });
+  if (access.needsOnboarding) {
+    return NextResponse.json({ error: "Primero creá tu inmobiliaria en /publicar." }, { status: 403 });
+  }
 
   const { id } = await params;
   if (!Types.ObjectId.isValid(id)) return NextResponse.json({ error: "Id inválido" }, { status: 400 });
@@ -88,6 +91,9 @@ async function notifyPriceDrop(property: InstanceType<typeof Property>) {
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const access = await requireDashboardAccess();
   if (!access) return NextResponse.json({ error: "Necesitás iniciar sesión." }, { status: 401 });
+  if (access.needsOnboarding) {
+    return NextResponse.json({ error: "Primero creá tu inmobiliaria en /publicar." }, { status: 403 });
+  }
 
   const { id } = await params;
   if (!Types.ObjectId.isValid(id)) return NextResponse.json({ error: "Id inválido" }, { status: 400 });

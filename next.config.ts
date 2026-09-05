@@ -1,11 +1,16 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: [
+    "192.168.56.1",
+    "192.168.0.21", // IP real de Wi-Fi
+    "localhost:3000"
+  ],
   images: {
-    // Next.js 16: `domains` está deprecado, se usa remotePatterns (más seguro).
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "res.cloudinary.com" },
+      { protocol: "https", hostname: "lh3.googleusercontent.com" }, // avatares de Google
     ],
   },
   async headers() {

@@ -5,6 +5,7 @@ import { requireAdminUser } from "@/lib/auth/require-admin";
 import { connectDB } from "@/lib/db/connect";
 import { Agency } from "@/lib/db/models/Agency";
 import { User } from "@/lib/db/models/User";
+import { AllowedEmail } from "@/lib/db/models/AllowedEmail";
 import { slugify } from "@/lib/utils/slugify";
 
 export async function POST(req: Request) {
@@ -48,6 +49,22 @@ export async function POST(req: Request) {
     });
     agency.owners = [owner._id];
     await agency.save();
+
+    // El owner creado por contraseña también queda como fila en AllowedEmail
+    // (única fuente de verdad de permisos, ver resolveAccessForEmail) — así
+    // conserva su rol si más adelante inicia sesión con Google.
+    await AllowedEmail.findOneAndUpdate(
+      { email: owner.email },
+      {
+        $set: {
+          agencyId: agency._id,
+          role: "agency_owner",
+          status: "active",
+          grantedBy: admin.id,
+        },
+      },
+      { upsert: true }
+    );
 
     return NextResponse.json({ id: String(agency._id), slug: agency.slug }, { status: 201 });
   } catch (err) {
