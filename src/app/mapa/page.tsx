@@ -3,11 +3,15 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MapLibreMap } from "maplibre-gl";
+import gsap from "gsap";
+import { useGSAP } from "@gsap/react";
 import { Logo } from "@/components/layout/Logo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { Button } from "@/components/ui/Button";
+import { IconButton } from "@/components/ui/IconButton";
 import { MapFilters } from "@/components/map/MapFilters";
 import { MapControls } from "@/components/map/MapControls";
 import { ResultsPanel } from "@/components/map/ResultsPanel";
@@ -16,6 +20,7 @@ import { filtersToSearchParams } from "@/lib/filters/state";
 import { MAP_DEFAULTS } from "@/config/site";
 import type { PropertyFeature } from "@/lib/map/useClusteredMarkers";
 import { padBBox, bboxContains, type BBox } from "@/lib/map/geo";
+import { useUserLocation, type NearestSuggestion } from "@/lib/map/useUserLocation";
 
 const MapCanvas = dynamic(() => import("@/components/map/MapCanvas").then((m) => m.MapCanvas), {
   ssr: false,
@@ -62,6 +67,8 @@ export default function MapaPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [mapInstance, setMapInstance] = useState<MapLibreMap | null>(null);
+
+  const { suggestion, radiusKm, goToSuggestion, dismissSuggestion, locateNow } = useUserLocation(mapInstance);
 
   const abortRef = useRef<AbortController | null>(null);
   const isFirstFetchRef = useRef(true);
@@ -174,7 +181,82 @@ export default function MapaPage() {
         map={mapInstance}
       />
 
-      <MapControls map={mapInstance} className="absolute bottom-6 right-4 z-20" />
+      <MapControls map={mapInstance} locateNow={locateNow} className="absolute bottom-6 right-4 z-20" />
+
+      {suggestion && (
+        <NearbySuggestionCard
+          suggestion={suggestion}
+          radiusKm={radiusKm}
+          onGo={goToSuggestion}
+          onDismiss={dismissSuggestion}
+        />
+      )}
     </div>
+  );
+}
+
+/**
+ * "Sin propiedades cerca tuyo" — aparece cuando la geolocalización del
+ * usuario cae lejos de cualquier propiedad (ver useUserLocation +
+ * /api/map/nearest). El mapa se queda donde está el usuario hasta que él
+ * decide saltar a la zona ofrecida.
+ */
+function NearbySuggestionCard({
+  suggestion,
+  radiusKm,
+  onGo,
+  onDismiss,
+}: {
+  suggestion: NearestSuggestion;
+  radiusKm: number;
+  onGo: () => void;
+  onDismiss: () => void;
+}) {
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(
+    () => {
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (reduceMotion || !cardRef.current) return;
+      gsap.fromTo(
+        cardRef.current,
+        { opacity: 0, y: -8, scale: 0.97 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.25, ease: "expo.out" }
+      );
+    },
+    { scope: cardRef }
+  );
+
+  return (
+    <div className="pointer-events-none absolute inset-x-0 top-24 z-10 flex justify-center px-4">
+      <div
+        ref={cardRef}
+        className="pointer-events-auto flex w-full max-w-sm flex-col items-center gap-3 rounded-card bg-surface p-4 text-center shadow-float sm:flex-row sm:items-center sm:text-left"
+      >
+        <div className="flex-1">
+          <p className="text-sm font-medium text-text">Sin propiedades a menos de {radiusKm} km</p>
+          <p className="text-sm text-text-muted">
+            Lo más cercano: {suggestion.city || suggestion.neighborhood} · {suggestion.distanceKm} km ·{" "}
+            {suggestion.count} {suggestion.count === 1 ? "propiedad" : "propiedades"}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <IconButton variant="ghost" size={32} aria-label="Cerrar" onClick={onDismiss}>
+            <CloseIcon />
+          </IconButton>
+          <Button size="sm" onClick={onGo}>
+            Ver {suggestion.city || suggestion.neighborhood} →
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden>
+      <path d="M5 5l14 14M19 5L5 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
   );
 }

@@ -42,3 +42,6 @@ export const CURRENCY_SYMBOLS: Record<string, string> = {
   USD: "US$",
   ARS: "$",
 };
+
+/** Radio (en km) que cuenta como "cerca" de la ubicación del usuario — ver /api/map/nearest. */
+export const NEARBY_RADIUS_KM = 50;

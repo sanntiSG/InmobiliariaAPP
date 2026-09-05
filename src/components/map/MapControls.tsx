@@ -3,25 +3,45 @@
 import { useState } from "react";
 import type { MapLibreMap } from "maplibre-gl";
 import { IconButton } from "@/components/ui/IconButton";
+import type { LocateResult } from "@/lib/map/useUserLocation";
 
-export function MapControls({ map, className }: { map: MapLibreMap | null; className?: string }) {
+const ERROR_MESSAGES: Record<Exclude<LocateResult, { ok: true }>["reason"], string> = {
+  denied: "Bloqueaste el permiso de ubicación — habilitalo desde el navegador para usar esto.",
+  unavailable: "No pudimos obtener tu ubicación. Probá de nuevo.",
+  unsupported: "Tu navegador no soporta geolocalización.",
+};
+
+export function MapControls({
+  map,
+  locateNow,
+  className,
+}: {
+  map: MapLibreMap | null;
+  /** Ver useUserLocation — comparte el mismo marker/estado que el intento automático al entrar al mapa. */
+  locateNow: (opts?: { zoom?: number }) => Promise<LocateResult>;
+  className?: string;
+}) {
   const [locating, setLocating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function locate() {
-    if (!map || !navigator.geolocation) return;
+  async function locate() {
     setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 14, duration: 800 });
-        setLocating(false);
-      },
-      () => setLocating(false),
-      { enableHighAccuracy: true, timeout: 8000 }
-    );
+    setError(null);
+    const result = await locateNow({ zoom: 14 });
+    setLocating(false);
+    if (!result.ok) {
+      setError(ERROR_MESSAGES[result.reason]);
+      setTimeout(() => setError(null), 5000);
+    }
   }
 
   return (
     <div className={className}>
+      {error && (
+        <div className="mb-2.5 max-w-[220px] rounded-card bg-surface p-3 text-xs text-text-muted shadow-float">
+          {error}
+        </div>
+      )}
       <div className="flex flex-col overflow-hidden rounded-pill bg-surface shadow-float">
         <IconButton
           variant="ghost"
