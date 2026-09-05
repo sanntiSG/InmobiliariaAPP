@@ -3,26 +3,40 @@ import { redirect } from "next/navigation";
 import { requireDashboardAccess } from "@/lib/auth/require-dashboard-access";
 import { connectDB } from "@/lib/db/connect";
 import { Property } from "@/lib/db/models/Property";
+import { Agency } from "@/lib/db/models/Agency";
 import { buttonClasses } from "@/components/ui/Button";
 import { DeletePropertyButton } from "@/components/dashboard/DeletePropertyButton";
+import { AgencyFilterSelect } from "@/components/dashboard/AgencyFilterSelect";
 import { formatPrice } from "@/lib/utils/format";
 import { PROPERTY_STATUS_LABELS, type PropertyStatus } from "@/config/filters";
 
 export const metadata = { title: "Propiedades" };
 
-export default async function DashboardPropertiesPage() {
+export default async function DashboardPropertiesPage({
+  searchParams,
+}: PageProps<"/dashboard/propiedades">) {
   const access = await requireDashboardAccess();
   if (!access) redirect("/ingresar");
 
+  const params = (await searchParams) as { agencyId?: string } | undefined;
+  const filterAgencyId = access.isAdmin ? params?.agencyId?.trim() : undefined;
+
   await connectDB();
-  const query = access.isAdmin ? {} : { agencyId: access.agencyId };
+  const query = access.isAdmin
+    ? filterAgencyId
+      ? { agencyId: filterAgencyId }
+      : {}
+    : { agencyId: access.agencyId };
   let propertiesQuery = Property.find(query)
     .select("title slug status price stats media.images agencyId")
     .sort({ updatedAt: -1 });
   if (access.isAdmin) {
     propertiesQuery = propertiesQuery.populate({ path: "agencyId", select: "name" });
   }
-  const properties = await propertiesQuery.lean();
+  const [properties, agencies] = await Promise.all([
+    propertiesQuery.lean(),
+    access.isAdmin ? Agency.find({}).select("name").sort({ name: 1 }).lean() : Promise.resolve(null),
+  ]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -31,9 +45,17 @@ export default async function DashboardPropertiesPage() {
           {access.isAdmin ? "Todas las propiedades" : "Mis propiedades"}{" "}
           <span className="text-text-muted">({properties.length})</span>
         </h1>
-        <Link href="/dashboard/propiedades/nueva" className={buttonClasses("primary", "md")}>
-          + Nueva propiedad
-        </Link>
+        <div className="flex items-center gap-3">
+          {access.isAdmin && agencies && (
+            <AgencyFilterSelect
+              agencies={agencies.map((a) => ({ id: String(a._id), name: a.name }))}
+              selected={filterAgencyId ?? ""}
+            />
+          )}
+          <Link href="/dashboard/propiedades/nueva" className={buttonClasses("primary", "md")}>
+            + Nueva propiedad
+          </Link>
+        </div>
       </div>
 
       {properties.length === 0 ? (

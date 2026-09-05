@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils/cn";
 type AllowedEmailRow = {
   _id: string;
   email: string;
-  status: "pending" | "active";
+  status: "pending" | "awaiting_agency" | "active";
   agencyId: { _id: string; name: string; slug: string } | null;
   createdAt: string;
 };
@@ -16,6 +16,21 @@ type AllowedEmailRow = {
 type AgencyOption = {
   _id: string;
   name: string;
+};
+
+/** Sentinel del `<select>` — "" en value ya significa "sin inmobiliaria", así que se usa una key propia. */
+const NO_AGENCY = "__none__";
+
+const STATUS_LABEL: Record<AllowedEmailRow["status"], string> = {
+  pending: "Pendiente",
+  awaiting_agency: "Falta inmobiliaria",
+  active: "Activo",
+};
+
+const STATUS_CLASS: Record<AllowedEmailRow["status"], string> = {
+  pending: "bg-warning-soft text-warning",
+  awaiting_agency: "bg-accent-soft text-accent",
+  active: "bg-success-soft text-success",
 };
 
 export function AllowedEmailsManager({
@@ -28,21 +43,23 @@ export function AllowedEmailsManager({
   const router = useRouter();
   const [emails, setEmails] = useState(initialEmails);
   const [newEmail, setNewEmail] = useState("");
-  const [selectedAgency, setSelectedAgency] = useState(agencies[0]?._id ?? "");
+  const [selectedAgency, setSelectedAgency] = useState(NO_AGENCY);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function handleAdd(e: FormEvent) {
     e.preventDefault();
-    if (!newEmail.trim() || !selectedAgency) return;
+    if (!newEmail.trim()) return;
     setError(null);
     setLoading(true);
+
+    const agencyId = selectedAgency === NO_AGENCY ? undefined : selectedAgency;
 
     const res = await fetch("/api/admin/allowed-emails", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: newEmail.trim(), agencyId: selectedAgency }),
+      body: JSON.stringify({ email: newEmail.trim(), agencyId }),
     });
 
     const data = await res.json().catch(() => null);
@@ -57,7 +74,7 @@ export function AllowedEmailsManager({
     setNewEmail("");
     router.refresh();
     // Optimistic update con los datos populados
-    const agency = agencies.find((a) => a._id === selectedAgency);
+    const agency = agencies.find((a) => a._id === agencyId);
     setEmails((prev) => [
       {
         _id: data._id,
@@ -87,8 +104,8 @@ export function AllowedEmailsManager({
       <div className="rounded-card bg-surface p-6 shadow-card">
         <h2 className="font-display text-lg font-bold text-text">Autorizar nuevo email</h2>
         <p className="mt-1 text-sm text-text-muted">
-          El email recibirá acceso de gestión a la inmobiliaria seleccionada cuando inicie sesión con
-          Google.
+          Elegí una inmobiliaria ya creada, o dejá &quot;Sin inmobiliaria&quot; para que la persona cree la
+          suya la primera vez que entre con Google.
         </p>
 
         <form onSubmit={handleAdd} className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -125,6 +142,7 @@ export function AllowedEmailsManager({
                 transition-colors duration-150
               "
             >
+              <option value={NO_AGENCY}>Sin inmobiliaria (la crea el usuario)</option>
               {agencies.map((a) => (
                 <option key={a._id} value={a._id}>
                   {a.name}
@@ -133,7 +151,7 @@ export function AllowedEmailsManager({
             </select>
           </div>
 
-          <Button type="submit" disabled={loading || !newEmail.trim() || !selectedAgency} size="md">
+          <Button type="submit" disabled={loading || !newEmail.trim()} size="md">
             {loading ? "Autorizando…" : "Autorizar"}
           </Button>
         </form>
@@ -187,11 +205,10 @@ export function AllowedEmailsManager({
                   <span
                     className={cn(
                       "shrink-0 rounded-pill px-2.5 py-1 text-xs font-medium",
-                      entry.status === "active" && "bg-success-soft text-success",
-                      entry.status === "pending" && "bg-warning-soft text-warning"
+                      STATUS_CLASS[entry.status]
                     )}
                   >
-                    {entry.status === "active" ? "Activo" : "Pendiente"}
+                    {STATUS_LABEL[entry.status]}
                   </span>
 
                   <Button

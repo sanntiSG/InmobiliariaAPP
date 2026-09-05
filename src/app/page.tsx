@@ -1,21 +1,20 @@
-import Link from "next/link";
 import { Logo } from "@/components/layout/Logo";
-import { buttonClasses } from "@/components/ui/Button";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { HeroCtas, type SecondaryCta } from "@/components/home/HeroCtas";
 import { brand } from "@/config/brand";
 import { buildWhatsappLink } from "@/config/site";
+import { auth } from "@/auth";
 
 /**
  * Landing con los 3 caminos del brief: Explorar (sin cuenta), Ingresar /
- * Crear cuenta (auth real, ver src/auth.ts), y Publicá tu inmobiliaria
- * (contacto directo por WhatsApp — solo el proveedor da de alta inmobiliarias).
+ * Crear cuenta (auth real, ver src/auth.ts), y Publicá tu inmobiliaria — el
+ * segundo CTA cambia según quién mira (ver resolveSecondaryCta más abajo).
  */
-export default function Home() {
-  const whatsappHref = buildWhatsappLink(
-    `Hola! Quiero publicar mi inmobiliaria en ${brand.name}.`
-  );
+export default async function Home() {
+  const session = await auth().catch(() => null);
+  const secondaryCta = resolveSecondaryCta(session?.user);
 
   return (
     <main className="relative flex min-h-dvh flex-col overflow-hidden">
@@ -43,19 +42,7 @@ export default function Home() {
         </h1>
         <p className="mt-5 max-w-xl text-balance text-lg text-text-muted">{brand.description}</p>
 
-        <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row">
-          <Link href="/mapa" className={buttonClasses("primary", "lg", "sm:min-w-[200px]")}>
-            Explorar propiedades
-          </Link>
-          <a
-            href={whatsappHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={buttonClasses("secondary", "lg", "sm:min-w-[200px]")}
-          >
-            Publicá tu inmobiliaria
-          </a>
-        </div>
+        <HeroCtas secondaryCta={secondaryCta} />
         <p className="mt-4 max-w-md text-balance text-sm text-text-muted">
           Explorar no necesita cuenta. Creá una para guardar propiedades, comentar y recibir
           recomendaciones.
@@ -67,4 +54,30 @@ export default function Home() {
       </footer>
     </main>
   );
+}
+
+/**
+ * El segundo CTA de la landing depende de quién mira:
+ * - admin → directo a su panel.
+ * - inmobiliaria ya con agencia → a su dashboard.
+ * - habilitada pero sin agencia todavía → a /publicar (crear la suya).
+ * - cualquier otro caso (sin sesión, o usuario sin permiso de agencia) →
+ *   comportamiento original: WhatsApp al proveedor.
+ */
+function resolveSecondaryCta(
+  user: { role?: string; agencyId?: string | null } | undefined
+): SecondaryCta {
+  if (user?.role === "admin") {
+    return { label: "Panel de admin", href: "/admin" };
+  }
+  if (user?.role === "agency_owner" || user?.role === "agency_agent") {
+    return user.agencyId
+      ? { label: "Ir a mi panel", href: "/dashboard" }
+      : { label: "Creá tu inmobiliaria", href: "/publicar" };
+  }
+  return {
+    label: "Publicá tu inmobiliaria",
+    href: buildWhatsappLink(`Hola! Quiero publicar mi inmobiliaria en ${brand.name}.`),
+    external: true,
+  };
 }

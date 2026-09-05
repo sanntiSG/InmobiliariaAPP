@@ -3,6 +3,8 @@ import { requireAdminUser } from "@/lib/auth/require-admin";
 import { Logo } from "@/components/layout/Logo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { UserMenu } from "@/components/auth/UserMenu";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { AdminNav } from "@/components/admin/AdminNav";
 
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
   const admin = await requireAdminUser();
@@ -18,12 +20,16 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
             <span className="hidden font-medium text-text sm:inline">Admin</span>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
+            <NotificationBell />
             <UserMenu compact />
             <ThemeToggle />
           </div>
         </div>
       </header>
-      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">{children}</div>
+      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 lg:flex-row">
+        <AdminNav />
+        <main className="min-w-0 flex-1">{children}</main>
+      </div>
     </div>
   );
 }

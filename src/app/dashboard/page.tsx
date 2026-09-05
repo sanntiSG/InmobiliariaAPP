@@ -28,7 +28,10 @@ export default async function DashboardOverviewPage() {
   }
 
   if (access.isAdmin) {
-    const properties = await propertiesQuery.lean();
+    const [properties, platformStats] = await Promise.all([
+      propertiesQuery.lean(),
+      getAgencyWeeklyStats(null),
+    ]);
 
     return (
       <div className="flex flex-col gap-8">
@@ -46,6 +49,21 @@ export default async function DashboardOverviewPage() {
             + Nueva propiedad
           </Link>
         </div>
+
+        <section>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-text-muted">Últimos 7 días — toda la plataforma</h2>
+            <Link href="/admin/estadisticas" className="text-sm font-medium text-accent hover:underline">
+              Ver estadísticas completas →
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <StatTile label="Visualizaciones" metric={platformStats.views} />
+            <StatTile label="Me gusta" metric={platformStats.likes} />
+            <StatTile label="Guardados" metric={platformStats.saves} />
+            <StatTile label="Comentarios" metric={platformStats.comments} />
+          </div>
+        </section>
 
         <section>
           <div className="mb-3 flex items-center justify-between">

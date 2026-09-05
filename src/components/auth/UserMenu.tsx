@@ -31,12 +31,16 @@ export function UserMenu({ compact = false }: { compact?: boolean }) {
   const firstName = session.user.name?.split(" ")[0] ?? "Vos";
   const isAgency = session.user.role === "agency_owner" || session.user.role === "agency_agent";
   const isAdmin = session.user.role === "admin";
+  const needsOnboarding = isAgency && !session.user.agencyId;
 
   return (
     <div className="flex items-center gap-2">
       {isAgency && (
-        <Link href="/dashboard" className="hidden text-sm font-medium text-accent hover:underline sm:inline">
-          Panel
+        <Link
+          href={needsOnboarding ? "/publicar" : "/dashboard"}
+          className="hidden text-sm font-medium text-accent hover:underline sm:inline"
+        >
+          {needsOnboarding ? "Creá tu inmobiliaria" : "Panel"}
         </Link>
       )}
       {isAdmin && (
