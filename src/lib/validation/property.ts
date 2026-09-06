@@ -13,28 +13,26 @@ const lngLatSchema = z
   .describe("[lng, lat]");
 
 /**
- * El recorrido 3D se carga sólo por link (Polycam/Matterport/Kuula/Sketchfab,
- * o la URL de un .glb/.gltf/.usdz ya hosteado) — nunca por archivo subido
- * (ver `src/lib/media/tour-embed.ts` para el porqué). `normalizeTourUrl` es
- * la misma función que usa el formulario para mostrar el chip de detección
- * antes de guardar; acá se vuelve a aplicar como defensa en profundidad para
- * un cliente que pegue directo contra la API sin pasar por el form.
+ * Cada recorrido 3D se carga sólo por link (Polycam/Matterport/Kuula/
+ * Sketchfab, o la URL de un .glb/.gltf/.usdz ya hosteado) — nunca por
+ * archivo subido (ver `src/lib/media/tour-embed.ts` para el porqué).
+ * `normalizeTourUrl` es la misma función que usa el formulario para mostrar
+ * el chip de detección antes de guardar; acá se vuelve a aplicar como
+ * defensa en profundidad para un cliente que pegue directo contra la API
+ * sin pasar por el form. Una propiedad puede tener varios (`tours: []`) —
+ * distintos ambientes, o un link de Polycam + un `.glb` de respaldo.
  */
-const tour3dInputSchema = z
-  .object({
-    enabled: z.boolean().default(false),
-    kind: z.enum(["iframe", "mesh"]).default("iframe"),
-    provider: z.enum(["matterport", "polycam", "kuula", "sketchfab", "custom"]).optional(),
-    modelId: z.string().optional(),
-    embedUrl: z.string().optional(),
-    meshUrl: z.string().optional(),
-    meshFormat: z.enum(["glb", "gltf", "usdz"]).optional(),
-    thumbnail: z.url().optional(),
-  })
-  // El default vive acá, en el schema "plano" previo al `.transform()` de
-  // abajo — puesto en el `.transform()` en cambio, TS no logra inferir el
-  // tipo de entrada porque su salida es una unión de formas distintas.
-  .default({ enabled: false, kind: "iframe" });
+const tourEntryInputSchema = z.object({
+  /** Opcional — ej. "Living", "Fachada". Si falta, la UI usa "Recorrido N". */
+  label: z.string().trim().max(60).optional(),
+  kind: z.enum(["iframe", "mesh"]).default("iframe"),
+  provider: z.enum(["matterport", "polycam", "kuula", "sketchfab", "custom"]).optional(),
+  modelId: z.string().optional(),
+  embedUrl: z.string().optional(),
+  meshUrl: z.string().optional(),
+  meshFormat: z.enum(["glb", "gltf", "usdz"]).optional(),
+  thumbnail: z.url().optional(),
+});
 
 /**
  * Anotada explícitamente (en vez de dejar que TS infiera el retorno de
@@ -43,8 +41,8 @@ const tour3dInputSchema = z
  * `.default()` más abajo (acá y en el `media` que lo contiene) puede
  * matchear contra un tipo simple en vez de una unión.
  */
-type Tour3DOutput = {
-  enabled: boolean;
+type TourEntryOutput = {
+  label?: string;
   kind: "iframe" | "mesh";
   provider?: TourProvider;
   modelId?: string;
@@ -54,11 +52,7 @@ type Tour3DOutput = {
   thumbnail?: string;
 };
 
-const tour3dSchema = tour3dInputSchema.transform((v, ctx): Tour3DOutput => {
-  if (!v.enabled) {
-    return { enabled: false, kind: "iframe", thumbnail: v.thumbnail };
-  }
-
+const tourEntrySchema = tourEntryInputSchema.transform((v, ctx): TourEntryOutput => {
   const raw = v.kind === "mesh" ? v.meshUrl : v.embedUrl;
   if (!raw) {
     ctx.addIssue({ code: "custom", message: "Falta la URL del recorrido", path: ["embedUrl"] });
@@ -73,7 +67,7 @@ const tour3dSchema = tour3dInputSchema.transform((v, ctx): Tour3DOutput => {
 
   if (detected.kind === "mesh") {
     return {
-      enabled: true,
+      label: v.label,
       kind: "mesh",
       provider: detected.provider,
       modelId: v.modelId,
@@ -84,7 +78,7 @@ const tour3dSchema = tour3dInputSchema.transform((v, ctx): Tour3DOutput => {
   }
 
   return {
-    enabled: true,
+    label: v.label,
     kind: "iframe",
     provider: detected.provider,
     modelId: v.modelId,
@@ -92,6 +86,9 @@ const tour3dSchema = tour3dInputSchema.transform((v, ctx): Tour3DOutput => {
     thumbnail: v.thumbnail,
   };
 });
+
+const MAX_TOURS = 6;
+const toursSchema = z.array(tourEntrySchema).max(MAX_TOURS, `Máximo ${MAX_TOURS} recorridos por propiedad.`).default([]);
 
 const imageSchema = z.object({
   url: z.url(),
@@ -159,14 +156,19 @@ export const propertyInputSchema = z.object({
         )
         .default([]),
       floorPlans: z.array(imageSchema).default([]),
-      tour3d: tour3dSchema,
+      tours: toursSchema,
     })
     .default({
       images: [],
       videos: [],
       floorPlans: [],
-      tour3d: { enabled: false, kind: "iframe" },
-    }),
+      tours: [],
+    })
+    // `hasTour3d` desnormalizado a partir de `tours.length` — así los
+    // filtros/queries (`property-query.ts`, `agency-stats.ts`) no necesitan
+    // inspeccionar el array. Se recalcula acá mismo en cada guardado, nunca
+    // lo manda el cliente.
+    .transform((v) => ({ ...v, hasTour3d: v.tours.length > 0 })),
 });
 
 export type PropertyInput = z.infer<typeof propertyInputSchema>;

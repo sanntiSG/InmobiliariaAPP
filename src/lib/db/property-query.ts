@@ -19,7 +19,7 @@ export function buildPropertyQuery(filters: BaseFilters): Record<string, unknown
   if (filters.operation) query.operation = filters.operation;
   if (filters.type && filters.type.length > 0) query.type = { $in: filters.type };
   if (filters.amenities && filters.amenities.length > 0) query.amenities = { $all: filters.amenities };
-  if (filters.tour3d) query["media.tour3d.enabled"] = true;
+  if (filters.tour3d) query["media.hasTour3d"] = true;
   if (filters.minRooms) query["features.rooms"] = { $gte: filters.minRooms };
   if (filters.priceMin != null || filters.priceMax != null) {
     query["price.amount"] = {
@@ -36,4 +36,4 @@ export function buildPropertyQuery(filters: BaseFilters): Record<string, unknown
 }
 
 export const PROPERTY_CARD_PROJECTION =
-  "title slug price operation type address location features.bedrooms features.bathrooms features.totalArea features.coveredArea media.images media.tour3d publishedAt agencyId";
+  "title slug price operation type address location features.bedrooms features.bathrooms features.totalArea features.coveredArea media.images media.hasTour3d publishedAt agencyId";

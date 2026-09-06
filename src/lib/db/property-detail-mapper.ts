@@ -59,17 +59,25 @@ export function toPropertyDetail(doc: any): PropertyDetail {
       url: v.url,
       thumbnail: v.thumbnail,
     })),
-    tour3d: doc.media?.tour3d?.enabled
-      ? {
-          enabled: true,
-          kind: doc.media.tour3d.kind ?? "iframe",
-          provider: doc.media.tour3d.provider,
-          embedUrl: doc.media.tour3d.embedUrl,
-          meshUrl: doc.media.tour3d.meshUrl,
-          meshFormat: doc.media.tour3d.meshFormat,
-          thumbnail: doc.media.tour3d.thumbnail,
-        }
-      : null,
+    tours: (doc.media?.tours ?? []).map(
+      (t: {
+        label?: string;
+        kind?: string;
+        provider?: string;
+        embedUrl?: string;
+        meshUrl?: string;
+        meshFormat?: string;
+        thumbnail?: string;
+      }) => ({
+        label: t.label,
+        kind: t.kind ?? "iframe",
+        provider: t.provider,
+        embedUrl: t.embedUrl,
+        meshUrl: t.meshUrl,
+        meshFormat: t.meshFormat,
+        thumbnail: t.thumbnail,
+      })
+    ),
 
     stats: {
       views: doc.stats?.views ?? 0,

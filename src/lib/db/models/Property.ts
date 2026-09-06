@@ -40,8 +40,11 @@ const videoSchema = new Schema(
 );
 
 /**
- * Slot del Digital Twin / recorrido 3D. Es completamente opcional: una
- * propiedad simplemente lo tiene (`enabled: true`) o no.
+ * Un recorrido / Digital Twin. Una propiedad puede tener varios
+ * (`media.tours`, ver más abajo) — distintos ambientes escaneados por
+ * separado, o un link de Polycam más un `.glb` de respaldo para cuando
+ * Polycam no se puede ver (ver comentario de `PROVIDER_REQUIRES_WEBGPU` en
+ * `src/lib/media/tour-embed.ts`).
  *
  * `kind` determina cómo se renderiza:
  * - "iframe": embed hosteado por el proveedor (Matterport, el visor propio
@@ -53,11 +56,13 @@ const videoSchema = new Schema(
  *   usuario pega la URL, igual que con el link de un recorrido (ver
  *   `src/lib/media/tour-embed.ts`).
  *
- * `provider` es solo metadata/branding, no afecta el render.
+ * `provider` es solo metadata/branding, no afecta el render (salvo para
+ * decidir si requiere WebGPU, ver arriba).
  */
-const tour3dSchema = new Schema(
+const tourEntrySchema = new Schema(
   {
-    enabled: { type: Boolean, default: false },
+    /** Opcional — ej. "Living", "Fachada". Si falta, la UI usa "Recorrido N". */
+    label: { type: String, maxlength: 60 },
     kind: { type: String, enum: ["iframe", "mesh"], default: "iframe" },
     provider: { type: String, enum: ["matterport", "polycam", "kuula", "sketchfab", "custom"], default: "polycam" },
     modelId: { type: String },
@@ -127,7 +132,9 @@ const propertySchema = new Schema(
       images: [imageSchema],
       videos: [videoSchema],
       floorPlans: [imageSchema],
-      tour3d: { type: tour3dSchema, default: () => ({ enabled: false }) },
+      tours: [tourEntrySchema],
+      /** Desnormalizado a partir de `tours.length > 0` — evita inspeccionar el array en cada query/filtro (ver `property-query.ts`, `agency-stats.ts`). */
+      hasTour3d: { type: Boolean, default: false, index: true },
     },
 
     /** Contadores desnormalizados, actualizados a partir de `Interaction`. */

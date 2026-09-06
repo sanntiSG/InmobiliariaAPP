@@ -185,7 +185,9 @@ async function main() {
     const imageCount = randInt(3, 6);
     const shuffled = [...UNSPLASH_IDS].sort(() => Math.random() - 0.5).slice(0, imageCount);
 
-    const hasTour = Math.random() < 0.3;
+    // La propiedad de `DEMO_MULTI_TOUR_INDEX` siempre tiene tour — es la que
+    // demuestra el caso de varios recorridos (ver `buildTours`).
+    const hasTour = i === DEMO_MULTI_TOUR_INDEX || Math.random() < 0.3;
     const publishedDaysAgo = randInt(0, 60);
 
     const title = `${typeLabel(type)} en ${operation === "venta" ? "venta" : "alquiler"} en ${neighborhood.name}`;
@@ -219,16 +221,14 @@ async function main() {
         images: shuffled.map((id, idx) => ({ url: imageUrl(id), alt: title, order: idx })),
         videos: [],
         floorPlans: [],
-        tour3d: buildTour3d(hasTour, i, shuffled[0]),
+        tours: buildTours(hasTour, i, shuffled[0]),
+        hasTour3d: hasTour,
       },
-      stats: {
-        views: randInt(0, 400),
-        likes: randInt(0, 60),
-        saves: randInt(0, 40),
-        comments: randInt(0, 15),
-        ratingAvg: Number((3.5 + Math.random() * 1.5).toFixed(1)),
-        ratingCount: randInt(0, 20),
-      },
+      // Sin datos inventados: `stats` nace en 0, igual que cualquier
+      // propiedad real — antes tenía números random sin ningún `Like`/
+      // `Interaction` real detrás, lo que hacía parecer que una propiedad
+      // recién publicada (o recién seedeada) ya tenía actividad que nadie
+      // generó. Cualquier número que se vea de acá en más es real.
       publishedAt: new Date(Date.now() - publishedDaysAgo * 86_400_000),
     });
 
@@ -247,34 +247,65 @@ async function main() {
   await mongoose.disconnect();
 }
 
+/** Índice fijo (dentro de las propiedades con tour) que demuestra el caso de varios recorridos a la vez. */
+const DEMO_MULTI_TOUR_INDEX = 1;
+
 /**
- * Mezcla ambos caminos del Digital Twin para probar los dos renders:
- * "iframe" (Matterport, verificado alcanzable) y "mesh" (glb propio vía
- * <model-viewer>, como lo exportaría alguien desde Polycam).
+ * Mezcla los dos caminos del Digital Twin para probar los renders: "iframe"
+ * (Matterport, verificado alcanzable) y "mesh" (glb propio vía
+ * <model-viewer>, como lo exportaría alguien desde Polycam). Una propiedad
+ * fija (`DEMO_MULTI_TOUR_INDEX`) tiene además DOS recorridos a la vez — un
+ * link de Polycam (capture pública real y verificada, "Furry friend") +
+ * un .glb de respaldo — para poder probar el selector de "más de un
+ * recorrido" y el aviso de WebGPU (ver `PropertyMedia.tsx`) con datos reales.
  */
-function buildTour3d(hasTour: boolean, index: number, thumbnailImageId: string) {
-  if (!hasTour) return { enabled: false, kind: "iframe" as const };
+function buildTours(hasTour: boolean, index: number, thumbnailImageId: string) {
+  if (!hasTour) return [];
+  const thumbnail = imageUrl(thumbnailImageId);
+
+  if (index === DEMO_MULTI_TOUR_INDEX) {
+    const sample = MESH_SAMPLES[0];
+    return [
+      {
+        label: "Recorrido interactivo",
+        kind: "iframe" as const,
+        provider: "polycam" as const,
+        embedUrl: "https://poly.cam/capture/204B4702-F534-4026-8762-976F43B80B97/embed",
+        thumbnail,
+      },
+      {
+        label: "Modelo 3D (respaldo)",
+        kind: "mesh" as const,
+        provider: "polycam" as const,
+        meshUrl: sample.url,
+        meshFormat: sample.format,
+        thumbnail,
+      },
+    ];
+  }
 
   if (index % 2 === 0) {
     const sample = MESH_SAMPLES[index % MESH_SAMPLES.length];
-    return {
-      enabled: true,
-      kind: "mesh" as const,
-      provider: "polycam" as const,
-      meshUrl: sample.url,
-      meshFormat: sample.format,
-      thumbnail: imageUrl(thumbnailImageId),
-    };
+    return [
+      {
+        kind: "mesh" as const,
+        provider: "polycam" as const,
+        meshUrl: sample.url,
+        meshFormat: sample.format,
+        thumbnail,
+      },
+    ];
   }
 
-  return {
-    enabled: true,
-    kind: "iframe" as const,
-    provider: "matterport" as const,
-    modelId: `demo-${index}`,
-    embedUrl: "https://my.matterport.com/show/?m=SxQL3iGyvS0",
-    thumbnail: imageUrl(thumbnailImageId),
-  };
+  return [
+    {
+      kind: "iframe" as const,
+      provider: "matterport" as const,
+      modelId: `demo-${index}`,
+      embedUrl: "https://my.matterport.com/show/?m=SxQL3iGyvS0",
+      thumbnail,
+    },
+  ];
 }
 
 function typeLabel(type: string) {

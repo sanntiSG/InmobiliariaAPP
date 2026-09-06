@@ -63,8 +63,10 @@ export default async function EditPropertyPage({ params }: PageProps<"/dashboard
       order: img.order ?? i,
       providerId: img.providerId ?? undefined,
     })),
-    tourEnabled: !!doc.media?.tour3d?.enabled,
-    tourUrl: doc.media?.tour3d?.meshUrl ?? doc.media?.tour3d?.embedUrl ?? "",
+    tours: (doc.media?.tours ?? []).map((t) => ({
+      url: t.meshUrl ?? t.embedUrl ?? "",
+      label: t.label ?? "",
+    })),
   };
 
   return (

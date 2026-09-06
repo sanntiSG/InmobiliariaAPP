@@ -16,7 +16,7 @@ export type LeanPropertyDoc = {
   features?:
     | { bedrooms?: number | null; bathrooms?: number | null; totalArea?: number | null; coveredArea?: number | null }
     | null;
-  media?: { images?: { url: string; order?: number | null }[]; tour3d?: { enabled?: boolean } | null } | null;
+  media?: { images?: { url: string; order?: number | null }[]; hasTour3d?: boolean | null } | null;
   publishedAt?: Date | string | null;
   agencyId?: unknown;
 };
@@ -48,7 +48,7 @@ export function toPropertyCardData(doc: LeanPropertyDoc, now: number = Date.now(
     bedrooms: doc.features?.bedrooms ?? undefined,
     bathrooms: doc.features?.bathrooms ?? undefined,
     area: doc.features?.totalArea ?? doc.features?.coveredArea ?? undefined,
-    tour3d: !!doc.media?.tour3d?.enabled,
+    tour3d: !!doc.media?.hasTour3d,
     isNew: doc.publishedAt ? now - new Date(doc.publishedAt).getTime() < NEW_WINDOW_DAYS * 86_400_000 : false,
     agencyName: agency?.name,
     lng: safeLng,

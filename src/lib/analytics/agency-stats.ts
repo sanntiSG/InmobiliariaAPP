@@ -134,7 +134,7 @@ export async function getAgencyRecommendations(
     Property.countDocuments({
       agencyId: agencyObjectId,
       status: "published",
-      "media.tour3d.enabled": { $ne: true },
+      "media.hasTour3d": { $ne: true },
     }),
     Property.findOne({ agencyId: agencyObjectId, status: "published" })
       .sort({ publishedAt: -1 })

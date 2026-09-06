@@ -7,6 +7,9 @@ import { connectDB } from "@/lib/db/connect";
 import { Agency } from "@/lib/db/models/Agency";
 import { Property } from "@/lib/db/models/Property";
 import { Favorite } from "@/lib/db/models/Favorite";
+import { Like } from "@/lib/db/models/Like";
+import { Comment } from "@/lib/db/models/Comment";
+import { Rating } from "@/lib/db/models/Rating";
 import { createNotificationForMany } from "@/lib/notifications/create";
 
 const updateSchema = propertyInputSchema.omit({ agencyId: true }).extend({
@@ -103,6 +106,16 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     const scopeQuery = access.isAdmin ? { _id: id } : { _id: id, agencyId: access.agencyId };
     const result = await Property.deleteOne(scopeQuery);
     if (result.deletedCount === 0) return NextResponse.json({ error: "No encontrada" }, { status: 404 });
+
+    // Sin esto quedaban Like/Favorite/Rating/Comment huérfanos apuntando a
+    // un `propertyId` que ya no existe — nunca se limpiaban solos.
+    await Promise.all([
+      Like.deleteMany({ propertyId: id }),
+      Favorite.deleteMany({ propertyId: id }),
+      Rating.deleteMany({ propertyId: id }),
+      Comment.deleteMany({ propertyId: id }),
+    ]);
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("DELETE /api/dashboard/properties/[id] failed:", err);

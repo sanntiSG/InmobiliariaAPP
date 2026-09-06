@@ -140,7 +140,7 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
 
         <div className="mt-4 grid grid-cols-1 gap-8 lg:grid-cols-3">
           <div className="flex flex-col gap-8 lg:col-span-2">
-            <PropertyMedia images={property.images} tour3d={property.tour3d} title={property.title} />
+            <PropertyMedia images={property.images} tours={property.tours} title={property.title} />
 
             <div>
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -217,7 +217,7 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
                     title: property.title,
                     price: property.price.amount,
                     currency: property.price.currency,
-                    tour3d: !!property.tour3d?.enabled,
+                    tour3d: property.tours.length > 0,
                   }}
                 />
               </div>

@@ -10,6 +10,8 @@
     "typecheck": "tsc --noEmit",
     "seed": "tsx scripts/seed.ts",
     "fix-google-id-index": "tsx scripts/fix-google-id-index.ts",
+    "migrate-tour3d-to-tours": "tsx scripts/migrate-tour3d-to-tours.ts",
+    "reconcile-property-stats": "tsx scripts/reconcile-property-stats.ts",
     "postinstall": "node scripts/copy-maplibre-worker.mjs"
   },
   "dependencies": {

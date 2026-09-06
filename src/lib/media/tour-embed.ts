@@ -25,6 +25,31 @@ export type TourEmbed =
   | { kind: "mesh"; url: string; format: "glb" | "gltf" | "usdz"; provider: TourProvider; label: string }
   | { kind: "invalid"; reason: string };
 
+/**
+ * El visor propio de Polycam (`poly.cam/capture/<id>/embed`) renderiza con
+ * WebGPU, no WebGL — confirmado con el reporte de un usuario en Safari
+ * ("3D models can't load on this browser") + la propia respuesta de
+ * Polycam ("Polycam renders 3D with WebGPU"). WebGPU recién llegó a Safari
+ * en la versión 26 (iOS 26) — casi ningún Safari anterior puede verlo, y
+ * Polycam muestra su propio error crudo (en inglés) dentro del iframe.
+ * No podemos arreglar el visor de Polycam (es contenido de terceros), pero
+ * sí podemos evitar montarlo cuando sabemos que va a fallar (ver
+ * `PropertyMedia.tsx`). El resto de los proveedores (Matterport, Kuula,
+ * Sketchfab) siguen usando WebGL — sin este problema, por ahora.
+ */
+export const PROVIDER_REQUIRES_WEBGPU: Record<TourProvider, boolean> = {
+  matterport: false,
+  polycam: true,
+  kuula: false,
+  sketchfab: false,
+  custom: false,
+};
+
+/** true si el navegador actual soporta WebGPU. Siempre false durante SSR (no hay `navigator`). */
+export function supportsWebGPU(): boolean {
+  return typeof navigator !== "undefined" && "gpu" in navigator;
+}
+
 const MESH_EXTENSIONS = { ".glb": "glb", ".gltf": "gltf", ".usdz": "usdz" } as const;
 
 export function normalizeTourUrl(raw: string): TourEmbed {

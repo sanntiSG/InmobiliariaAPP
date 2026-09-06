@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { FilterPill } from "@/components/ui/FilterPill";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ImageUploader, type UploadedImage } from "./ImageUploader";
+import { IconButton } from "@/components/ui/IconButton";
 import { normalizeTourUrl } from "@/lib/media/tour-embed";
 import {
   OPERATIONS,
@@ -60,10 +61,14 @@ export type PropertyFormValues = {
   orientation: string;
   amenities: Amenity[];
   images: UploadedImage[];
-  tourEnabled: boolean;
-  /** URL pegada tal cual por el usuario — Polycam/Matterport/Kuula/Sketchfab o un .glb/.gltf/.usdz hosteado. Ver `normalizeTourUrl`. */
-  tourUrl: string;
+  /** Una propiedad puede tener varios recorridos — distintos ambientes, o un link de Polycam + un .glb de respaldo. */
+  tours: TourFormRow[];
 };
+
+/** Una fila del formulario de recorridos — `url` sin procesar (ver `normalizeTourUrl`), `label` opcional (ej. "Living"). */
+export type TourFormRow = { url: string; label: string };
+
+const MAX_TOUR_ROWS = 6;
 
 export const emptyPropertyForm: PropertyFormValues = {
   agencyId: "",
@@ -95,8 +100,7 @@ export const emptyPropertyForm: PropertyFormValues = {
   orientation: "",
   amenities: [],
   images: [],
-  tourEnabled: false,
-  tourUrl: "",
+  tours: [],
 };
 
 function toPayload(v: PropertyFormValues) {
@@ -146,33 +150,39 @@ function toPayload(v: PropertyFormValues) {
       })),
       videos: [],
       floorPlans: [],
-      tour3d: buildTour3dPayload(v),
+      tours: buildToursPayload(v),
     },
   };
 }
 
-function buildTour3dPayload(v: PropertyFormValues) {
-  if (!v.tourEnabled || !v.tourUrl.trim()) return { enabled: false, kind: "iframe" as const };
+function buildToursPayload(v: PropertyFormValues) {
+  return v.tours
+    .map((row) => {
+      const url = row.url.trim();
+      if (!url) return null;
 
-  const detected = normalizeTourUrl(v.tourUrl);
-  if (detected.kind === "invalid") return { enabled: false, kind: "iframe" as const };
+      const detected = normalizeTourUrl(url);
+      if (detected.kind === "invalid") return null;
 
-  if (detected.kind === "mesh") {
-    return {
-      enabled: true,
-      kind: "mesh" as const,
-      provider: detected.provider,
-      meshUrl: detected.url,
-      meshFormat: detected.format,
-    };
-  }
+      const label = row.label.trim() || undefined;
+      if (detected.kind === "mesh") {
+        return {
+          label,
+          kind: "mesh" as const,
+          provider: detected.provider,
+          meshUrl: detected.url,
+          meshFormat: detected.format,
+        };
+      }
 
-  return {
-    enabled: true,
-    kind: "iframe" as const,
-    provider: detected.provider,
-    embedUrl: detected.url,
-  };
+      return {
+        label,
+        kind: "iframe" as const,
+        provider: detected.provider,
+        embedUrl: detected.url,
+      };
+    })
+    .filter((t): t is NonNullable<typeof t> => t !== null);
 }
 
 export function PropertyForm({
@@ -207,6 +217,18 @@ export function PropertyForm({
       ...v,
       amenities: v.amenities.includes(a) ? v.amenities.filter((x) => x !== a) : [...v.amenities, a],
     }));
+  }
+
+  function addTourRow() {
+    setValues((v) => ({ ...v, tours: [...v.tours, { url: "", label: "" }] }));
+  }
+
+  function updateTourRow(i: number, patch: Partial<TourFormRow>) {
+    setValues((v) => ({ ...v, tours: v.tours.map((t, idx) => (idx === i ? { ...t, ...patch } : t)) }));
+  }
+
+  function removeTourRow(i: number) {
+    setValues((v) => ({ ...v, tours: v.tours.filter((_, idx) => idx !== i) }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -361,35 +383,54 @@ export function PropertyForm({
       </section>
 
       <section className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
-        <h2 className="font-display text-lg font-semibold text-text">Recorrido 3D / Digital Twin</h2>
+        <h2 className="font-display text-lg font-semibold text-text">Recorridos 3D / Digital Twin</h2>
         <p className="text-sm text-text-muted">
           Escaneá el espacio con Polycam (o Matterport, Kuula, Sketchfab...) y pegá acá el link de esa captura —
-          no hace falta subir ningún archivo.
+          no hace falta subir ningún archivo. Podés cargar más de uno: distintos ambientes escaneados por
+          separado, o un link de Polycam + la URL de un .glb de respaldo para cuando Polycam no se pueda ver
+          (ver nota abajo).
         </p>
-        <label className="flex items-center gap-2 text-sm text-text">
-          <input
-            type="checkbox"
-            checked={values.tourEnabled}
-            onChange={(e) => set("tourEnabled", e.target.checked)}
-            className="h-4 w-4 accent-accent"
-          />
-          Esta propiedad tiene un recorrido 3D
-        </label>
 
-        {values.tourEnabled && (
-          <>
-            <FormField
-              label="URL del recorrido o del modelo 3D"
-              placeholder="https://poly.cam/capture/... o https://my.matterport.com/show/?m=..."
-              value={values.tourUrl}
-              onChange={(e) => set("tourUrl", e.target.value)}
-            />
-            <TourUrlPreview url={values.tourUrl} />
-            <p className="text-xs text-text-muted">
-              En Polycam: abrí la captura → Compartir → copiá el link de esa captura (no el de poly.cam solo).
-            </p>
-          </>
-        )}
+        {values.tours.map((row, i) => (
+          <div key={i} className="flex items-start gap-2 rounded-media border border-border p-4">
+            <div className="flex flex-1 flex-col gap-3">
+              <FormField
+                label={values.tours.length > 1 ? `URL del recorrido ${i + 1}` : "URL del recorrido o del modelo 3D"}
+                placeholder="https://poly.cam/capture/... o https://my.matterport.com/show/?m=..."
+                value={row.url}
+                onChange={(e) => updateTourRow(i, { url: e.target.value })}
+              />
+              <TourUrlPreview url={row.url} />
+              {values.tours.length > 1 && (
+                <FormField
+                  label="Nombre (opcional)"
+                  placeholder="Ej: Living, Fachada..."
+                  value={row.label}
+                  onChange={(e) => updateTourRow(i, { label: e.target.value })}
+                />
+              )}
+            </div>
+            <IconButton
+              aria-label="Quitar recorrido"
+              onClick={() => removeTourRow(i)}
+              className="mt-1"
+            >
+              <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5" aria-hidden>
+                <path d="M5 5l14 14M19 5L5 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </IconButton>
+          </div>
+        ))}
+
+        <Button type="button" variant="secondary" onClick={addTourRow} disabled={values.tours.length >= MAX_TOUR_ROWS}>
+          + Agregar recorrido
+        </Button>
+
+        <p className="text-xs text-text-muted">
+          En Polycam: abrí la captura → Compartir → copiá el link de esa captura (no el de poly.cam solo). Los
+          links de Polycam necesitan Safari 26+ (WebGPU) — para que se vea en todos los dispositivos, sumá
+          también la URL del archivo exportado (.glb/.usdz).
+        </p>
       </section>
 
       {error && (

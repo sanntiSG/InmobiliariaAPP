@@ -15,24 +15,27 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   try {
     await connectDB();
-    const property = await Property.findById(id).select("agencyId stats.saves status");
+    const property = await Property.findById(id).select("agencyId status");
     if (!property || property.status !== "published") {
       return NextResponse.json({ error: "Propiedad no encontrada" }, { status: 404 });
     }
 
     const existing = await Favorite.findOne({ userId: user.id, propertyId: id });
-    let favorited: boolean;
+    const favorited = !existing;
 
     if (existing) {
       await existing.deleteOne();
-      property.stats!.saves = Math.max(0, (property.stats!.saves ?? 0) - 1);
-      favorited = false;
     } else {
       await Favorite.create({ userId: user.id, propertyId: id });
-      property.stats!.saves = (property.stats!.saves ?? 0) + 1;
-      favorited = true;
     }
-    await property.save();
+
+    // $inc atómico — mismo motivo que en /like: un read-modify-write podía
+    // perder una actualización con dos requests casi simultáneos.
+    const updated = await Property.findByIdAndUpdate(
+      id,
+      { $inc: { "stats.saves": favorited ? 1 : -1 } },
+      { new: true }
+    ).select("stats.saves");
 
     await Interaction.create({
       type: favorited ? "save" : "unsave",
@@ -41,7 +44,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       agencyId: property.agencyId,
     });
 
-    return NextResponse.json({ favorited, saves: property.stats!.saves });
+    return NextResponse.json({ favorited, saves: updated?.stats?.saves ?? 0 });
   } catch (err) {
     console.error("POST /api/properties/[id]/favorite failed:", err);
     return NextResponse.json({ error: "No se pudo procesar el favorito." }, { status: 503 });

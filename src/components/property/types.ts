@@ -22,12 +22,13 @@ export type PropertyCardData = {
 };
 
 /**
- * Digital Twin / recorrido 3D — "iframe" para links hosteados (Matterport,
- * el visor de Polycam, Kuula...), "mesh" para un archivo glb/gltf/usdz
- * propio renderizado con <model-viewer>.
+ * Un recorrido / Digital Twin — "iframe" para links hosteados (Matterport,
+ * el visor de Polycam, Kuula, Sketchfab...), "mesh" para la URL de un
+ * archivo glb/gltf/usdz ya hosteado, renderizado con <model-viewer>. Una
+ * propiedad puede tener varios (`PropertyDetail.tours`).
  */
-export type Tour3D = {
-  enabled: boolean;
+export type Tour3DEntry = {
+  label?: string;
   kind: "iframe" | "mesh";
   provider?: string;
   embedUrl?: string;
@@ -75,7 +76,7 @@ export type PropertyDetail = {
 
   images: { url: string; alt: string }[];
   videos: { url: string; thumbnail?: string }[];
-  tour3d: Tour3D | null;
+  tours: Tour3DEntry[];
 
   stats: { views: number; likes: number; saves: number; comments: number; ratingAvg: number; ratingCount: number };
 

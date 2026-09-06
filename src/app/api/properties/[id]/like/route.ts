@@ -15,24 +15,28 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   try {
     await connectDB();
-    const property = await Property.findById(id).select("agencyId stats.likes status");
+    const property = await Property.findById(id).select("agencyId status");
     if (!property || property.status !== "published") {
       return NextResponse.json({ error: "Propiedad no encontrada" }, { status: 404 });
     }
 
     const existing = await Like.findOne({ userId: user.id, propertyId: id });
-    let liked: boolean;
+    const liked = !existing;
 
     if (existing) {
       await existing.deleteOne();
-      property.stats!.likes = Math.max(0, (property.stats!.likes ?? 0) - 1);
-      liked = false;
     } else {
       await Like.create({ userId: user.id, propertyId: id });
-      property.stats!.likes = (property.stats!.likes ?? 0) + 1;
-      liked = true;
     }
-    await property.save();
+
+    // $inc atómico — un read-modify-write acá podía perder una actualización
+    // si dos likes llegaban casi al mismo tiempo (el resto de los
+    // contadores, comentarios y vistas, ya lo hacían así).
+    const updated = await Property.findByIdAndUpdate(
+      id,
+      { $inc: { "stats.likes": liked ? 1 : -1 } },
+      { new: true }
+    ).select("stats.likes");
 
     await Interaction.create({
       type: liked ? "like" : "unlike",
@@ -41,7 +45,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       agencyId: property.agencyId,
     });
 
-    return NextResponse.json({ liked, likes: property.stats!.likes });
+    return NextResponse.json({ liked, likes: updated?.stats?.likes ?? 0 });
   } catch (err) {
     console.error("POST /api/properties/[id]/like failed:", err);
     return NextResponse.json({ error: "No se pudo procesar el like." }, { status: 503 });
