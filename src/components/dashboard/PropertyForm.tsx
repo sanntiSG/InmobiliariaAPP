@@ -385,9 +385,10 @@ export function PropertyForm({
       <section className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
         <h2 className="font-display text-lg font-semibold text-text">Recorridos 3D / Digital Twin</h2>
         <p className="text-sm text-text-muted">
-          Escaneá el espacio con Polycam (o Matterport, Kuula, Sketchfab...) y pegá acá el link de esa captura —
-          no hace falta subir ningún archivo. Podés cargar más de uno: distintos ambientes escaneados por
-          separado, o un link de recorrido + la URL de un .glb de respaldo (ver nota abajo).
+          Escaneá el espacio con Polycam (o Matterport, Kuula, Sketchfab...) y pegá acá el link de esa captura, o
+          la URL de un archivo 3D ya exportado (.glb/.gltf/.usdz) — no hace falta subir ningún archivo a nuestro
+          servidor. Podés cargar más de uno: distintos ambientes escaneados por separado, o varias formas del
+          mismo recorrido (ver la diferencia entre las dos abajo).
         </p>
 
         {values.tours.map((row, i) => (
@@ -425,12 +426,23 @@ export function PropertyForm({
           + Agregar recorrido
         </Button>
 
-        <p className="text-xs text-text-muted">
-          En Polycam: abrí la captura → Compartir → copiá el link de esa captura (no el de poly.cam solo). Los
-          recorridos incrustados (Polycam, Matterport...) a veces no cargan bien dentro de la página según el
-          navegador de quien visita — va a poder abrirlos en pantalla completa si eso pasa. Para más seguridad,
-          sumá también la URL de un archivo exportado (.glb/.usdz).
-        </p>
+        <div className="flex flex-col gap-2 rounded-media bg-surface-2 p-4 text-xs text-text-muted">
+          <p>
+            <strong className="font-semibold text-text">Link de recorrido</strong> (Polycam, Matterport, Kuula,
+            Sketchfab): lo más rápido — pegás la URL y listo. En Polycam: abrí la captura → Compartir → copiá el
+            link de esa captura (no el de poly.cam solo). Ojo: según el navegador de quien visita la ficha, puede
+            no verse incrustado en la página — en ese caso va a ver un botón para abrirlo en pantalla completa,
+            donde sí funciona.
+          </p>
+          <p>
+            <strong className="font-semibold text-text">Archivo exportado</strong> (.glb/.gltf/.usdz): siempre se
+            ve incrustado en la página, en cualquier dispositivo (incluidos iPhone y Safari) — no depende de
+            ningún visor externo. En Polycam: abrí la captura → Exportar/Download → elegí GLTF o GLB (el plan
+            gratuito ya lo permite) → subí ese archivo a donde puedas sacar un link público (Google Drive,
+            Dropbox, GitHub...) → pegá esa URL acá. Es la opción recomendada si necesitás que se vea igual para
+            todo el mundo.
+          </p>
+        </div>
       </section>
 
       {error && (
