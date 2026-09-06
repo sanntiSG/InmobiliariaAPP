@@ -103,7 +103,7 @@ export function PropertyMedia({ images, tours, title }: Pick<PropertyDetail, "im
             {active.kind === "mesh" && active.meshUrl ? (
               <ModelViewer src={active.meshUrl} alt={`Recorrido 3D — ${title}`} poster={active.thumbnail} />
             ) : blockedOnMobile ? (
-              <MobileFullscreenPrompt embedUrl={embedUrl} />
+              <MobileFullscreenPrompt embedUrl={embedUrl} tourIndex={selectedIndex} />
             ) : embedUrl ? (
               <iframe
                 src={embedUrl}
@@ -130,8 +130,16 @@ export function PropertyMedia({ images, tours, title }: Pick<PropertyDetail, "im
 /**
  * En mobile, el visor de Polycam no carga embebido — se lo manda a pantalla
  * completa en vez de mostrar el error crudo de Polycam dentro de la tarjeta.
+ *
+ * `target` NO es "_blank" a propósito: en mobile Safari, tocar dos links
+ * "_blank" seguidos desde la MISMA página puede reusar la pestaña ya
+ * abierta por el primero en vez de abrir una nueva — con varios recorridos,
+ * eso hacía que elegir el recorrido 2 y tocar "Ver en pantalla completa"
+ * siguiera mostrando el recorrido 1 (la pestaña vieja, nunca renavegada).
+ * Un nombre de ventana distinto por recorrido (`tourIndex`) fuerza una
+ * pestaña propia para cada uno.
  */
-function MobileFullscreenPrompt({ embedUrl }: { embedUrl?: string }) {
+function MobileFullscreenPrompt({ embedUrl, tourIndex }: { embedUrl?: string; tourIndex: number }) {
   if (!embedUrl) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-text-muted">
@@ -141,7 +149,12 @@ function MobileFullscreenPrompt({ embedUrl }: { embedUrl?: string }) {
   }
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-      <a href={embedUrl} target="_blank" rel="noopener noreferrer" className={buttonClasses("primary", "md")}>
+      <a
+        href={embedUrl}
+        target={`recorrido-3d-${tourIndex}`}
+        rel="noopener noreferrer"
+        className={buttonClasses("primary", "md")}
+      >
         Ver en pantalla completa ↗
       </a>
       <p className="text-xs text-text-muted">Al terminar, volvé a esta pestaña para seguir viendo la propiedad.</p>
