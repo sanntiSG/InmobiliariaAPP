@@ -1,13 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Gallery } from "./Gallery";
 import { ModelViewer } from "./ModelViewer";
 import { normalizeTourUrl } from "@/lib/media/tour-embed";
+import { buttonClasses } from "@/components/ui/Button";
 import { cn } from "@/lib/utils/cn";
 import type { PropertyDetail, Tour3DEntry } from "./types";
 
 type Tab = "fotos" | "tour3d";
+
+/** true si el user-agent es de un dispositivo móvil. Siempre false en SSR (no hay `navigator`). */
+function isMobileUserAgent(): boolean {
+  return typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+}
 
 /**
  * Combina fotos y recorrido(s) 3D en tabs. Si la propiedad no tiene ningún
@@ -21,24 +27,24 @@ type Tab = "fotos" | "tour3d";
  * Sketchfab, `kind: "iframe"`) o la URL de un archivo 3D ya hosteado
  * (`kind: "mesh"`, glb/gltf/usdz) renderizado con <model-viewer>.
  *
- * Nota sobre embeds de terceros (Polycam en particular): probamos en algún
- * momento pre-bloquear el iframe con un chequeo de `navigator.gpu` (Polycam
- * renderiza con WebGPU) para evitar que su error crudo en inglés apareciera
- * dentro de la tarjeta en navegadores sin soporte. Se sacó: un usuario
- * confirmó que, en Safari, un recorrido que ESE chequeo daba por no
- * soportado cargaba perfecto al abrirlo directo en una pestaña — o sea que
- * el chequeo daba falsos negativos (probablemente porque la restricción es
- * sobre acceder a la GPU embebido en un iframe de otro origen, no sobre el
- * navegador en sí, y una pestaña propia no tiene esa restricción). Bloquear
- * contenido que en la práctica anda es peor que dejarlo intentar — por eso
- * ahora SIEMPRE se intenta el iframe, y la salida a pantalla completa queda
- * siempre visible arriba (no escondida detrás de una detección) para
- * cualquier embed que falle por la razón que sea.
+ * En mobile (Safari en particular), el visor de Polycam no carga embebido
+ * en un iframe de otro origen (probado, no depende de nuestro código — ver
+ * memoria de sesión) — ahí directamente no se intenta el iframe y se
+ * muestra un link a pantalla completa. En desktop se intenta el iframe
+ * normalmente. `kind:"mesh"` (`<model-viewer>`, WebGL) no tiene este
+ * problema en ningún dispositivo.
  */
 export function PropertyMedia({ images, tours, title }: Pick<PropertyDetail, "images" | "tours" | "title">) {
   const hasTours = tours.length > 0;
   const [tab, setTab] = useState<Tab>(hasTours ? "tour3d" : "fotos");
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    // `.then()` en vez de un setState directo en el cuerpo del efecto — evita
+    // el warning de lint `react-hooks/set-state-in-effect`.
+    Promise.resolve().then(() => setIsMobile(isMobileUserAgent()));
+  }, []);
 
   const active = tours[selectedIndex] as Tour3DEntry | undefined;
 
@@ -54,6 +60,8 @@ export function PropertyMedia({ images, tours, title }: Pick<PropertyDetail, "im
   if (!hasTours || !active) {
     return <Gallery images={images} title={title} />;
   }
+
+  const blockedOnMobile = active.kind === "iframe" && isMobile;
 
   return (
     <div>
@@ -91,28 +99,17 @@ export function PropertyMedia({ images, tours, title }: Pick<PropertyDetail, "im
 
       {tab === "tour3d" ? (
         <div className="overflow-hidden rounded-card bg-surface-2 shadow-card">
-          {embedUrl && (
-            <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
-              <p className="text-xs text-text-muted">¿No carga bien acá?</p>
-              <a
-                href={embedUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="shrink-0 text-sm font-medium text-accent hover:underline"
-              >
-                Ver en pantalla completa ↗
-              </a>
-            </div>
-          )}
           <div className="aspect-[16/10] w-full">
             {active.kind === "mesh" && active.meshUrl ? (
               <ModelViewer src={active.meshUrl} alt={`Recorrido 3D — ${title}`} poster={active.thumbnail} />
+            ) : blockedOnMobile ? (
+              <MobileFullscreenPrompt embedUrl={embedUrl} />
             ) : embedUrl ? (
               <iframe
                 src={embedUrl}
                 title={`Recorrido 3D — ${title}`}
                 className="h-full w-full"
-                allow="xr-spatial-tracking; gyroscope; accelerometer; fullscreen; vr; gpu"
+                allow="xr-spatial-tracking; gyroscope; accelerometer; fullscreen; vr"
                 allowFullScreen
                 loading="lazy"
               />
@@ -126,6 +123,28 @@ export function PropertyMedia({ images, tours, title }: Pick<PropertyDetail, "im
       ) : (
         <Gallery images={images} title={title} />
       )}
+    </div>
+  );
+}
+
+/**
+ * En mobile, el visor de Polycam no carga embebido — se lo manda a pantalla
+ * completa en vez de mostrar el error crudo de Polycam dentro de la tarjeta.
+ */
+function MobileFullscreenPrompt({ embedUrl }: { embedUrl?: string }) {
+  if (!embedUrl) {
+    return (
+      <div className="flex h-full items-center justify-center text-sm text-text-muted">
+        El recorrido 3D no está disponible.
+      </div>
+    );
+  }
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+      <a href={embedUrl} target="_blank" rel="noopener noreferrer" className={buttonClasses("primary", "md")}>
+        Ver en pantalla completa ↗
+      </a>
+      <p className="text-xs text-text-muted">Al terminar, volvé a esta pestaña para seguir viendo la propiedad.</p>
     </div>
   );
 }
