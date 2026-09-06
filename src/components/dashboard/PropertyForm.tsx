@@ -387,8 +387,7 @@ export function PropertyForm({
         <p className="text-sm text-text-muted">
           Escaneá el espacio con Polycam (o Matterport, Kuula, Sketchfab...) y pegá acá el link de esa captura —
           no hace falta subir ningún archivo. Podés cargar más de uno: distintos ambientes escaneados por
-          separado, o un link de Polycam + la URL de un .glb de respaldo para cuando Polycam no se pueda ver
-          (ver nota abajo).
+          separado, o un link de recorrido + la URL de un .glb de respaldo (ver nota abajo).
         </p>
 
         {values.tours.map((row, i) => (
@@ -428,8 +427,9 @@ export function PropertyForm({
 
         <p className="text-xs text-text-muted">
           En Polycam: abrí la captura → Compartir → copiá el link de esa captura (no el de poly.cam solo). Los
-          links de Polycam necesitan Safari 26+ (WebGPU) — para que se vea en todos los dispositivos, sumá
-          también la URL del archivo exportado (.glb/.usdz).
+          recorridos incrustados (Polycam, Matterport...) a veces no cargan bien dentro de la página según el
+          navegador de quien visita — va a poder abrirlos en pantalla completa si eso pasa. Para más seguridad,
+          sumá también la URL de un archivo exportado (.glb/.usdz).
         </p>
       </section>
 

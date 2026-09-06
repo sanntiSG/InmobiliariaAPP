@@ -42,9 +42,9 @@ const videoSchema = new Schema(
 /**
  * Un recorrido / Digital Twin. Una propiedad puede tener varios
  * (`media.tours`, ver más abajo) — distintos ambientes escaneados por
- * separado, o un link de Polycam más un `.glb` de respaldo para cuando
- * Polycam no se puede ver (ver comentario de `PROVIDER_REQUIRES_WEBGPU` en
- * `src/lib/media/tour-embed.ts`).
+ * separado, o un link de Polycam más un `.glb` de respaldo para cuando el
+ * embed de Polycam no cargue bien en algún navegador (ver nota sobre
+ * WebGPU/iframes en `src/lib/media/tour-embed.ts`).
  *
  * `kind` determina cómo se renderiza:
  * - "iframe": embed hosteado por el proveedor (Matterport, el visor propio
@@ -56,8 +56,7 @@ const videoSchema = new Schema(
  *   usuario pega la URL, igual que con el link de un recorrido (ver
  *   `src/lib/media/tour-embed.ts`).
  *
- * `provider` es solo metadata/branding, no afecta el render (salvo para
- * decidir si requiere WebGPU, ver arriba).
+ * `provider` es solo metadata/branding, no afecta el render.
  */
 const tourEntrySchema = new Schema(
   {

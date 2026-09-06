@@ -26,29 +26,17 @@ export type TourEmbed =
   | { kind: "invalid"; reason: string };
 
 /**
- * El visor propio de Polycam (`poly.cam/capture/<id>/embed`) renderiza con
- * WebGPU, no WebGL — confirmado con el reporte de un usuario en Safari
- * ("3D models can't load on this browser") + la propia respuesta de
- * Polycam ("Polycam renders 3D with WebGPU"). WebGPU recién llegó a Safari
- * en la versión 26 (iOS 26) — casi ningún Safari anterior puede verlo, y
- * Polycam muestra su propio error crudo (en inglés) dentro del iframe.
- * No podemos arreglar el visor de Polycam (es contenido de terceros), pero
- * sí podemos evitar montarlo cuando sabemos que va a fallar (ver
- * `PropertyMedia.tsx`). El resto de los proveedores (Matterport, Kuula,
- * Sketchfab) siguen usando WebGL — sin este problema, por ahora.
+ * Nota sobre Polycam y WebGPU: en algún momento acá vivía una detección
+ * (`navigator.gpu`) para pre-bloquear el iframe de Polycam en navegadores
+ * "sin WebGPU" y mostrar un aviso propio en su lugar — se sacó porque daba
+ * falsos negativos: un usuario confirmó que un recorrido que ese chequeo
+ * daba por no soportado cargaba perfecto al abrirlo directo en una pestaña,
+ * en el mismo Safari. La restricción real parece ser sobre acceder a la GPU
+ * embebido en un iframe de otro origen, no sobre el navegador en sí — algo
+ * que no podemos detectar desde nuestra página. Ver `PropertyMedia.tsx`:
+ * ahora siempre se intenta el iframe, con una salida a pantalla completa
+ * siempre visible por si el embed falla por la razón que sea.
  */
-export const PROVIDER_REQUIRES_WEBGPU: Record<TourProvider, boolean> = {
-  matterport: false,
-  polycam: true,
-  kuula: false,
-  sketchfab: false,
-  custom: false,
-};
-
-/** true si el navegador actual soporta WebGPU. Siempre false durante SSR (no hay `navigator`). */
-export function supportsWebGPU(): boolean {
-  return typeof navigator !== "undefined" && "gpu" in navigator;
-}
 
 const MESH_EXTENSIONS = { ".glb": "glb", ".gltf": "gltf", ".usdz": "usdz" } as const;
 
