@@ -18,11 +18,29 @@ export const agencyInputSchema = z.object({
   status: z.enum(AGENCY_STATUSES).default("active"),
 });
 
-export const agencyWithOwnerSchema = agencyInputSchema.extend({
-  ownerName: z.string().trim().min(2).max(80),
-  ownerEmail: z.email("Email inválido"),
-  ownerPassword: z.string().min(8, "Mínimo 8 caracteres").max(72),
-});
+/**
+ * Alta desde /admin/inmobiliarias/nueva. El acceso a un email es opcional:
+ * el admin puede crear la inmobiliaria sola (para pruebas, o para él mismo)
+ * y dar el permiso más tarde desde "Editar" → "Accesos de esta inmobiliaria"
+ * (ver `AllowedEmailsManager`). Si tilda `grantAccess`, sólo el email es
+ * obligatorio — nombre/contraseña quedan para crear además una cuenta por
+ * contraseña; si se deja la contraseña vacía, la persona entra con Google.
+ */
+export const agencyCreateSchema = agencyInputSchema
+  .extend({
+    grantAccess: z.boolean().default(false),
+    ownerName: z.string().trim().max(80).optional().or(z.literal("")),
+    ownerEmail: z.email("Email inválido").optional().or(z.literal("")),
+    ownerPassword: z.string().min(8, "Mínimo 8 caracteres").max(72).optional().or(z.literal("")),
+  })
+  .refine((v) => !v.grantAccess || !!v.ownerEmail, {
+    message: "Ingresá el email al que le das acceso",
+    path: ["ownerEmail"],
+  })
+  .refine((v) => !v.ownerPassword || !!v.ownerName, {
+    message: "Poné un nombre para la cuenta con contraseña",
+    path: ["ownerName"],
+  });
 
 /**
  * Alta de inmobiliaria por el propio usuario ya autorizado (ver
@@ -32,5 +50,5 @@ export const agencyWithOwnerSchema = agencyInputSchema.extend({
 export const onboardingAgencySchema = agencyInputSchema.omit({ status: true });
 
 export type AgencyInput = z.infer<typeof agencyInputSchema>;
-export type AgencyWithOwnerInput = z.infer<typeof agencyWithOwnerSchema>;
+export type AgencyCreateInput = z.infer<typeof agencyCreateSchema>;
 export type OnboardingAgencyInput = z.infer<typeof onboardingAgencySchema>;

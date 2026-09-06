@@ -6,31 +6,92 @@ import {
   AMENITIES,
   CURRENCIES,
 } from "@/config/filters";
+import { normalizeTourUrl, type TourProvider } from "@/lib/media/tour-embed";
 
 const lngLatSchema = z
   .tuple([z.number().min(-180).max(180), z.number().min(-90).max(90)])
   .describe("[lng, lat]");
 
-const tour3dSchema = z
+/**
+ * El recorrido 3D se carga sólo por link (Polycam/Matterport/Kuula/Sketchfab,
+ * o la URL de un .glb/.gltf/.usdz ya hosteado) — nunca por archivo subido
+ * (ver `src/lib/media/tour-embed.ts` para el porqué). `normalizeTourUrl` es
+ * la misma función que usa el formulario para mostrar el chip de detección
+ * antes de guardar; acá se vuelve a aplicar como defensa en profundidad para
+ * un cliente que pegue directo contra la API sin pasar por el form.
+ */
+const tour3dInputSchema = z
   .object({
     enabled: z.boolean().default(false),
-    /** "iframe": link de un proveedor (Matterport/Polycam/Kuula). "mesh": archivo glb/gltf/usdz propio. */
     kind: z.enum(["iframe", "mesh"]).default("iframe"),
-    provider: z.enum(["matterport", "polycam", "kuula", "custom"]).default("polycam"),
+    provider: z.enum(["matterport", "polycam", "kuula", "sketchfab", "custom"]).optional(),
     modelId: z.string().optional(),
-    embedUrl: z.url("Ingresá una URL válida").optional(),
-    meshUrl: z.url().optional(),
+    embedUrl: z.string().optional(),
+    meshUrl: z.string().optional(),
     meshFormat: z.enum(["glb", "gltf", "usdz"]).optional(),
     thumbnail: z.url().optional(),
   })
-  .refine((v) => !v.enabled || v.kind !== "iframe" || !!v.embedUrl, {
-    message: "Falta la URL del recorrido",
-    path: ["embedUrl"],
-  })
-  .refine((v) => !v.enabled || v.kind !== "mesh" || !!v.meshUrl, {
-    message: "Falta subir el archivo 3D",
-    path: ["meshUrl"],
-  });
+  // El default vive acá, en el schema "plano" previo al `.transform()` de
+  // abajo — puesto en el `.transform()` en cambio, TS no logra inferir el
+  // tipo de entrada porque su salida es una unión de formas distintas.
+  .default({ enabled: false, kind: "iframe" });
+
+/**
+ * Anotada explícitamente (en vez de dejar que TS infiera el retorno de
+ * `.transform()`) para que el resultado sea UNA sola forma con campos
+ * opcionales, no una unión de formas distintas por cada `return` — así
+ * `.default()` más abajo (acá y en el `media` que lo contiene) puede
+ * matchear contra un tipo simple en vez de una unión.
+ */
+type Tour3DOutput = {
+  enabled: boolean;
+  kind: "iframe" | "mesh";
+  provider?: TourProvider;
+  modelId?: string;
+  embedUrl?: string;
+  meshUrl?: string;
+  meshFormat?: "glb" | "gltf" | "usdz";
+  thumbnail?: string;
+};
+
+const tour3dSchema = tour3dInputSchema.transform((v, ctx): Tour3DOutput => {
+  if (!v.enabled) {
+    return { enabled: false, kind: "iframe", thumbnail: v.thumbnail };
+  }
+
+  const raw = v.kind === "mesh" ? v.meshUrl : v.embedUrl;
+  if (!raw) {
+    ctx.addIssue({ code: "custom", message: "Falta la URL del recorrido", path: ["embedUrl"] });
+    return z.NEVER;
+  }
+
+  const detected = normalizeTourUrl(raw);
+  if (detected.kind === "invalid") {
+    ctx.addIssue({ code: "custom", message: detected.reason, path: ["embedUrl"] });
+    return z.NEVER;
+  }
+
+  if (detected.kind === "mesh") {
+    return {
+      enabled: true,
+      kind: "mesh",
+      provider: detected.provider,
+      modelId: v.modelId,
+      meshUrl: detected.url,
+      meshFormat: detected.format,
+      thumbnail: v.thumbnail,
+    };
+  }
+
+  return {
+    enabled: true,
+    kind: "iframe",
+    provider: detected.provider,
+    modelId: v.modelId,
+    embedUrl: detected.url,
+    thumbnail: v.thumbnail,
+  };
+});
 
 const imageSchema = z.object({
   url: z.url(),
@@ -98,13 +159,13 @@ export const propertyInputSchema = z.object({
         )
         .default([]),
       floorPlans: z.array(imageSchema).default([]),
-      tour3d: tour3dSchema.default({ enabled: false, kind: "iframe", provider: "polycam" }),
+      tour3d: tour3dSchema,
     })
     .default({
       images: [],
       videos: [],
       floorPlans: [],
-      tour3d: { enabled: false, kind: "iframe", provider: "polycam" },
+      tour3d: { enabled: false, kind: "iframe" },
     }),
 });
 

@@ -18,11 +18,10 @@ const IMAGE_ALLOWED_TYPES = [
   "image/heif",
 ];
 
-// Los navegadores no reportan un MIME consistente para estos formatos
-// (muchos devuelven "" o "application/octet-stream") — se valida por
-// extensión, no por file.type.
-const MESH_MAX_SIZE = 30 * 1024 * 1024; // 30MB — el plan free de Cloudinary puede rechazar archivos grandes igual
-const MESH_EXTENSIONS = [".glb", ".gltf", ".usdz"];
+// Esta ruta sólo sube imágenes — el recorrido 3D se carga por link (ver
+// `src/lib/media/tour-embed.ts`), nunca por archivo: un escaneo de Polycam
+// pesa 30-150MB, muy por encima del límite de payload de las funciones de
+// Netlify (~6MB) y del límite de Cloudinary free para archivos "raw" (10MB).
 
 export async function POST(req: Request) {
   const access = await requireDashboardAccess();
@@ -33,7 +32,6 @@ export async function POST(req: Request) {
 
   const formData = await req.formData().catch(() => null);
   const file = formData?.get("file");
-  const kind = formData?.get("kind") === "mesh" ? "mesh" : "image";
   const requestedAgencyId = formData?.get("agencyId");
 
   if (!file || !(file instanceof File)) {
@@ -53,24 +51,14 @@ export async function POST(req: Request) {
     agencyIdForFolder = requestedAgencyId;
   }
 
-  if (kind === "mesh") {
-    const ext = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
-    if (!MESH_EXTENSIONS.includes(ext)) {
-      return NextResponse.json({ error: "Formato no soportado. Usá .glb, .gltf o .usdz." }, { status: 400 });
-    }
-    if (file.size > MESH_MAX_SIZE) {
-      return NextResponse.json({ error: "El archivo pesa más de 30MB." }, { status: 400 });
-    }
-  } else {
-    if (!IMAGE_ALLOWED_TYPES.includes(file.type)) {
-      return NextResponse.json(
-        { error: "Formato no soportado. Usá JPG, PNG, WEBP, AVIF o HEIC." },
-        { status: 400 }
-      );
-    }
-    if (file.size > IMAGE_MAX_SIZE) {
-      return NextResponse.json({ error: "El archivo pesa más de 8MB." }, { status: 400 });
-    }
+  if (!IMAGE_ALLOWED_TYPES.includes(file.type)) {
+    return NextResponse.json(
+      { error: "Formato no soportado. Usá JPG, PNG, WEBP, AVIF o HEIC." },
+      { status: 400 }
+    );
+  }
+  if (file.size > IMAGE_MAX_SIZE) {
+    return NextResponse.json({ error: "El archivo pesa más de 8MB." }, { status: 400 });
   }
 
   try {
@@ -80,7 +68,7 @@ export async function POST(req: Request) {
       buffer,
       filename: file.name,
       folder: `agencies/${agencyIdForFolder ?? "admin"}/properties`,
-      resourceType: kind === "mesh" ? "raw" : "image",
+      resourceType: "image",
     });
     return NextResponse.json(result, { status: 201 });
   } catch (err) {

@@ -36,9 +36,16 @@ const STATUS_CLASS: Record<AllowedEmailRow["status"], string> = {
 export function AllowedEmailsManager({
   initialEmails,
   agencies,
+  lockedAgencyId,
 }: {
   initialEmails: AllowedEmailRow[];
   agencies: AgencyOption[];
+  /**
+   * Si viene, este panel autoriza siempre para esta inmobiliaria: oculta el
+   * selector y no hace falta elegir nada — es el panel "Accesos de esta
+   * inmobiliaria" embebido en /admin/inmobiliarias/[id]/editar.
+   */
+  lockedAgencyId?: string;
 }) {
   const router = useRouter();
   const [emails, setEmails] = useState(initialEmails);
@@ -46,6 +53,7 @@ export function AllowedEmailsManager({
   const [selectedAgency, setSelectedAgency] = useState(NO_AGENCY);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function handleAdd(e: FormEvent) {
@@ -54,7 +62,7 @@ export function AllowedEmailsManager({
     setError(null);
     setLoading(true);
 
-    const agencyId = selectedAgency === NO_AGENCY ? undefined : selectedAgency;
+    const agencyId = lockedAgencyId ?? (selectedAgency === NO_AGENCY ? undefined : selectedAgency);
 
     const res = await fetch("/api/admin/allowed-emails", {
       method: "POST",
@@ -88,24 +96,32 @@ export function AllowedEmailsManager({
   }
 
   async function handleDelete(id: string) {
+    setDeleteError(null);
     setDeletingId(id);
     const res = await fetch(`/api/admin/allowed-emails/${id}`, { method: "DELETE" });
     setDeletingId(null);
 
-    if (res.ok) {
-      setEmails((prev) => prev.filter((e) => e._id !== id));
-      router.refresh();
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      setDeleteError(data?.error ?? "No se pudo revocar el permiso.");
+      return;
     }
+
+    setEmails((prev) => prev.filter((e) => e._id !== id));
+    router.refresh();
   }
 
   return (
     <div className="flex flex-col gap-6">
       {/* Formulario para agregar email */}
       <div className="rounded-card bg-surface p-6 shadow-card">
-        <h2 className="font-display text-lg font-bold text-text">Autorizar nuevo email</h2>
+        <h2 className="font-display text-lg font-bold text-text">
+          {lockedAgencyId ? "Darle acceso a un email" : "Autorizar nuevo email"}
+        </h2>
         <p className="mt-1 text-sm text-text-muted">
-          Elegí una inmobiliaria ya creada, o dejá &quot;Sin inmobiliaria&quot; para que la persona cree la
-          suya la primera vez que entre con Google.
+          {lockedAgencyId
+            ? "Esa persona va a poder gestionar esta inmobiliaria — entrando con Google, o por contraseña si ya tiene una cuenta creada."
+            : 'Elegí una inmobiliaria ya creada, o dejá "Sin inmobiliaria" para que la persona cree la suya la primera vez que entre con Google.'}
         </p>
 
         <form onSubmit={handleAdd} className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -116,6 +132,7 @@ export function AllowedEmailsManager({
             <input
               id="allowed-email"
               type="email"
+              required
               placeholder="correo@ejemplo.com"
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
@@ -128,28 +145,30 @@ export function AllowedEmailsManager({
             />
           </div>
 
-          <div className="sm:w-56">
-            <label htmlFor="allowed-agency" className="mb-1 block text-sm font-medium text-text">
-              Inmobiliaria
-            </label>
-            <select
-              id="allowed-agency"
-              value={selectedAgency}
-              onChange={(e) => setSelectedAgency(e.target.value)}
-              className="
-                h-11 w-full rounded-pill border border-border bg-bg px-4 text-sm text-text
-                focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20
-                transition-colors duration-150
-              "
-            >
-              <option value={NO_AGENCY}>Sin inmobiliaria (la crea el usuario)</option>
-              {agencies.map((a) => (
-                <option key={a._id} value={a._id}>
-                  {a.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {!lockedAgencyId && (
+            <div className="sm:w-56">
+              <label htmlFor="allowed-agency" className="mb-1 block text-sm font-medium text-text">
+                Inmobiliaria
+              </label>
+              <select
+                id="allowed-agency"
+                value={selectedAgency}
+                onChange={(e) => setSelectedAgency(e.target.value)}
+                className="
+                  h-11 w-full rounded-pill border border-border bg-bg px-4 text-sm text-text
+                  focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20
+                  transition-colors duration-150
+                "
+              >
+                <option value={NO_AGENCY}>Sin inmobiliaria (la crea el usuario)</option>
+                {agencies.map((a) => (
+                  <option key={a._id} value={a._id}>
+                    {a.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <Button type="submit" disabled={loading || !newEmail.trim()} size="md">
             {loading ? "Autorizando…" : "Autorizar"}
@@ -170,6 +189,11 @@ export function AllowedEmailsManager({
             Emails autorizados
             <span className="ml-2 text-sm font-normal text-text-muted">({emails.length})</span>
           </h2>
+          {deleteError && (
+            <p className="mt-2 text-sm text-danger" role="alert">
+              {deleteError}
+            </p>
+          )}
         </div>
 
         {emails.length === 0 ? (
@@ -189,10 +213,8 @@ export function AllowedEmailsManager({
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-text">{entry.email}</p>
                   <p className="text-sm text-text-muted">
-                    {entry.agencyId
-                      ? `Inmobiliaria: ${entry.agencyId.name}`
-                      : "Sin inmobiliaria asociada"}
-                    {" · "}
+                    {!lockedAgencyId &&
+                      (entry.agencyId ? `Inmobiliaria: ${entry.agencyId.name} · ` : "Sin inmobiliaria asociada · ")}
                     {new Date(entry.createdAt).toLocaleDateString("es-AR", {
                       day: "numeric",
                       month: "short",

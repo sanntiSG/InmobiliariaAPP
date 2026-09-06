@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import dynamicImport from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { FormField } from "@/components/ui/FormField";
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { FilterPill } from "@/components/ui/FilterPill";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ImageUploader, type UploadedImage } from "./ImageUploader";
-import { MeshUploader, type MeshValue } from "./MeshUploader";
+import { normalizeTourUrl } from "@/lib/media/tour-embed";
 import {
   OPERATIONS,
   OPERATION_LABELS,
@@ -61,10 +61,8 @@ export type PropertyFormValues = {
   amenities: Amenity[];
   images: UploadedImage[];
   tourEnabled: boolean;
-  /** "iframe": link de un proveedor (Matterport/Polycam/Kuula). "mesh": archivo glb/gltf/usdz propio. */
-  tourKind: "iframe" | "mesh";
-  tourEmbedUrl: string;
-  tourMesh: MeshValue;
+  /** URL pegada tal cual por el usuario — Polycam/Matterport/Kuula/Sketchfab o un .glb/.gltf/.usdz hosteado. Ver `normalizeTourUrl`. */
+  tourUrl: string;
 };
 
 export const emptyPropertyForm: PropertyFormValues = {
@@ -98,9 +96,7 @@ export const emptyPropertyForm: PropertyFormValues = {
   amenities: [],
   images: [],
   tourEnabled: false,
-  tourKind: "iframe",
-  tourEmbedUrl: "",
-  tourMesh: null,
+  tourUrl: "",
 };
 
 function toPayload(v: PropertyFormValues) {
@@ -156,32 +152,27 @@ function toPayload(v: PropertyFormValues) {
 }
 
 function buildTour3dPayload(v: PropertyFormValues) {
-  if (!v.tourEnabled) return { enabled: false, kind: "iframe" as const };
+  if (!v.tourEnabled || !v.tourUrl.trim()) return { enabled: false, kind: "iframe" as const };
 
-  if (v.tourKind === "mesh") {
+  const detected = normalizeTourUrl(v.tourUrl);
+  if (detected.kind === "invalid") return { enabled: false, kind: "iframe" as const };
+
+  if (detected.kind === "mesh") {
     return {
-      enabled: !!v.tourMesh,
+      enabled: true,
       kind: "mesh" as const,
-      provider: "polycam" as const,
-      meshUrl: v.tourMesh?.url,
-      meshFormat: v.tourMesh?.format,
+      provider: detected.provider,
+      meshUrl: detected.url,
+      meshFormat: detected.format,
     };
   }
 
-  const embedUrl = v.tourEmbedUrl.trim();
   return {
-    enabled: embedUrl.length > 0,
+    enabled: true,
     kind: "iframe" as const,
-    provider: guessProvider(embedUrl),
-    embedUrl: embedUrl || undefined,
+    provider: detected.provider,
+    embedUrl: detected.url,
   };
-}
-
-function guessProvider(url: string): "matterport" | "polycam" | "kuula" | "custom" {
-  if (url.includes("matterport.com")) return "matterport";
-  if (url.includes("poly.cam") || url.includes("polycam")) return "polycam";
-  if (url.includes("kuula.co")) return "kuula";
-  return "custom";
 }
 
 export function PropertyForm({
@@ -372,7 +363,8 @@ export function PropertyForm({
       <section className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
         <h2 className="font-display text-lg font-semibold text-text">Recorrido 3D / Digital Twin</h2>
         <p className="text-sm text-text-muted">
-          Escaneá el espacio con Polycam (o Matterport, Kuula...) y pegá el link, o subí directamente el archivo 3D exportado.
+          Escaneá el espacio con Polycam (o Matterport, Kuula, Sketchfab...) y pegá acá el link de esa captura —
+          no hace falta subir ningún archivo.
         </p>
         <label className="flex items-center gap-2 text-sm text-text">
           <input
@@ -386,29 +378,16 @@ export function PropertyForm({
 
         {values.tourEnabled && (
           <>
-            <div className="flex gap-2">
-              <FilterPill type="button" active={values.tourKind === "iframe"} onClick={() => set("tourKind", "iframe")}>
-                Link de recorrido
-              </FilterPill>
-              <FilterPill type="button" active={values.tourKind === "mesh"} onClick={() => set("tourKind", "mesh")}>
-                Subir escaneo 3D
-              </FilterPill>
-            </div>
-
-            {values.tourKind === "iframe" ? (
-              <FormField
-                label="URL del recorrido"
-                placeholder="https://poly.cam/capture/... o https://my.matterport.com/show/?m=..."
-                value={values.tourEmbedUrl}
-                onChange={(e) => set("tourEmbedUrl", e.target.value)}
-              />
-            ) : (
-              <MeshUploader
-                value={values.tourMesh}
-                onChange={(tourMesh) => set("tourMesh", tourMesh)}
-                agencyId={agencies ? values.agencyId : undefined}
-              />
-            )}
+            <FormField
+              label="URL del recorrido o del modelo 3D"
+              placeholder="https://poly.cam/capture/... o https://my.matterport.com/show/?m=..."
+              value={values.tourUrl}
+              onChange={(e) => set("tourUrl", e.target.value)}
+            />
+            <TourUrlPreview url={values.tourUrl} />
+            <p className="text-xs text-text-muted">
+              En Polycam: abrí la captura → Compartir → copiá el link de esa captura (no el de poly.cam solo).
+            </p>
           </>
         )}
       </section>
@@ -434,5 +413,39 @@ export function PropertyForm({
         </Button>
       </div>
     </form>
+  );
+}
+
+/**
+ * Chip de confirmación bajo el campo de URL del recorrido — muestra qué se
+ * detectó (o el error) antes de guardar, para no descubrir un link roto
+ * recién al ver la publicación (ver `normalizeTourUrl`).
+ */
+function TourUrlPreview({ url }: { url: string }) {
+  const detected = useMemo(() => (url.trim() ? normalizeTourUrl(url) : null), [url]);
+  if (!detected) return null;
+
+  if (detected.kind === "invalid") {
+    return <p className="text-sm text-danger">{detected.reason}</p>;
+  }
+
+  // "custom" (proveedor no reconocido) es una advertencia, no una confirmación.
+  if (detected.provider === "custom") {
+    return <p className="text-sm text-warning">{detected.label}</p>;
+  }
+
+  return (
+    <p className="flex items-center gap-1.5 text-sm text-success">
+      <CheckIcon />
+      {detected.label}
+    </p>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" aria-hidden>
+      <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }

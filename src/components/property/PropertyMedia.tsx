@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Gallery } from "./Gallery";
 import { ModelViewer } from "./ModelViewer";
+import { normalizeTourUrl } from "@/lib/media/tour-embed";
 import { cn } from "@/lib/utils/cn";
 import type { PropertyDetail } from "./types";
 
@@ -11,12 +12,21 @@ type Tab = "fotos" | "tour3d";
 /**
  * Combina fotos y recorrido 3D en tabs. Si la propiedad no tiene Digital
  * Twin, el tab de recorrido directamente no existe (nunca un tab roto).
- * El recorrido en sí puede ser un link hosteado (Matterport/Polycam/Kuula,
- * `kind: "iframe"`) o un archivo 3D propio (`kind: "mesh"`, glb/gltf/usdz
- * — ej. exportado de Polycam) renderizado con <model-viewer>.
+ * El recorrido en sí puede ser un link hosteado (Matterport/Polycam/Kuula/
+ * Sketchfab, `kind: "iframe"`) o la URL de un archivo 3D ya hosteado
+ * (`kind: "mesh"`, glb/gltf/usdz) renderizado con <model-viewer>.
  */
 export function PropertyMedia({ images, tour3d, title }: Pick<PropertyDetail, "images" | "tour3d" | "title">) {
   const [tab, setTab] = useState<Tab>(tour3d?.enabled ? "tour3d" : "fotos");
+
+  // Re-normaliza el embedUrl al renderizar (no sólo al guardar), para que
+  // una propiedad guardada antes de este arreglo (con el link de "share" de
+  // Polycam en vez del de "/embed") se corrija sola, sin migrar la base.
+  const embedUrl = useMemo(() => {
+    if (tour3d?.kind !== "iframe" || !tour3d.embedUrl) return undefined;
+    const detected = normalizeTourUrl(tour3d.embedUrl);
+    return detected.kind === "iframe" ? detected.url : tour3d.embedUrl;
+  }, [tour3d]);
 
   if (!tour3d?.enabled) {
     return <Gallery images={images} title={title} />;
@@ -38,12 +48,12 @@ export function PropertyMedia({ images, tour3d, title }: Pick<PropertyDetail, "i
           <div className="aspect-[16/10] w-full">
             {tour3d.kind === "mesh" && tour3d.meshUrl ? (
               <ModelViewer src={tour3d.meshUrl} alt={`Recorrido 3D — ${title}`} poster={tour3d.thumbnail} />
-            ) : tour3d.embedUrl ? (
+            ) : embedUrl ? (
               <iframe
-                src={tour3d.embedUrl}
+                src={embedUrl}
                 title={`Recorrido 3D — ${title}`}
                 className="h-full w-full"
-                allow="xr-spatial-tracking; gyroscope; accelerometer"
+                allow="xr-spatial-tracking; gyroscope; accelerometer; fullscreen; vr"
                 allowFullScreen
                 loading="lazy"
               />
@@ -53,6 +63,18 @@ export function PropertyMedia({ images, tour3d, title }: Pick<PropertyDetail, "i
               </div>
             )}
           </div>
+          {embedUrl && (
+            <div className="border-t border-border px-4 py-2.5 text-right">
+              <a
+                href={embedUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-medium text-accent hover:underline"
+              >
+                Abrir en una pestaña nueva ↗
+              </a>
+            </div>
+          )}
         </div>
       ) : (
         <Gallery images={images} title={title} />

@@ -45,10 +45,13 @@ const videoSchema = new Schema(
  *
  * `kind` determina cómo se renderiza:
  * - "iframe": embed hosteado por el proveedor (Matterport, el visor propio
- *   de Polycam en poly.cam/capture/[id]/embed, Kuula, etc.) vía `embedUrl`.
- * - "mesh": un archivo 3D propio (glb/gltf/usdz, ej. exportado de Polycam)
- *   servido por nuestro storage y renderizado con <model-viewer> — ver
- *   `meshUrl`/`meshFormat`.
+ *   de Polycam en poly.cam/capture/[id]/embed, Kuula, Sketchfab, etc.) vía
+ *   `embedUrl`.
+ * - "mesh": la URL de un archivo 3D ya hosteado (glb/gltf/usdz, ej.
+ *   exportado de Polycam) renderizado con <model-viewer> — ver
+ *   `meshUrl`/`meshFormat`. No se sube ningún archivo a nuestro storage: el
+ *   usuario pega la URL, igual que con el link de un recorrido (ver
+ *   `src/lib/media/tour-embed.ts`).
  *
  * `provider` es solo metadata/branding, no afecta el render.
  */
@@ -56,7 +59,7 @@ const tour3dSchema = new Schema(
   {
     enabled: { type: Boolean, default: false },
     kind: { type: String, enum: ["iframe", "mesh"], default: "iframe" },
-    provider: { type: String, enum: ["matterport", "polycam", "kuula", "custom"], default: "polycam" },
+    provider: { type: String, enum: ["matterport", "polycam", "kuula", "sketchfab", "custom"], default: "polycam" },
     modelId: { type: String },
     embedUrl: { type: String },
     meshUrl: { type: String },

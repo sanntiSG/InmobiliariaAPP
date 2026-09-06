@@ -16,9 +16,15 @@ export type AgencyFormValues = {
   city: string;
   province: string;
   status: (typeof AGENCY_STATUSES)[number];
-  ownerName: string;
-  ownerEmail: string;
-  ownerPassword: string;
+  /**
+   * Sólo se usa en mode="create" (ver sección "Darle acceso a un email
+   * ahora"). El admin puede crear la inmobiliaria sola y dar el permiso
+   * después desde "Editar" → "Accesos de esta inmobiliaria".
+   */
+  grantAccess?: boolean;
+  ownerName?: string;
+  ownerEmail?: string;
+  ownerPassword?: string;
 };
 
 export const emptyAgencyForm: AgencyFormValues = {
@@ -30,6 +36,7 @@ export const emptyAgencyForm: AgencyFormValues = {
   city: "",
   province: "",
   status: "active",
+  grantAccess: false,
   ownerName: "",
   ownerEmail: "",
   ownerPassword: "",
@@ -128,27 +135,48 @@ export function AgencyForm({
 
       {mode === "create" && (
         <section className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
-          <h2 className="font-display text-lg font-semibold text-text">Cuenta del dueño</h2>
-          <p className="text-sm text-text-muted">
-            Se crea automáticamente con rol de dueño de esta inmobiliaria, con acceso a su dashboard.
-          </p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <FormField label="Nombre" required value={values.ownerName} onChange={(e) => set("ownerName", e.target.value)} />
-            <FormField
-              label="Email"
-              type="email"
-              required
-              value={values.ownerEmail}
-              onChange={(e) => set("ownerEmail", e.target.value)}
+          <h2 className="font-display text-lg font-semibold text-text">Acceso a la inmobiliaria</h2>
+          <label className="flex items-center gap-2 text-sm text-text">
+            <input
+              type="checkbox"
+              checked={!!values.grantAccess}
+              onChange={(e) => set("grantAccess", e.target.checked)}
+              className="h-4 w-4 accent-accent"
             />
-          </div>
-          <FormField
-            label="Contraseña provisoria"
-            type="text"
-            required
-            value={values.ownerPassword}
-            onChange={(e) => set("ownerPassword", e.target.value)}
-          />
+            Darle acceso a un email ahora
+          </label>
+          <p className="text-sm text-text-muted">
+            Podés dejarlo para después: se habilita desde el botón &quot;Editar&quot; de la inmobiliaria,
+            en &quot;Accesos de esta inmobiliaria&quot;.
+          </p>
+
+          {values.grantAccess && (
+            <>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <FormField
+                  label="Nombre"
+                  value={values.ownerName ?? ""}
+                  onChange={(e) => set("ownerName", e.target.value)}
+                />
+                <FormField
+                  label="Email"
+                  type="email"
+                  required
+                  value={values.ownerEmail ?? ""}
+                  onChange={(e) => set("ownerEmail", e.target.value)}
+                />
+              </div>
+              <FormField
+                label="Contraseña provisoria (opcional)"
+                type="text"
+                value={values.ownerPassword ?? ""}
+                onChange={(e) => set("ownerPassword", e.target.value)}
+              />
+              <p className="text-xs text-text-muted">
+                Dejá la contraseña vacía si esa persona va a entrar con Google.
+              </p>
+            </>
+          )}
         </section>
       )}
 

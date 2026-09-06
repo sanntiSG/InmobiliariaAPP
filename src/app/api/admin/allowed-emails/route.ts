@@ -4,9 +4,8 @@ import { z } from "zod";
 import { connectDB } from "@/lib/db/connect";
 import { AllowedEmail } from "@/lib/db/models/AllowedEmail";
 import { Agency } from "@/lib/db/models/Agency";
-import { User } from "@/lib/db/models/User";
 import { requireAdminUser } from "@/lib/auth/require-admin";
-import { createNotification } from "@/lib/notifications/create";
+import { grantAgencyAccess, GrantAccessError } from "@/lib/admin/grant-agency-access";
 
 const addEmailSchema = z.object({
   email: z.email("Ingresá un email válido"),
@@ -16,13 +15,22 @@ const addEmailSchema = z.object({
   role: z.enum(["agency_owner", "agency_agent"]).default("agency_owner"),
 });
 
-/** GET — Lista todos los emails autorizados (solo admin). */
-export async function GET() {
+/**
+ * GET — Lista los emails autorizados (solo admin).
+ * `?agencyId=<id>` filtra a los de una sola inmobiliaria — lo usa el panel
+ * "Accesos de esta inmobiliaria" en /admin/inmobiliarias/[id]/editar.
+ */
+export async function GET(req: NextRequest) {
   const admin = await requireAdminUser();
   if (!admin) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
+  const agencyId = req.nextUrl.searchParams.get("agencyId");
+  if (agencyId && !Types.ObjectId.isValid(agencyId)) {
+    return NextResponse.json({ error: "Inmobiliaria inválida." }, { status: 400 });
+  }
+
   await connectDB();
-  const allowed = await AllowedEmail.find({})
+  const allowed = await AllowedEmail.find(agencyId ? { agencyId } : {})
     .sort({ createdAt: -1 })
     .populate("agencyId", "name slug")
     .lean();
@@ -34,8 +42,6 @@ export async function GET() {
  * POST — Autoriza un email a gestionar una inmobiliaria (solo admin).
  * Si `agencyId` viene vacío, el email queda habilitado sin inmobiliaria
  * asociada — el usuario la crea él mismo en /publicar.
- * Si el email ya tiene una cuenta creada, se promueve en el acto (no hace
- * falta esperar a que vuelva a iniciar sesión).
  */
 export async function POST(req: NextRequest) {
   const admin = await requireAdminUser();
@@ -48,7 +54,6 @@ export async function POST(req: NextRequest) {
   }
 
   const { agencyId, role } = parsed.data;
-  const email = parsed.data.email.toLowerCase();
 
   try {
     await connectDB();
@@ -63,48 +68,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const existingGrant = await AllowedEmail.findOne({ email }).lean();
-    if (existingGrant) {
-      return NextResponse.json({ error: "Ese email ya está autorizado." }, { status: 409 });
-    }
-
-    const existingUser = await User.findOne({ email }).select("_id role agencyId").lean();
-    // No pisar al admin de la plataforma si por error se intenta autorizar su email.
-    if (existingUser?.role === "admin") {
-      return NextResponse.json({ error: "Ese email ya es admin de la plataforma." }, { status: 409 });
-    }
-
-    const status = !existingUser ? "pending" : agencyId ? "active" : "awaiting_agency";
-
-    const record = await AllowedEmail.create({
-      email,
+    const { allowedEmailId } = await grantAgencyAccess({
+      email: parsed.data.email,
       agencyId: agencyId ?? null,
       role,
-      grantedBy: admin.id,
-      status,
+      grantedByUserId: admin.id,
     });
 
-    if (existingUser) {
-      await User.updateOne(
-        { _id: existingUser._id },
-        { $set: { role, agencyId: agencyId ?? null } }
-      );
-      if (agencyId) {
-        await Agency.updateOne({ _id: agencyId }, { $addToSet: { owners: existingUser._id } });
-      }
-      await createNotification({
-        userId: String(existingUser._id),
-        type: "system",
-        title: agencyId ? "Ya podés gestionar tu inmobiliaria" : "Ya podés publicar tu inmobiliaria",
-        body: agencyId
-          ? "El admin te dio acceso para administrar una inmobiliaria en la plataforma."
-          : "El admin te habilitó — creá tu inmobiliaria para empezar a publicar propiedades.",
-        href: agencyId ? "/dashboard" : "/publicar",
-      });
-    }
-
-    return NextResponse.json(record, { status: 201 });
+    return NextResponse.json({ _id: allowedEmailId }, { status: 201 });
   } catch (err) {
+    if (err instanceof GrantAccessError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
     console.error("POST /api/admin/allowed-emails failed:", err);
     return NextResponse.json({ error: "No se pudo autorizar el email." }, { status: 503 });
   }

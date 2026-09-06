@@ -1,35 +1,32 @@
 import { NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
-import { agencyWithOwnerSchema } from "@/lib/validation/agency";
+import { agencyCreateSchema } from "@/lib/validation/agency";
 import { requireAdminUser } from "@/lib/auth/require-admin";
 import { connectDB } from "@/lib/db/connect";
 import { Agency } from "@/lib/db/models/Agency";
-import { User } from "@/lib/db/models/User";
-import { AllowedEmail } from "@/lib/db/models/AllowedEmail";
 import { slugify } from "@/lib/utils/slugify";
+import { grantAgencyAccess, GrantAccessError } from "@/lib/admin/grant-agency-access";
 
 export async function POST(req: Request) {
   const admin = await requireAdminUser();
   if (!admin) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
 
   const body = await req.json().catch(() => null);
-  const parsed = agencyWithOwnerSchema.safeParse(body);
+  const parsed = agencyCreateSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Datos inválidos", issues: parsed.error.issues }, { status: 400 });
   }
   const data = parsed.data;
 
+  let agencyId: string | null = null;
   try {
     await connectDB();
-
-    const existingOwner = await User.findOne({ email: data.ownerEmail.toLowerCase() }).select("_id").lean();
-    if (existingOwner) {
-      return NextResponse.json({ error: "Ya existe una cuenta con ese email de dueño." }, { status: 409 });
-    }
-
     let slug = slugify(data.name);
     if (await Agency.exists({ slug })) slug = `${slug}-${Date.now().toString(36)}`;
 
+    // La inmobiliaria se crea primero siempre — darle acceso a un email es
+    // opcional (checkbox "Darle acceso a un email ahora"). Si algo falla
+    // después de este punto, se borra la inmobiliaria recién creada en vez
+    // de dejar un huérfano con `owners: []`.
     const agency = await Agency.create({
       slug,
       name: data.name,
@@ -38,36 +35,25 @@ export async function POST(req: Request) {
       address: { city: data.city, province: data.province, country: "Argentina" },
       status: data.status,
     });
+    agencyId = String(agency._id);
 
-    const passwordHash = await bcrypt.hash(data.ownerPassword, 10);
-    const owner = await User.create({
-      name: data.ownerName,
-      email: data.ownerEmail.toLowerCase(),
-      passwordHash,
-      role: "agency_owner",
-      agencyId: agency._id,
-    });
-    agency.owners = [owner._id];
-    await agency.save();
+    if (data.grantAccess) {
+      await grantAgencyAccess({
+        email: data.ownerEmail as string,
+        agencyId,
+        role: "agency_owner",
+        grantedByUserId: admin.id,
+        ownerName: data.ownerName || undefined,
+        ownerPassword: data.ownerPassword || undefined,
+      });
+    }
 
-    // El owner creado por contraseña también queda como fila en AllowedEmail
-    // (única fuente de verdad de permisos, ver resolveAccessForEmail) — así
-    // conserva su rol si más adelante inicia sesión con Google.
-    await AllowedEmail.findOneAndUpdate(
-      { email: owner.email },
-      {
-        $set: {
-          agencyId: agency._id,
-          role: "agency_owner",
-          status: "active",
-          grantedBy: admin.id,
-        },
-      },
-      { upsert: true }
-    );
-
-    return NextResponse.json({ id: String(agency._id), slug: agency.slug }, { status: 201 });
+    return NextResponse.json({ id: agencyId, slug: agency.slug }, { status: 201 });
   } catch (err) {
+    if (agencyId) await Agency.deleteOne({ _id: agencyId });
+    if (err instanceof GrantAccessError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
     console.error("POST /api/admin/agencies failed:", err);
     return NextResponse.json({ error: "No se pudo crear la inmobiliaria." }, { status: 503 });
   }
