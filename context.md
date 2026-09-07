@@ -158,7 +158,7 @@ Complementarias, usar cuando el caso lo amerite (no obligatorias en cada tarea):
 
 - No se debe subir nada peligroso ni introducir vulnerabilidades típicas (inyección, XSS, exposición de datos, etc.).
 - Alta de inmobiliarias restringida exclusivamente a admin/proveedor — nunca autoservicio.
-- **Pendiente de resolver**: el archivo `CLAUDE.md` (versionado en git) contiene una contraseña de GitHub en texto plano. No debe usarse nunca esa contraseña para operaciones reales — usar `gh auth login` o un token, y en algún momento sacar la contraseña del archivo y rotarla.
+- La contraseña de GitHub en texto plano que tenía `CLAUDE.md` ya se sacó del archivo (ver sesión de deploy). **Pendiente manual**: rotarla en github.com (Settings → Password and authentication) y activar 2FA, ya que estuvo un tiempo en un archivo versionado.
 
 ---
 

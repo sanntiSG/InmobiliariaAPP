@@ -49,7 +49,7 @@ MongoDB
 ThreeJS (si lo requiere)
 Render
 Netlify
-Github ( [EMAIL_ADDRESS] ) - ssantii200@gmail.com - pass: Trapodepiso1 - Repositorio: InmobiliariaAPP
+Github: ssantii200@gmail.com — Repositorio: InmobiliariaAPP (autenticación vía `gh auth login` o un Personal Access Token; nunca la contraseña de la cuenta en texto plano)
 Cuida la seguridad de la aplicacion. No subas nada peligroso
 
 No utilizar IA de pago.

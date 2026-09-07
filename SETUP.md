@@ -80,30 +80,73 @@ Abrí http://localhost:3000/mapa
 | `npm run typecheck` | Chequeo de tipos TypeScript |
 | `npm run seed` | Carga datos demo en MongoDB |
 
-## 7. Deploy (Netlify + MongoDB Atlas)
+## 7. Deploy (Netlify + Render + MongoDB Atlas)
 
-El repo ya incluye `netlify.toml` (build command + `@netlify/plugin-nextjs`). No hace falta configurar nada más ahí — Netlify detecta Next.js automáticamente.
+Umbral se publica **dos veces, en espejo completo** del mismo repo: una en Netlify
+(URL primaria — funciones serverless, sin cold start) y otra en Render (respaldo/
+staging — el free tier duerme a los 15 min de inactividad). Las dos apuntan a **la
+misma** base de MongoDB Atlas de producción; no son entornos separados, son dos
+puertas de entrada a los mismos datos.
+
+El repo ya incluye `netlify.toml` (build command + `@netlify/plugin-nextjs`, Next.js
+16 soportado sin config adicional) y `render.yaml` (Blueprint de Render: build/start/
+health-check ya completos, sólo pide las variables secretas en un formulario).
+`.node-version` fija Node 20.20.2 para que ambas plataformas usen la misma versión.
 
 1. **MongoDB Atlas para producción**
-   - En **Network Access**, además de tu IP, dejá habilitado `0.0.0.0/0` (o la lista de IPs salientes de Netlify si preferís restringir) para que las funciones de Netlify puedan conectarse.
-   - Usá el mismo cluster M0 gratuito, o creá uno separado de "producción" si querés aislar los datos demo.
+   - **Network Access** → `0.0.0.0/0` — ni Netlify Functions ni el free tier de
+     Render dan IP de salida fija en el plan gratuito, así que no hay forma de
+     restringir por IP; la seguridad la da el usuario/contraseña de conexión.
+   - Podés usar el mismo cluster M0 de desarrollo o uno de "producción" separado —
+     para un lanzamiento real, dejalo **vacío** y dá de alta las inmobiliarias a
+     mano desde `/admin` (nada de `npm run seed` ahí).
 
-2. **Crear el sitio en Netlify**
-   - [app.netlify.com](https://app.netlify.com) → **Add new site → Import an existing project** → conectá el repo `InmobiliariaAPP` de GitHub.
-   - Build command y publish directory ya vienen de `netlify.toml`, no hace falta tocarlos.
+2. **Cloudinary** — obligatorio en producción (ver punto 3.3; el filesystem de
+   Netlify/Render es efímero). Podés reusar la misma cuenta/credenciales de
+   desarrollo.
 
-3. **Variables de entorno en Netlify** (Site settings → Environment variables) — las mismas de `.env.local`, con valores de producción:
+3. **Google OAuth** — reusá el mismo Client ID de `console.cloud.google.com/apis/credentials`
+   que ya usás en local. En **Authorized JavaScript origins** y **Authorized redirect
+   URIs** agregá las dos URLs nuevas (sin sacar la de `localhost:3000`):
+   - `https://<tu-sitio>.netlify.app` / `.../api/auth/callback/google`
+   - `https://<tu-servicio>.onrender.com` / `.../api/auth/callback/google`
 
-   | Variable | Valor |
-   |---|---|
-   | `MONGODB_URI` | connection string de Atlas |
-   | `AUTH_SECRET` | uno **nuevo**, generado con `npx auth secret` (no reuses el de dev) |
-   | `NEXTAUTH_URL` | la URL final del sitio, ej. `https://umbral.netlify.app` |
-   | `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | de tu cuenta de Cloudinary (obligatorio en producción, ver punto 3.3) |
-   | `NEXT_PUBLIC_PROVIDER_WHATSAPP` | tu número real, si es distinto al de `.env.example` |
+   Si el **Publishing status** del consent screen dice "Testing", sólo entran los
+   emails que agregues como test users — click **Publish app** para que cualquier
+   usuario real pueda loguearse con Google (los scopes básicos que usa este
+   proyecto no requieren verificación de Google).
 
-4. **Deploy** — Netlify buildea y publica automáticamente en cada push a la rama principal. Corré `npm run seed` apuntando a la base de producción (variable `MONGODB_URI` de prod en tu shell local) solo si querés datos de demo ahí; para un lanzamiento real, las inmobiliarias se dan de alta a mano desde `/admin`.
+4. **Crear el sitio en Netlify** — [app.netlify.com](https://app.netlify.com) →
+   **Add new site → Import an existing project** → GitHub → `InmobiliariaAPP`. Build
+   command y publish directory ya vienen de `netlify.toml`.
+
+5. **Crear el servicio en Render** — [dashboard.render.com](https://dashboard.render.com)
+   → **New + → Blueprint** → mismo repo `InmobiliariaAPP`. Render lee `render.yaml`
+   automáticamente y sólo pide los valores secretos.
+
+6. **Variables de entorno** — mismos valores en las dos plataformas, salvo `AUTH_URL`:
+
+   | Variable | Netlify | Render |
+   |---|---|---|
+   | `MONGODB_URI` | connection string de Atlas | mismo valor |
+   | `AUTH_SECRET` | uno nuevo (`node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` — no usar `npx auth secret` acá, te pisa el de `.env.local`) | otro nuevo, **distinto** al de Netlify |
+   | `AUTH_URL` | `https://<tu-sitio>.netlify.app` | `https://<tu-servicio>.onrender.com` (¡no la misma URL en las dos!) |
+   | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | de tu Client ID de Google | mismo valor |
+   | `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | de tu cuenta de Cloudinary | mismo valor |
+
+   `ADMIN_EMAILS` y `NEXT_PUBLIC_PROVIDER_WHATSAPP` no son obligatorias — `src/config/site.ts`
+   ya tiene defaults; sólo agregalas si en producción querés valores distintos.
+
+7. **Deploy** — cada plataforma buildea y publica automáticamente en cada push a
+   `main`. Después de cargar las variables por primera vez, forzá un redeploy
+   (Netlify: *Trigger deploy → Clear cache and deploy site*; Render: *Manual Deploy*)
+   para que las tome.
+
+8. **Verificar** — en cada URL: `/api/health` debe dar `{"ok":true,"db":"connected"}`;
+   `/ingresar` → login con Google debe entrar con rol admin; `/admin` para dar de
+   alta la primera inmobiliaria real; subir una foto desde ese dashboard confirma
+   que Cloudinary quedó bien configurado.
 
 ## Nota de seguridad
 
-`CLAUDE.md` en la raíz del repo contenía una contraseña de GitHub en texto plano. **Recomendado:** cambiar esa contraseña, activar 2FA en la cuenta, y no volver a escribir credenciales reales en archivos versionados. Usá `gh auth login` o un Personal Access Token para el push, nunca la contraseña de la cuenta.
+`CLAUDE.md` en la raíz del repo tenía una contraseña de GitHub en texto plano — ya se sacó del archivo, pero como estuvo ahí (y el repo se sube a GitHub), **cambiala en github.com → Settings → Password and authentication** y activá 2FA si todavía no lo tenés. No vuelvas a escribir credenciales reales en archivos versionados — usá `gh auth login` o un Personal Access Token para el push, nunca la contraseña de la cuenta.

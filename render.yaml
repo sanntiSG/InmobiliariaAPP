@@ -1,0 +1,34 @@
+# Blueprint de Render — ver SETUP.md §7 (Deploy) para el paso a paso completo.
+#
+# Las variables con `sync: false` son secretos: Render las pide en un formulario
+# al crear el Blueprint (o después en Environment), nunca quedan en este archivo
+# ni en git. Los valores van a ser los mismos que en Netlify, salvo `AUTH_URL`
+# (tiene que ser la URL real de este servicio en Render, no la de Netlify).
+services:
+  - type: web
+    name: umbral
+    runtime: node
+    plan: free
+    region: virginia
+    branch: main
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: AUTH_SECRET
+        sync: false
+      - key: AUTH_URL
+        sync: false
+      - key: AUTH_GOOGLE_ID
+        sync: false
+      - key: AUTH_GOOGLE_SECRET
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
