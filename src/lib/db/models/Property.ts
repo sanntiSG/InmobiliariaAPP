@@ -55,6 +55,12 @@ const videoSchema = new Schema(
  *   `meshUrl`/`meshFormat`. No se sube ningún archivo a nuestro storage: el
  *   usuario pega la URL, igual que con el link de un recorrido (ver
  *   `src/lib/media/tour-embed.ts`).
+ * - "photo360": una foto equirectangular (360°) subida por la propia
+ *   inmobiliaria — es una imagen común (JPEG/PNG), sube por el mismo
+ *   camino que las fotos de la propiedad (`/api/dashboard/upload`,
+ *   Cloudinary). Se renderiza con nuestro propio visor (`Photo360Viewer`,
+ *   Photo Sphere Viewer vía Three.js/WebGL — no depende de ningún
+ *   proveedor externo, sin la restricción de WebGPU que tiene Polycam).
  *
  * `provider` es solo metadata/branding, no afecta el render.
  */
@@ -62,12 +68,14 @@ const tourEntrySchema = new Schema(
   {
     /** Opcional — ej. "Living", "Fachada". Si falta, la UI usa "Recorrido N". */
     label: { type: String, maxlength: 60 },
-    kind: { type: String, enum: ["iframe", "mesh"], default: "iframe" },
+    kind: { type: String, enum: ["iframe", "mesh", "photo360"], default: "iframe" },
     provider: { type: String, enum: ["matterport", "polycam", "kuula", "sketchfab", "custom"], default: "polycam" },
     modelId: { type: String },
     embedUrl: { type: String },
     meshUrl: { type: String },
     meshFormat: { type: String, enum: ["glb", "gltf", "usdz"] },
+    /** URL (Cloudinary) de la foto 360 — sólo para kind:"photo360". */
+    photo360Url: { type: String },
     thumbnail: { type: String },
   },
   { _id: false }

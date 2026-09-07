@@ -24,16 +24,19 @@ export type PropertyCardData = {
 /**
  * Un recorrido / Digital Twin — "iframe" para links hosteados (Matterport,
  * el visor de Polycam, Kuula, Sketchfab...), "mesh" para la URL de un
- * archivo glb/gltf/usdz ya hosteado, renderizado con <model-viewer>. Una
- * propiedad puede tener varios (`PropertyDetail.tours`).
+ * archivo glb/gltf/usdz ya hosteado (renderizado con <model-viewer>),
+ * "photo360" para una foto equirectangular subida por la inmobiliaria
+ * (renderizada con `Photo360Viewer`, Photo Sphere Viewer). Una propiedad
+ * puede tener varios (`PropertyDetail.tours`).
  */
 export type Tour3DEntry = {
   label?: string;
-  kind: "iframe" | "mesh";
+  kind: "iframe" | "mesh" | "photo360";
   provider?: string;
   embedUrl?: string;
   meshUrl?: string;
   meshFormat?: "glb" | "gltf" | "usdz";
+  photo360Url?: string;
   thumbnail?: string;
 };
 

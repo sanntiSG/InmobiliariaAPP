@@ -63,10 +63,11 @@ export default async function EditPropertyPage({ params }: PageProps<"/dashboard
       order: img.order ?? i,
       providerId: img.providerId ?? undefined,
     })),
-    tours: (doc.media?.tours ?? []).map((t) => ({
-      url: t.meshUrl ?? t.embedUrl ?? "",
-      label: t.label ?? "",
-    })),
+    tours: (doc.media?.tours ?? []).map((t) =>
+      t.kind === "photo360"
+        ? { mode: "photo360" as const, url: "", label: t.label ?? "", photo360Url: t.photo360Url ?? undefined }
+        : { mode: "link" as const, url: t.meshUrl ?? t.embedUrl ?? "", label: t.label ?? "" }
+    ),
   };
 
   return (

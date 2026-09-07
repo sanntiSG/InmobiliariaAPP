@@ -65,8 +65,16 @@ export type PropertyFormValues = {
   tours: TourFormRow[];
 };
 
-/** Una fila del formulario de recorridos — `url` sin procesar (ver `normalizeTourUrl`), `label` opcional (ej. "Living"). */
-export type TourFormRow = { url: string; label: string };
+/**
+ * Una fila del formulario de recorridos. `mode:"link"` pega una URL sin
+ * procesar (ver `normalizeTourUrl` — cubre link de proveedor Y archivo
+ * .glb/.gltf/.usdz ya hosteado). `mode:"photo360"` sube una foto
+ * equirectangular propia (imagen común, mismo endpoint que las fotos de la
+ * propiedad) — `photo360Url` queda seteado una vez subida.
+ */
+export type TourFormRow = { mode: "link" | "photo360"; url: string; label: string; photo360Url?: string };
+
+const emptyTourRow: TourFormRow = { mode: "link", url: "", label: "" };
 
 const MAX_TOUR_ROWS = 6;
 
@@ -158,13 +166,19 @@ function toPayload(v: PropertyFormValues) {
 function buildToursPayload(v: PropertyFormValues) {
   return v.tours
     .map((row) => {
+      const label = row.label.trim() || undefined;
+
+      if (row.mode === "photo360") {
+        if (!row.photo360Url) return null;
+        return { label, kind: "photo360" as const, photo360Url: row.photo360Url };
+      }
+
       const url = row.url.trim();
       if (!url) return null;
 
       const detected = normalizeTourUrl(url);
       if (detected.kind === "invalid") return null;
 
-      const label = row.label.trim() || undefined;
       if (detected.kind === "mesh") {
         return {
           label,
@@ -207,6 +221,8 @@ export function PropertyForm({
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tourUploadError, setTourUploadError] = useState<string | null>(null);
+  const [uploadingTourIndex, setUploadingTourIndex] = useState<number | null>(null);
 
   function set<K extends keyof PropertyFormValues>(key: K, value: PropertyFormValues[K]) {
     setValues((v) => ({ ...v, [key]: value }));
@@ -220,7 +236,7 @@ export function PropertyForm({
   }
 
   function addTourRow() {
-    setValues((v) => ({ ...v, tours: [...v.tours, { url: "", label: "" }] }));
+    setValues((v) => ({ ...v, tours: [...v.tours, { ...emptyTourRow }] }));
   }
 
   function updateTourRow(i: number, patch: Partial<TourFormRow>) {
@@ -229,6 +245,27 @@ export function PropertyForm({
 
   function removeTourRow(i: number) {
     setValues((v) => ({ ...v, tours: v.tours.filter((_, idx) => idx !== i) }));
+  }
+
+  async function uploadPhoto360(i: number, file: File | undefined) {
+    if (!file) return;
+    setTourUploadError(null);
+    setUploadingTourIndex(i);
+
+    const formData = new FormData();
+    formData.append("file", file);
+    if (agencies) formData.append("agencyId", values.agencyId);
+
+    try {
+      const res = await fetch("/api/dashboard/upload", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "No se pudo subir la foto 360°.");
+      updateTourRow(i, { photo360Url: data.url });
+    } catch (err) {
+      setTourUploadError(err instanceof Error ? err.message : "No se pudo subir la foto 360°.");
+    } finally {
+      setUploadingTourIndex(null);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -385,20 +422,47 @@ export function PropertyForm({
       <section className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
         <h2 className="font-display text-lg font-semibold text-text">Recorridos 3D / Digital Twin</h2>
         <p className="text-sm text-text-muted">
-          Escaneá el espacio con Polycam (o Matterport, Kuula, Sketchfab...) y pegá acá el link de esa captura —
-          no hace falta subir ningún archivo. Podés cargar más de uno.
+          Escaneá el espacio con Polycam (o Matterport, Kuula, Sketchfab...) y pegá acá el link de esa captura, o
+          subí una foto 360° propia — no hace falta subir ningún archivo para los links. Podés cargar más de uno.
         </p>
 
         {values.tours.map((row, i) => (
           <div key={i} className="flex items-start gap-2 rounded-media border border-border p-4">
             <div className="flex flex-1 flex-col gap-3">
-              <FormField
-                label={values.tours.length > 1 ? `URL del recorrido ${i + 1}` : "URL del recorrido o del modelo 3D"}
-                placeholder="https://poly.cam/capture/... o https://my.matterport.com/show/?m=..."
-                value={row.url}
-                onChange={(e) => updateTourRow(i, { url: e.target.value })}
-              />
-              <TourUrlPreview url={row.url} />
+              <div className="flex gap-2">
+                <FilterPill type="button" active={row.mode === "link"} onClick={() => updateTourRow(i, { mode: "link" })}>
+                  Pegar link
+                </FilterPill>
+                <FilterPill
+                  type="button"
+                  active={row.mode === "photo360"}
+                  onClick={() => updateTourRow(i, { mode: "photo360" })}
+                >
+                  Subir foto 360°
+                </FilterPill>
+              </div>
+
+              {row.mode === "link" ? (
+                <>
+                  <FormField
+                    label={
+                      values.tours.length > 1 ? `URL del recorrido ${i + 1}` : "URL del recorrido o del modelo 3D"
+                    }
+                    placeholder="https://poly.cam/capture/... o https://my.matterport.com/show/?m=..."
+                    value={row.url}
+                    onChange={(e) => updateTourRow(i, { url: e.target.value })}
+                  />
+                  <TourUrlPreview url={row.url} />
+                </>
+              ) : (
+                <Photo360Uploader
+                  photo360Url={row.photo360Url}
+                  uploading={uploadingTourIndex === i}
+                  onUpload={(file) => uploadPhoto360(i, file)}
+                  onRemove={() => updateTourRow(i, { photo360Url: undefined })}
+                />
+              )}
+
               {values.tours.length > 1 && (
                 <FormField
                   label="Nombre (opcional)"
@@ -424,9 +488,16 @@ export function PropertyForm({
           + Agregar recorrido
         </Button>
 
+        {tourUploadError && (
+          <p className="text-sm text-danger" role="alert">
+            {tourUploadError}
+          </p>
+        )}
+
         <p className="text-xs text-text-muted">
           En Polycam: abrí la captura → Compartir → copiá el link de esa captura (no el de poly.cam solo). En
-          celulares, el recorrido se abre en pantalla completa automáticamente.
+          celulares, el recorrido se abre en pantalla completa automáticamente. Una foto 360° se ve embebida en
+          cualquier dispositivo, sin depender de ningún visor externo.
         </p>
       </section>
 
@@ -451,6 +522,51 @@ export function PropertyForm({
         </Button>
       </div>
     </form>
+  );
+}
+
+/**
+ * Sube una foto 360° (equirectangular) para un recorrido `mode:"photo360"`
+ * — es una imagen común, mismo endpoint que las fotos de la propiedad
+ * (`/api/dashboard/upload`), sin parámetro `kind` especial.
+ */
+function Photo360Uploader({
+  photo360Url,
+  uploading,
+  onUpload,
+  onRemove,
+}: {
+  photo360Url?: string;
+  uploading: boolean;
+  onUpload: (file: File | undefined) => void;
+  onRemove: () => void;
+}) {
+  if (photo360Url) {
+    return (
+      <div className="flex items-center justify-between gap-3 rounded-media border border-border bg-surface-2 px-4 py-3">
+        <div className="flex items-center gap-3 min-w-0">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={photo360Url} alt="" className="h-12 w-20 shrink-0 rounded object-cover" />
+          <span className="truncate text-sm text-text">Foto 360° cargada</span>
+        </div>
+        <Button type="button" variant="secondary" size="sm" onClick={onRemove}>
+          Quitar
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <label className="flex h-16 cursor-pointer items-center justify-center rounded-media border-2 border-dashed border-border text-sm text-text-muted transition-colors hover:border-accent hover:text-accent">
+      {uploading ? "Subiendo…" : "+ Subir foto 360° (equirectangular, JPG/PNG — máx. 8MB)"}
+      <input
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={(e) => onUpload(e.target.files?.[0])}
+        disabled={uploading}
+      />
+    </label>
   );
 }
 

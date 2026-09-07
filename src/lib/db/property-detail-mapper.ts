@@ -67,6 +67,7 @@ export function toPropertyDetail(doc: any): PropertyDetail {
         embedUrl?: string;
         meshUrl?: string;
         meshFormat?: string;
+        photo360Url?: string;
         thumbnail?: string;
       }) => ({
         label: t.label,
@@ -75,6 +76,7 @@ export function toPropertyDetail(doc: any): PropertyDetail {
         embedUrl: t.embedUrl,
         meshUrl: t.meshUrl,
         meshFormat: t.meshFormat,
+        photo360Url: t.photo360Url,
         thumbnail: t.thumbnail,
       })
     ),

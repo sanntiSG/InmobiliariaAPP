@@ -1,12 +1,24 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import dynamicImport from "next/dynamic";
 import { Gallery } from "./Gallery";
 import { ModelViewer } from "./ModelViewer";
 import { normalizeTourUrl } from "@/lib/media/tour-embed";
 import { buttonClasses } from "@/components/ui/Button";
 import { cn } from "@/lib/utils/cn";
 import type { PropertyDetail, Tour3DEntry } from "./types";
+
+// Photo Sphere Viewer toca `document` al inicializar (WebGL/Three.js) —
+// nunca puede correr en el servidor, igual que maplibre-gl en el mapa.
+const Photo360Viewer = dynamicImport(() => import("./Photo360Viewer").then((m) => m.Photo360Viewer), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-full items-center justify-center bg-surface-2 text-sm text-text-muted">
+      Cargando foto 360°…
+    </div>
+  ),
+});
 
 type Tab = "fotos" | "tour3d";
 
@@ -24,8 +36,10 @@ function isMobileUserAgent(): boolean {
  * defecto (el orden lo elige la inmobiliaria al cargarlos).
  *
  * El recorrido puede ser un link hosteado (Matterport/Polycam/Kuula/
- * Sketchfab, `kind: "iframe"`) o la URL de un archivo 3D ya hosteado
- * (`kind: "mesh"`, glb/gltf/usdz) renderizado con <model-viewer>.
+ * Sketchfab, `kind: "iframe"`), la URL de un archivo 3D ya hosteado
+ * (`kind: "mesh"`, glb/gltf/usdz) renderizado con <model-viewer>, o una
+ * foto 360° subida por la inmobiliaria (`kind: "photo360"`) renderizada con
+ * `Photo360Viewer` (Photo Sphere Viewer).
  *
  * En mobile (Safari en particular), el visor de Polycam no carga embebido
  * en un iframe de otro origen (probado, no depende de nuestro código — ver
@@ -102,6 +116,8 @@ export function PropertyMedia({ images, tours, title }: Pick<PropertyDetail, "im
           <div className="aspect-[16/10] w-full">
             {active.kind === "mesh" && active.meshUrl ? (
               <ModelViewer src={active.meshUrl} alt={`Recorrido 3D — ${title}`} poster={active.thumbnail} />
+            ) : active.kind === "photo360" && active.photo360Url ? (
+              <Photo360Viewer src={active.photo360Url} />
             ) : blockedOnMobile ? (
               <MobileFullscreenPrompt embedUrl={embedUrl} tourIndex={selectedIndex} />
             ) : embedUrl ? (
