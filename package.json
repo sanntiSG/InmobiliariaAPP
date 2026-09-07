@@ -17,6 +17,7 @@
   "dependencies": {
     "@gsap/react": "^2.1.2",
     "@photo-sphere-viewer/core": "^5.15.1",
+    "@photo-sphere-viewer/gyroscope-plugin": "^5.15.1",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.11.0",
     "clsx": "^2.1.1",
@@ -31,6 +32,7 @@
     "react-photo-sphere-viewer": "^6.2.3",
     "supercluster": "^9.0.0",
     "tailwind-merge": "^3.6.0",
+    "three": "^0.185.1",
     "zod": "^4.5.4"
   },
   "devDependencies": {
