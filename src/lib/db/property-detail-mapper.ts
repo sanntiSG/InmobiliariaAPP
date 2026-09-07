@@ -59,27 +59,10 @@ export function toPropertyDetail(doc: any): PropertyDetail {
       url: v.url,
       thumbnail: v.thumbnail,
     })),
-    tours: (doc.media?.tours ?? []).map(
-      (t: {
-        label?: string;
-        kind?: string;
-        provider?: string;
-        embedUrl?: string;
-        meshUrl?: string;
-        meshFormat?: string;
-        photo360Url?: string;
-        thumbnail?: string;
-      }) => ({
-        label: t.label,
-        kind: t.kind ?? "iframe",
-        provider: t.provider,
-        embedUrl: t.embedUrl,
-        meshUrl: t.meshUrl,
-        meshFormat: t.meshFormat,
-        photo360Url: t.photo360Url,
-        thumbnail: t.thumbnail,
-      })
-    ),
+    tours: (doc.media?.tours ?? []).map((t: { label?: string; photo360Url: string }) => ({
+      label: t.label,
+      photo360Url: t.photo360Url,
+    })),
 
     stats: {
       views: doc.stats?.views ?? 0,

@@ -15,14 +15,12 @@ import { Interaction } from "../src/lib/db/models/Interaction";
 import { slugify } from "../src/lib/utils/slugify";
 import { AMENITIES, type PropertyType } from "../src/config/filters";
 
-// Assets públicos verificados (200 OK) para demostrar el visor de mesh 3D
-// (<model-viewer>) sin depender de una cuenta de Polycam real.
-const MESH_SAMPLES: { url: string; format: "glb" }[] = [
-  { url: "https://modelviewer.dev/shared-assets/models/Astronaut.glb", format: "glb" },
-  {
-    url: "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb",
-    format: "glb",
-  },
+// Panoramas públicos verificados (200 OK) del propio sitio de demos de
+// Photo Sphere Viewer, para probar el visor de foto 360° sin depender de
+// una captura real.
+const PHOTO360_SAMPLES = [
+  "https://photo-sphere-viewer-data.netlify.app/assets/sphere.jpg",
+  "https://photo-sphere-viewer-data.netlify.app/assets/sphere-test.jpg",
 ];
 
 const UNSPLASH_IDS = [
@@ -221,7 +219,7 @@ async function main() {
         images: shuffled.map((id, idx) => ({ url: imageUrl(id), alt: title, order: idx })),
         videos: [],
         floorPlans: [],
-        tours: buildTours(hasTour, i, shuffled[0]),
+        tours: buildTours(hasTour, i),
         hasTour3d: hasTour,
       },
       // Sin datos inventados: `stats` nace en 0, igual que cualquier
@@ -251,61 +249,22 @@ async function main() {
 const DEMO_MULTI_TOUR_INDEX = 1;
 
 /**
- * Mezcla los dos caminos del Digital Twin para probar los renders: "iframe"
- * (Matterport, verificado alcanzable) y "mesh" (glb propio vía
- * <model-viewer>, como lo exportaría alguien desde Polycam). Una propiedad
- * fija (`DEMO_MULTI_TOUR_INDEX`) tiene además DOS recorridos a la vez — un
- * link de Polycam (capture pública real y verificada, "Furry friend") +
- * un .glb de respaldo — para poder probar el selector de "más de un
- * recorrido" y el aviso de WebGPU (ver `PropertyMedia.tsx`) con datos reales.
+ * Genera los recorridos 360° demo. La propiedad fija
+ * (`DEMO_MULTI_TOUR_INDEX`) tiene los DOS panoramas de muestra a la vez —
+ * para poder probar el selector de "más de un recorrido" con datos reales.
+ * El resto (`hasTour === true`) tiene uno solo.
  */
-function buildTours(hasTour: boolean, index: number, thumbnailImageId: string) {
+function buildTours(hasTour: boolean, index: number) {
   if (!hasTour) return [];
-  const thumbnail = imageUrl(thumbnailImageId);
 
   if (index === DEMO_MULTI_TOUR_INDEX) {
-    const sample = MESH_SAMPLES[0];
     return [
-      {
-        label: "Recorrido interactivo",
-        kind: "iframe" as const,
-        provider: "polycam" as const,
-        embedUrl: "https://poly.cam/capture/204B4702-F534-4026-8762-976F43B80B97/embed",
-        thumbnail,
-      },
-      {
-        label: "Modelo 3D (respaldo)",
-        kind: "mesh" as const,
-        provider: "polycam" as const,
-        meshUrl: sample.url,
-        meshFormat: sample.format,
-        thumbnail,
-      },
+      { label: "Living", photo360Url: PHOTO360_SAMPLES[0] },
+      { label: "Dormitorio", photo360Url: PHOTO360_SAMPLES[1] },
     ];
   }
 
-  if (index % 2 === 0) {
-    const sample = MESH_SAMPLES[index % MESH_SAMPLES.length];
-    return [
-      {
-        kind: "mesh" as const,
-        provider: "polycam" as const,
-        meshUrl: sample.url,
-        meshFormat: sample.format,
-        thumbnail,
-      },
-    ];
-  }
-
-  return [
-    {
-      kind: "iframe" as const,
-      provider: "matterport" as const,
-      modelId: `demo-${index}`,
-      embedUrl: "https://my.matterport.com/show/?m=SxQL3iGyvS0",
-      thumbnail,
-    },
-  ];
+  return [{ photo360Url: PHOTO360_SAMPLES[index % PHOTO360_SAMPLES.length] }];
 }
 
 function typeLabel(type: string) {

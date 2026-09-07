@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Plus, ArrowRight } from "lucide-react";
 import { requireDashboardAccess } from "@/lib/auth/require-dashboard-access";
 import { connectDB } from "@/lib/db/connect";
 import { Property } from "@/lib/db/models/Property";
@@ -40,21 +41,27 @@ export default async function DashboardOverviewPage() {
             <h1 className="font-display text-2xl font-bold text-text">Resumen</h1>
             <p className="text-sm text-text-muted">
               Como admin ves y podés crear propiedades para cualquier inmobiliaria.{" "}
-              <Link href="/admin" className="font-medium text-accent hover:underline">
-                Gestionar inmobiliarias →
+              <Link href="/admin" className="inline-flex items-center gap-1 font-medium text-accent hover:underline">
+                Gestionar inmobiliarias <ArrowRight className="h-3.5 w-3.5" aria-hidden />
               </Link>
             </p>
           </div>
-          <Link href="/dashboard/propiedades/nueva" className={buttonClasses("primary", "md")}>
-            + Nueva propiedad
+          <Link
+            href="/dashboard/propiedades/nueva"
+            className={buttonClasses("primary", "md", "inline-flex items-center gap-1.5")}
+          >
+            <Plus className="h-4 w-4" aria-hidden /> Nueva propiedad
           </Link>
         </div>
 
         <section>
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-text-muted">Últimos 7 días — toda la plataforma</h2>
-            <Link href="/admin/estadisticas" className="text-sm font-medium text-accent hover:underline">
-              Ver estadísticas completas →
+            <Link
+              href="/admin/estadisticas"
+              className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
+            >
+              Ver estadísticas completas <ArrowRight className="h-3.5 w-3.5" aria-hidden />
             </Link>
           </div>
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -112,8 +119,11 @@ export default async function DashboardOverviewPage() {
     <div className="flex flex-col gap-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-display text-2xl font-bold text-text">Resumen</h1>
-        <Link href="/dashboard/propiedades/nueva" className={buttonClasses("primary", "md")}>
-          + Nueva propiedad
+        <Link
+          href="/dashboard/propiedades/nueva"
+          className={buttonClasses("primary", "md", "inline-flex items-center gap-1.5")}
+        >
+          <Plus className="h-4 w-4" aria-hidden /> Nueva propiedad
         </Link>
       </div>
 

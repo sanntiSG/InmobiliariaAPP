@@ -40,43 +40,19 @@ const videoSchema = new Schema(
 );
 
 /**
- * Un recorrido / Digital Twin. Una propiedad puede tener varios
- * (`media.tours`, ver más abajo) — distintos ambientes escaneados por
- * separado, o un link de Polycam más un `.glb` de respaldo para cuando el
- * embed de Polycam no cargue bien en algún navegador (ver nota sobre
- * WebGPU/iframes en `src/lib/media/tour-embed.ts`).
- *
- * `kind` determina cómo se renderiza:
- * - "iframe": embed hosteado por el proveedor (Matterport, el visor propio
- *   de Polycam en poly.cam/capture/[id]/embed, Kuula, Sketchfab, etc.) vía
- *   `embedUrl`.
- * - "mesh": la URL de un archivo 3D ya hosteado (glb/gltf/usdz, ej.
- *   exportado de Polycam) renderizado con <model-viewer> — ver
- *   `meshUrl`/`meshFormat`. No se sube ningún archivo a nuestro storage: el
- *   usuario pega la URL, igual que con el link de un recorrido (ver
- *   `src/lib/media/tour-embed.ts`).
- * - "photo360": una foto equirectangular (360°) subida por la propia
- *   inmobiliaria — es una imagen común (JPEG/PNG), sube por el mismo
- *   camino que las fotos de la propiedad (`/api/dashboard/upload`,
- *   Cloudinary). Se renderiza con nuestro propio visor (`Photo360Viewer`,
- *   Photo Sphere Viewer vía Three.js/WebGL — no depende de ningún
- *   proveedor externo, sin la restricción de WebGPU que tiene Polycam).
- *
- * `provider` es solo metadata/branding, no afecta el render.
+ * Un recorrido 360° — una foto equirectangular subida por la propia
+ * inmobiliaria (imagen común, JPEG/PNG, sube por el mismo camino que las
+ * fotos de la propiedad — `/api/dashboard/upload`, Cloudinary) y
+ * renderizada con nuestro propio visor (`Photo360Viewer`, Photo Sphere
+ * Viewer vía Three.js/WebGL). Una propiedad puede tener varios
+ * (`media.tours`, ver más abajo) — distintos ambientes, por ejemplo.
  */
 const tourEntrySchema = new Schema(
   {
     /** Opcional — ej. "Living", "Fachada". Si falta, la UI usa "Recorrido N". */
     label: { type: String, maxlength: 60 },
-    kind: { type: String, enum: ["iframe", "mesh", "photo360"], default: "iframe" },
-    provider: { type: String, enum: ["matterport", "polycam", "kuula", "sketchfab", "custom"], default: "polycam" },
-    modelId: { type: String },
-    embedUrl: { type: String },
-    meshUrl: { type: String },
-    meshFormat: { type: String, enum: ["glb", "gltf", "usdz"] },
-    /** URL (Cloudinary) de la foto 360 — sólo para kind:"photo360". */
-    photo360Url: { type: String },
-    thumbnail: { type: String },
+    /** URL (Cloudinary) de la foto 360°. */
+    photo360Url: { type: String, required: true },
   },
   { _id: false }
 );

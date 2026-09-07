@@ -3,6 +3,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import { MapLibreMap, Marker } from "maplibre-gl";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { MapPin } from "lucide-react";
 import { LIGHT_STYLE_URL, applyLightBrandTint } from "@/lib/map/style-light";
 import { DARK_STYLE_URL, applyDarkBrandTint } from "@/lib/map/style-dark";
 import { MAP_DEFAULTS, ARGENTINA_BOUNDS } from "@/config/site";
@@ -145,9 +146,15 @@ export function LocationPicker({
           type="button"
           onClick={handleUseMyLocation}
           disabled={locating}
-          className={buttonClasses("secondary", "md", "shrink-0")}
+          className={buttonClasses("secondary", "md", "shrink-0 inline-flex items-center gap-1.5")}
         >
-          {locating ? "Ubicando…" : "📍 Usar mi ubicación"}
+          {locating ? (
+            "Ubicando…"
+          ) : (
+            <>
+              <MapPin className="h-4 w-4" aria-hidden /> Usar mi ubicación
+            </>
+          )}
         </button>
       </div>
       {locateError && <p className="mb-2 text-xs text-danger">{locateError}</p>}

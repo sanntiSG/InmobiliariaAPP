@@ -2,6 +2,7 @@
 
 import { memo, useState } from "react";
 import Image from "next/image";
+import { Heart } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { IconButton } from "@/components/ui/IconButton";
 import { PriceTag } from "./PriceTag";
@@ -82,7 +83,14 @@ function PropertyCardImpl({
             setFavorited((v) => !v);
           }}
         >
-          <HeartIcon filled={favorited} />
+          <Heart
+            className={cn(
+              "h-[18px] w-[18px] transition-[transform,color] duration-150 [transition-timing-function:var(--ease-out)]",
+              favorited ? "text-danger scale-110" : "text-text"
+            )}
+            fill={favorited ? "currentColor" : "none"}
+            aria-hidden
+          />
         </IconButton>
 
         {property.tour3d && <TourBadge className="absolute bottom-3 left-3" />}
@@ -102,21 +110,3 @@ function PropertyCardImpl({
 // Las cards se re-renderizan en cada hover sobre CUALQUIER pin/card del mapa
 // (ver ResultsPanel/MapCanvas) — memo evita recalcular las ~50 que no cambiaron.
 export const PropertyCard = memo(PropertyCardImpl);
-
-function HeartIcon({ filled }: { filled: boolean }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className={cn("h-[18px] w-[18px] transition-[transform,color] duration-150 [transition-timing-function:var(--ease-out)]", filled ? "text-danger scale-110" : "text-text")}
-      fill={filled ? "currentColor" : "none"}
-      aria-hidden
-    >
-      <path
-        d="M12 20s-7-4.35-9.5-8.5C.5 8 2 4.5 5.5 4c2-.3 3.5.8 4.5 2.2C11 4.8 12.5 3.7 14.5 4 18 4.5 19.5 8 21.5 11.5 19 15.65 12 20 12 20Z"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}

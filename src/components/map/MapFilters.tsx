@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Search } from "lucide-react";
 import { FilterPill } from "@/components/ui/FilterPill";
 import { AddressSearch, type GeocodeResult } from "@/components/ui/AddressSearch";
 import { RangeSlider } from "@/components/ui/RangeSlider";
@@ -51,7 +52,10 @@ export function MapFilters({
   return (
     <div className={cn("flex items-center gap-2", className)}>
       <div className="relative shrink-0 sm:w-64">
-        <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-text-muted" />
+        <Search
+          className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-text-muted"
+          aria-hidden
+        />
         <AddressSearch
           key={searchResetKey}
           initialValue={value.q}
@@ -131,14 +135,5 @@ export function MapFilters({
         </div>
       </Sheet>
     </div>
-  );
-}
-
-function SearchIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
-      <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.8" />
-      <path d="m21 21-4.3-4.3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
   );
 }

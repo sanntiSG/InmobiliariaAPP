@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Plus } from "lucide-react";
 import { requireAdminUser } from "@/lib/auth/require-admin";
 import { connectDB } from "@/lib/db/connect";
 import { Agency } from "@/lib/db/models/Agency";
@@ -27,8 +28,11 @@ export default async function AdminPage() {
           <h1 className="font-display text-2xl font-bold text-text">Inmobiliarias</h1>
           <p className="text-sm text-text-muted">{agencies.length} inmobiliaria(s) en la plataforma.</p>
         </div>
-        <Link href="/admin/inmobiliarias/nueva" className={buttonClasses("primary", "md")}>
-          + Nueva inmobiliaria
+        <Link
+          href="/admin/inmobiliarias/nueva"
+          className={buttonClasses("primary", "md", "inline-flex items-center gap-1.5")}
+        >
+          <Plus className="h-4 w-4" aria-hidden /> Nueva inmobiliaria
         </Link>
       </div>
 
@@ -60,9 +64,9 @@ export default async function AdminPage() {
                   </Link>
                   <Link
                     href={`/dashboard/propiedades/nueva?agencyId=${a._id}`}
-                    className="text-sm font-medium text-accent hover:underline"
+                    className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
                   >
-                    + Propiedad
+                    <Plus className="h-3.5 w-3.5" aria-hidden /> Propiedad
                   </Link>
                 </div>
               </div>

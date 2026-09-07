@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Check } from "lucide-react";
 import { FilterPill } from "@/components/ui/FilterPill";
 import { RangeSlider } from "@/components/ui/RangeSlider";
 import { Input } from "@/components/ui/Input";
@@ -111,7 +112,11 @@ export function PreferencesForm({ initial }: { initial: PreferencesInput }) {
         <Button type="button" size="sm" onClick={save} disabled={saving}>
           {saving ? "Guardando…" : "Guardar preferencias"}
         </Button>
-        {saved && <span className="text-sm text-success">Guardado ✓</span>}
+        {saved && (
+          <span className="inline-flex items-center gap-1 text-sm text-success">
+            <Check className="h-3.5 w-3.5" aria-hidden /> Guardado
+          </span>
+        )}
       </div>
     </div>
   );

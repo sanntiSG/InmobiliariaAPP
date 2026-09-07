@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Types } from "mongoose";
+import { Plus } from "lucide-react";
 import { requireAdminUser } from "@/lib/auth/require-admin";
 import { connectDB } from "@/lib/db/connect";
 import { Agency } from "@/lib/db/models/Agency";
@@ -49,9 +50,9 @@ export default async function EditAgencyPage({ params }: PageProps<"/admin/inmob
           </Link>
           <Link
             href={`/dashboard/propiedades/nueva?agencyId=${agency._id}`}
-            className={buttonClasses("primary", "sm")}
+            className={buttonClasses("primary", "sm", "inline-flex items-center gap-1.5")}
           >
-            + Nueva propiedad
+            <Plus className="h-4 w-4" aria-hidden /> Nueva propiedad
           </Link>
         </div>
       </div>

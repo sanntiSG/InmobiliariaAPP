@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import Image from "next/image";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
+import { X, Heart } from "lucide-react";
 import { IconButton } from "@/components/ui/IconButton";
 import { Badge } from "@/components/ui/Badge";
 import { PriceTag } from "@/components/property/PriceTag";
@@ -69,7 +70,7 @@ export function PropertyPopupCard({
             className="absolute right-2.5 top-2.5"
             onClick={onClose}
           >
-            <CloseIcon />
+            <X className="h-3.5 w-3.5" aria-hidden />
           </IconButton>
 
           {property.tour3d && <TourBadge compact className="absolute bottom-2.5 left-2.5" />}
@@ -80,7 +81,11 @@ export function PropertyPopupCard({
             className="absolute bottom-2.5 right-2.5"
             onClick={() => setFavorited((v) => !v)}
           >
-            <HeartIcon filled={favorited} />
+            <Heart
+              className={cn("h-4 w-4 transition-[transform,color] duration-150 [transition-timing-function:var(--ease-out)]", favorited ? "text-danger scale-110" : "text-text")}
+              fill={favorited ? "currentColor" : "none"}
+              aria-hidden
+            />
           </IconButton>
         </div>
 
@@ -123,31 +128,5 @@ export function PropertyPopupCard({
         />
       </div>
     </div>
-  );
-}
-
-function CloseIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5" aria-hidden>
-      <path d="M5 5l14 14M19 5L5 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function HeartIcon({ filled }: { filled: boolean }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className={cn("h-4 w-4 transition-[transform,color] duration-150 [transition-timing-function:var(--ease-out)]", filled ? "text-danger scale-110" : "text-text")}
-      fill={filled ? "currentColor" : "none"}
-      aria-hidden
-    >
-      <path
-        d="M12 20s-7-4.35-9.5-8.5C.5 8 2 4.5 5.5 4c2-.3 3.5.8 4.5 2.2C11 4.8 12.5 3.7 14.5 4 18 4.5 19.5 8 21.5 11.5 19 15.65 12 20 12 20Z"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinejoin="round"
-      />
-    </svg>
   );
 }

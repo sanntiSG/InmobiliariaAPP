@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Plus } from "lucide-react";
 import { requireDashboardAccess } from "@/lib/auth/require-dashboard-access";
 import { connectDB } from "@/lib/db/connect";
 import { Property } from "@/lib/db/models/Property";
@@ -52,8 +53,11 @@ export default async function DashboardPropertiesPage({
               selected={filterAgencyId ?? ""}
             />
           )}
-          <Link href="/dashboard/propiedades/nueva" className={buttonClasses("primary", "md")}>
-            + Nueva propiedad
+          <Link
+            href="/dashboard/propiedades/nueva"
+            className={buttonClasses("primary", "md", "inline-flex items-center gap-1.5")}
+          >
+            <Plus className="h-4 w-4" aria-hidden /> Nueva propiedad
           </Link>
         </div>
       </div>

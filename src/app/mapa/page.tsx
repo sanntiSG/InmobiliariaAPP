@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MapLibreMap } from "maplibre-gl";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
+import { X, ArrowRight } from "lucide-react";
 import { Logo } from "@/components/layout/Logo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { UserMenu } from "@/components/auth/UserMenu";
@@ -242,21 +243,13 @@ function NearbySuggestionCard({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <IconButton variant="ghost" size={32} aria-label="Cerrar" onClick={onDismiss}>
-            <CloseIcon />
+            <X className="h-4 w-4" aria-hidden />
           </IconButton>
           <Button size="sm" onClick={onGo}>
-            Ver {suggestion.city || suggestion.neighborhood} →
+            Ver {suggestion.city || suggestion.neighborhood} <ArrowRight className="h-4 w-4" aria-hidden />
           </Button>
         </div>
       </div>
     </div>
-  );
-}
-
-function CloseIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden>
-      <path d="M5 5l14 14M19 5L5 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
   );
 }

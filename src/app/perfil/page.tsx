@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ArrowRight } from "lucide-react";
 import { auth } from "@/auth";
 import { connectDB } from "@/lib/db/connect";
 import { Favorite } from "@/lib/db/models/Favorite";
@@ -62,8 +63,11 @@ export default async function PerfilPage() {
         <section className="mt-10">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="font-display text-lg font-semibold text-text">Mis preferencias</h2>
-            <Link href="/recomendaciones" className="text-sm font-medium text-accent hover:underline">
-              Ver recomendaciones →
+            <Link
+              href="/recomendaciones"
+              className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
+            >
+              Ver recomendaciones <ArrowRight className="h-3.5 w-3.5" aria-hidden />
             </Link>
           </div>
           <p className="mb-3 text-sm text-text-muted">

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { X } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { IconButton } from "./IconButton";
 
@@ -98,7 +99,7 @@ export function Sheet({ open, onClose, children, title, side = "bottom" }: Sheet
           <div className="flex items-center justify-between px-5 py-3">
             <h2 className="font-display text-lg font-semibold">{title}</h2>
             <IconButton variant="ghost" size={32} aria-label="Cerrar" onClick={onClose}>
-              <CloseIcon />
+              <X className="h-4 w-4" aria-hidden />
             </IconButton>
           </div>
         )}
@@ -106,13 +107,5 @@ export function Sheet({ open, onClose, children, title, side = "bottom" }: Sheet
       </div>
     </div>,
     document.body
-  );
-}
-
-function CloseIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden>
-      <path d="M5 5l14 14M19 5L5 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
   );
 }

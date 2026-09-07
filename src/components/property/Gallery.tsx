@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { createPortal } from "react-dom";
+import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import { IconButton } from "@/components/ui/IconButton";
 import { cn } from "@/lib/utils/cn";
 
@@ -99,7 +100,7 @@ function Lightbox({
     >
       <div className="flex justify-end p-4">
         <IconButton variant="ghost" aria-label="Cerrar" className="text-white hover:bg-white/10" onClick={onClose}>
-          <CloseIcon />
+          <X className="h-5 w-5" aria-hidden />
         </IconButton>
       </div>
 
@@ -142,23 +143,11 @@ function NavButton({ direction, onClick }: { direction: "prev" | "next"; onClick
         direction === "prev" ? "left-2 sm:left-6" : "right-2 sm:right-6"
       )}
     >
-      <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden>
-        <path
-          d={direction === "prev" ? "M15 5l-7 7 7 7" : "M9 5l7 7-7 7"}
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
+      {direction === "prev" ? (
+        <ChevronLeft className="h-5 w-5" aria-hidden />
+      ) : (
+        <ChevronRight className="h-5 w-5" aria-hidden />
+      )}
     </button>
-  );
-}
-
-function CloseIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden>
-      <path d="M5 5l14 14M19 5L5 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
   );
 }

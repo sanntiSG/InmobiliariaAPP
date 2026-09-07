@@ -6,6 +6,10 @@ import { connectDB } from "@/lib/db/connect";
 import { Agency } from "@/lib/db/models/Agency";
 
 const IMAGE_MAX_SIZE = 8 * 1024 * 1024; // 8MB
+// La foto 360° necesita menos compresión (se ve de cerca, con zoom dentro
+// de la esfera) — se le permite pesar más, hasta el techo real de
+// Cloudinary free para imágenes.
+const PHOTO360_MAX_SIZE = 10 * 1024 * 1024; // 10MB
 // HEIC/HEIF: formato nativo de fotos de iPhone — Cloudinary lo acepta como
 // input y lo convierte a un formato web con `fetch_format: "auto"` (ver
 // cloudinary.ts), así que alcanza con no rechazarlo acá.
@@ -18,11 +22,6 @@ const IMAGE_ALLOWED_TYPES = [
   "image/heif",
 ];
 
-// Esta ruta sólo sube imágenes — el recorrido 3D se carga por link (ver
-// `src/lib/media/tour-embed.ts`), nunca por archivo: un escaneo de Polycam
-// pesa 30-150MB, muy por encima del límite de payload de las funciones de
-// Netlify (~6MB) y del límite de Cloudinary free para archivos "raw" (10MB).
-
 export async function POST(req: Request) {
   const access = await requireDashboardAccess();
   if (!access) return NextResponse.json({ error: "Necesitás iniciar sesión." }, { status: 401 });
@@ -33,6 +32,7 @@ export async function POST(req: Request) {
   const formData = await req.formData().catch(() => null);
   const file = formData?.get("file");
   const requestedAgencyId = formData?.get("agencyId");
+  const isPhoto360 = formData?.get("kind") === "photo360";
 
   if (!file || !(file instanceof File)) {
     return NextResponse.json({ error: "Falta el archivo." }, { status: 400 });
@@ -57,8 +57,9 @@ export async function POST(req: Request) {
       { status: 400 }
     );
   }
-  if (file.size > IMAGE_MAX_SIZE) {
-    return NextResponse.json({ error: "El archivo pesa más de 8MB." }, { status: 400 });
+  const maxSize = isPhoto360 ? PHOTO360_MAX_SIZE : IMAGE_MAX_SIZE;
+  if (file.size > maxSize) {
+    return NextResponse.json({ error: `El archivo pesa más de ${maxSize / (1024 * 1024)}MB.` }, { status: 400 });
   }
 
   try {
@@ -68,7 +69,7 @@ export async function POST(req: Request) {
       buffer,
       filename: file.name,
       folder: `agencies/${agencyIdForFolder ?? "admin"}/properties`,
-      resourceType: "image",
+      quality: isPhoto360 ? "best" : "auto",
     });
     return NextResponse.json(result, { status: 201 });
   } catch (err) {

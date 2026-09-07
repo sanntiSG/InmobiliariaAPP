@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Trash2 } from "lucide-react";
 import { IconButton } from "@/components/ui/IconButton";
 
 export function DeletePropertyButton({ propertyId, title }: { propertyId: string; title: string }) {
@@ -54,15 +55,7 @@ export function DeletePropertyButton({ propertyId, title }: { propertyId: string
         setConfirming(true);
       }}
     >
-      <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4 text-danger" aria-hidden>
-        <path
-          d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m2 0-.8 12.1a2 2 0 0 1-2 1.9H9.8a2 2 0 0 1-2-1.9L7 7"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
+      <Trash2 className="h-4 w-4 text-danger" aria-hidden />
     </IconButton>
   );
 }

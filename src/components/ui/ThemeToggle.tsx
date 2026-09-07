@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Sun, Moon } from "lucide-react";
 import { IconButton } from "./IconButton";
 import { cn } from "@/lib/utils/cn";
 
@@ -48,46 +49,21 @@ export function ThemeToggle() {
       onClick={toggle}
     >
       <span className="relative block h-[18px] w-[18px]">
-        <SunIcon
+        <Sun
           className={cn(
             "absolute inset-0 transition-[opacity,transform] duration-200 [transition-timing-function:var(--ease-out)]",
             isDark ? "opacity-0 -rotate-45 scale-75" : "opacity-100 rotate-0 scale-100"
           )}
+          aria-hidden
         />
-        <MoonIcon
+        <Moon
           className={cn(
             "absolute inset-0 transition-[opacity,transform] duration-200 [transition-timing-function:var(--ease-out)]",
             isDark ? "opacity-100 rotate-0 scale-100" : "opacity-0 rotate-45 scale-75"
           )}
+          aria-hidden
         />
       </span>
     </IconButton>
-  );
-}
-
-function SunIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
-      <circle cx="12" cy="12" r="4.5" stroke="currentColor" strokeWidth="1.8" />
-      <path
-        d="M12 2.5v2.2M12 19.3v2.2M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function MoonIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
-      <path
-        d="M20.5 14.5A8.5 8.5 0 1 1 9.5 3.5a7 7 0 0 0 11 11Z"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-    </svg>
   );
 }

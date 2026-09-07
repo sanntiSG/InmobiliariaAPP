@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { ArrowLeft, ArrowRight, X, Plus } from "lucide-react";
 import { IconButton } from "@/components/ui/IconButton";
 import { cn } from "@/lib/utils/cn";
 
@@ -69,16 +70,14 @@ export function ImageUploader({
               <div className="absolute inset-0 flex items-start justify-between p-1.5 opacity-0 transition-opacity group-hover:opacity-100">
                 <div className="flex gap-1">
                   <MiniButton onClick={() => move(i, -1)} disabled={i === 0} label="Mover antes">
-                    ←
+                    <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
                   </MiniButton>
                   <MiniButton onClick={() => move(i, 1)} disabled={i === images.length - 1} label="Mover después">
-                    →
+                    <ArrowRight className="h-3.5 w-3.5" aria-hidden />
                   </MiniButton>
                 </div>
                 <IconButton size={26} variant="solid" aria-label="Quitar foto" onClick={() => remove(i)}>
-                  <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5" aria-hidden>
-                    <path d="M5 5l14 14M19 5L5 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
+                  <X className="h-3.5 w-3.5" aria-hidden />
                 </IconButton>
               </div>
               {i === 0 && (
@@ -97,7 +96,13 @@ export function ImageUploader({
           "transition-colors hover:border-accent hover:text-accent"
         )}
       >
-        {uploading ? "Subiendo…" : "+ Agregar fotos (JPG, PNG, WEBP, HEIC — máx. 8MB c/u)"}
+        {uploading ? (
+          "Subiendo…"
+        ) : (
+          <span className="inline-flex items-center gap-1.5">
+            <Plus className="h-4 w-4" aria-hidden /> Agregar fotos (JPG, PNG, WEBP, HEIC — máx. 8MB c/u)
+          </span>
+        )}
         <input
           ref={inputRef}
           type="file"

@@ -3,8 +3,13 @@ export type UploadInput = {
   filename: string;
   /** Carpeta lógica, ej: "agencies/{slug}/properties/{id}" */
   folder?: string;
-  /** "image" (default) optimiza/transforma; "raw" sirve el archivo tal cual (ej. mesh .glb/.gltf/.usdz). */
-  resourceType?: "image" | "raw";
+  /**
+   * "auto" (default) — buena calidad, buen tamaño de archivo, sirve para
+   * fotos comunes. "best" — mucha menos compresión, para contenido que se
+   * ve de cerca (ej. una foto 360° con zoom dentro de la esfera), donde la
+   * compresión estándar se nota mucho más.
+   */
+  quality?: "auto" | "best";
 };
 
 export type UploadResult = {

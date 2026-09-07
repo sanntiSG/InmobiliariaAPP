@@ -2,14 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { ReactPhotoSphereViewer } from "react-photo-sphere-viewer";
+import { ArrowUpRight } from "lucide-react";
 import "@photo-sphere-viewer/core/index.css";
 
 /**
  * Visor de fotos 360° (equirectangulares) — Photo Sphere Viewer, vía
- * Three.js/WebGL (no WebGPU, sin ninguna de las restricciones que tiene el
- * embed de Polycam en Safari/mobile, ver `PropertyMedia.tsx`). El archivo es
- * una imagen común, subida a nuestro storage igual que cualquier foto de la
- * propiedad — no depende de ningún visor de terceros.
+ * Three.js/WebGL. El archivo es una imagen común, subida a nuestro storage
+ * igual que cualquier foto de la propiedad — no depende de ningún visor de
+ * terceros ni de un link externo.
  *
  * Este componente se carga siempre con `next/dynamic({ ssr: false })` desde
  * `PropertyMedia.tsx` (mismo patrón que `LocationPicker`/`MapCanvas` con
@@ -45,8 +45,13 @@ export function Photo360Viewer({ src }: { src: string }) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 bg-surface-2 px-4 text-center text-sm text-text-muted">
         <p>No se pudo cargar la foto 360°.</p>
-        <a href={src} target="_blank" rel="noopener noreferrer" className="font-medium text-accent hover:underline">
-          Abrir la foto directamente ↗
+        <a
+          href={src}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 font-medium text-accent hover:underline"
+        >
+          Abrir la foto directamente <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
         </a>
       </div>
     );

@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import dynamicImport from "next/dynamic";
 import { useRouter } from "next/navigation";
+import { Plus, X } from "lucide-react";
 import { FormField } from "@/components/ui/FormField";
 import { SelectField } from "@/components/ui/SelectField";
 import { Button } from "@/components/ui/Button";
@@ -10,7 +11,6 @@ import { FilterPill } from "@/components/ui/FilterPill";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ImageUploader, type UploadedImage } from "./ImageUploader";
 import { IconButton } from "@/components/ui/IconButton";
-import { normalizeTourUrl } from "@/lib/media/tour-embed";
 import {
   OPERATIONS,
   OPERATION_LABELS,
@@ -61,20 +61,14 @@ export type PropertyFormValues = {
   orientation: string;
   amenities: Amenity[];
   images: UploadedImage[];
-  /** Una propiedad puede tener varios recorridos — distintos ambientes, o un link de Polycam + un .glb de respaldo. */
+  /** Una propiedad puede tener varios recorridos 360° — distintos ambientes, por ejemplo. */
   tours: TourFormRow[];
 };
 
-/**
- * Una fila del formulario de recorridos. `mode:"link"` pega una URL sin
- * procesar (ver `normalizeTourUrl` — cubre link de proveedor Y archivo
- * .glb/.gltf/.usdz ya hosteado). `mode:"photo360"` sube una foto
- * equirectangular propia (imagen común, mismo endpoint que las fotos de la
- * propiedad) — `photo360Url` queda seteado una vez subida.
- */
-export type TourFormRow = { mode: "link" | "photo360"; url: string; label: string; photo360Url?: string };
+/** Una fila del formulario de recorridos — foto 360° equirectangular subida (imagen común, mismo endpoint que las fotos de la propiedad). */
+export type TourFormRow = { label: string; photo360Url?: string };
 
-const emptyTourRow: TourFormRow = { mode: "link", url: "", label: "" };
+const emptyTourRow: TourFormRow = { label: "" };
 
 const MAX_TOUR_ROWS = 6;
 
@@ -165,38 +159,8 @@ function toPayload(v: PropertyFormValues) {
 
 function buildToursPayload(v: PropertyFormValues) {
   return v.tours
-    .map((row) => {
-      const label = row.label.trim() || undefined;
-
-      if (row.mode === "photo360") {
-        if (!row.photo360Url) return null;
-        return { label, kind: "photo360" as const, photo360Url: row.photo360Url };
-      }
-
-      const url = row.url.trim();
-      if (!url) return null;
-
-      const detected = normalizeTourUrl(url);
-      if (detected.kind === "invalid") return null;
-
-      if (detected.kind === "mesh") {
-        return {
-          label,
-          kind: "mesh" as const,
-          provider: detected.provider,
-          meshUrl: detected.url,
-          meshFormat: detected.format,
-        };
-      }
-
-      return {
-        label,
-        kind: "iframe" as const,
-        provider: detected.provider,
-        embedUrl: detected.url,
-      };
-    })
-    .filter((t): t is NonNullable<typeof t> => t !== null);
+    .filter((row) => !!row.photo360Url)
+    .map((row) => ({ label: row.label.trim() || undefined, photo360Url: row.photo360Url! }));
 }
 
 export function PropertyForm({
@@ -254,6 +218,10 @@ export function PropertyForm({
 
     const formData = new FormData();
     formData.append("file", file);
+    // Le pide al servidor menos compresión y un límite de tamaño más alto
+    // que una foto común — un panorama se ve de cerca (zoom dentro de la
+    // esfera) y la compresión estándar se nota mucho más ahí.
+    formData.append("kind", "photo360");
     if (agencies) formData.append("agencyId", values.agencyId);
 
     try {
@@ -420,48 +388,21 @@ export function PropertyForm({
       </section>
 
       <section className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
-        <h2 className="font-display text-lg font-semibold text-text">Recorridos 3D / Digital Twin</h2>
+        <h2 className="font-display text-lg font-semibold text-text">Recorrido 360°</h2>
         <p className="text-sm text-text-muted">
-          Escaneá el espacio con Polycam (o Matterport, Kuula, Sketchfab...) y pegá acá el link de esa captura, o
-          subí una foto 360° propia — no hace falta subir ningún archivo para los links. Podés cargar más de uno.
+          Subí una foto 360° (equirectangular) del ambiente — se ve embebida en la ficha, en cualquier
+          dispositivo. Podés cargar más de una (distintos ambientes, por ejemplo).
         </p>
 
         {values.tours.map((row, i) => (
           <div key={i} className="flex items-start gap-2 rounded-media border border-border p-4">
             <div className="flex flex-1 flex-col gap-3">
-              <div className="flex gap-2">
-                <FilterPill type="button" active={row.mode === "link"} onClick={() => updateTourRow(i, { mode: "link" })}>
-                  Pegar link
-                </FilterPill>
-                <FilterPill
-                  type="button"
-                  active={row.mode === "photo360"}
-                  onClick={() => updateTourRow(i, { mode: "photo360" })}
-                >
-                  Subir foto 360°
-                </FilterPill>
-              </div>
-
-              {row.mode === "link" ? (
-                <>
-                  <FormField
-                    label={
-                      values.tours.length > 1 ? `URL del recorrido ${i + 1}` : "URL del recorrido o del modelo 3D"
-                    }
-                    placeholder="https://poly.cam/capture/... o https://my.matterport.com/show/?m=..."
-                    value={row.url}
-                    onChange={(e) => updateTourRow(i, { url: e.target.value })}
-                  />
-                  <TourUrlPreview url={row.url} />
-                </>
-              ) : (
-                <Photo360Uploader
-                  photo360Url={row.photo360Url}
-                  uploading={uploadingTourIndex === i}
-                  onUpload={(file) => uploadPhoto360(i, file)}
-                  onRemove={() => updateTourRow(i, { photo360Url: undefined })}
-                />
-              )}
+              <Photo360Uploader
+                photo360Url={row.photo360Url}
+                uploading={uploadingTourIndex === i}
+                onUpload={(file) => uploadPhoto360(i, file)}
+                onRemove={() => updateTourRow(i, { photo360Url: undefined })}
+              />
 
               {values.tours.length > 1 && (
                 <FormField
@@ -472,20 +413,14 @@ export function PropertyForm({
                 />
               )}
             </div>
-            <IconButton
-              aria-label="Quitar recorrido"
-              onClick={() => removeTourRow(i)}
-              className="mt-1"
-            >
-              <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5" aria-hidden>
-                <path d="M5 5l14 14M19 5L5 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              </svg>
+            <IconButton aria-label="Quitar recorrido" onClick={() => removeTourRow(i)} className="mt-1">
+              <X className="h-3.5 w-3.5" aria-hidden />
             </IconButton>
           </div>
         ))}
 
         <Button type="button" variant="secondary" onClick={addTourRow} disabled={values.tours.length >= MAX_TOUR_ROWS}>
-          + Agregar recorrido
+          <Plus className="h-4 w-4" aria-hidden /> Agregar recorrido
         </Button>
 
         {tourUploadError && (
@@ -493,12 +428,6 @@ export function PropertyForm({
             {tourUploadError}
           </p>
         )}
-
-        <p className="text-xs text-text-muted">
-          En Polycam: abrí la captura → Compartir → copiá el link de esa captura (no el de poly.cam solo). En
-          celulares, el recorrido se abre en pantalla completa automáticamente. Una foto 360° se ve embebida en
-          cualquier dispositivo, sin depender de ningún visor externo.
-        </p>
       </section>
 
       {error && (
@@ -526,9 +455,10 @@ export function PropertyForm({
 }
 
 /**
- * Sube una foto 360° (equirectangular) para un recorrido `mode:"photo360"`
- * — es una imagen común, mismo endpoint que las fotos de la propiedad
- * (`/api/dashboard/upload`), sin parámetro `kind` especial.
+ * Sube una foto 360° (equirectangular) — es una imagen común, mismo
+ * endpoint que las fotos de la propiedad (`/api/dashboard/upload`), con
+ * `kind=photo360` para pedir menos compresión y un límite más alto (ver
+ * `src/app/api/dashboard/upload/route.ts`).
  */
 function Photo360Uploader({
   photo360Url,
@@ -557,8 +487,14 @@ function Photo360Uploader({
   }
 
   return (
-    <label className="flex h-16 cursor-pointer items-center justify-center rounded-media border-2 border-dashed border-border text-sm text-text-muted transition-colors hover:border-accent hover:text-accent">
-      {uploading ? "Subiendo…" : "+ Subir foto 360° (equirectangular, JPG/PNG — máx. 8MB)"}
+    <label className="flex h-16 cursor-pointer items-center justify-center gap-2 rounded-media border-2 border-dashed border-border text-sm text-text-muted transition-colors hover:border-accent hover:text-accent">
+      {uploading ? (
+        "Subiendo…"
+      ) : (
+        <>
+          <Plus className="h-4 w-4" aria-hidden /> Subir foto 360° (equirectangular, JPG/PNG — máx. 10MB)
+        </>
+      )}
       <input
         type="file"
         accept="image/jpeg,image/png,image/webp"
@@ -567,39 +503,5 @@ function Photo360Uploader({
         disabled={uploading}
       />
     </label>
-  );
-}
-
-/**
- * Chip de confirmación bajo el campo de URL del recorrido — muestra qué se
- * detectó (o el error) antes de guardar, para no descubrir un link roto
- * recién al ver la publicación (ver `normalizeTourUrl`).
- */
-function TourUrlPreview({ url }: { url: string }) {
-  const detected = useMemo(() => (url.trim() ? normalizeTourUrl(url) : null), [url]);
-  if (!detected) return null;
-
-  if (detected.kind === "invalid") {
-    return <p className="text-sm text-danger">{detected.reason}</p>;
-  }
-
-  // "custom" (proveedor no reconocido) es una advertencia, no una confirmación.
-  if (detected.provider === "custom") {
-    return <p className="text-sm text-warning">{detected.label}</p>;
-  }
-
-  return (
-    <p className="flex items-center gap-1.5 text-sm text-success">
-      <CheckIcon />
-      {detected.label}
-    </p>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" aria-hidden>
-      <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
   );
 }

@@ -6,101 +6,10 @@ import {
   AMENITIES,
   CURRENCIES,
 } from "@/config/filters";
-import { normalizeTourUrl, type TourProvider } from "@/lib/media/tour-embed";
 
 const lngLatSchema = z
   .tuple([z.number().min(-180).max(180), z.number().min(-90).max(90)])
   .describe("[lng, lat]");
-
-/**
- * Cada recorrido 3D se carga por link (Polycam/Matterport/Kuula/Sketchfab,
- * o la URL de un .glb/.gltf/.usdz ya hosteado — ver
- * `src/lib/media/tour-embed.ts`) o subiendo una foto 360° (equirectangular,
- * `kind:"photo360"`) — esta última es una imagen común, sube por el mismo
- * camino que las fotos de la propiedad (`/api/dashboard/upload`), así que
- * acá sólo se valida que la URL exista y tenga forma de URL — no pasa por
- * `normalizeTourUrl` (eso es sólo para links de terceros con variantes
- * share/embed, no para algo que subimos nosotros a Cloudinary).
- * `normalizeTourUrl` es la misma función que usa el formulario para mostrar
- * el chip de detección antes de guardar; acá se vuelve a aplicar como
- * defensa en profundidad para un cliente que pegue directo contra la API
- * sin pasar por el form. Una propiedad puede tener varios (`tours: []`) —
- * distintos ambientes, o un link de Polycam + un `.glb` de respaldo.
- */
-const tourEntryInputSchema = z.object({
-  /** Opcional — ej. "Living", "Fachada". Si falta, la UI usa "Recorrido N". */
-  label: z.string().trim().max(60).optional(),
-  kind: z.enum(["iframe", "mesh", "photo360"]).default("iframe"),
-  provider: z.enum(["matterport", "polycam", "kuula", "sketchfab", "custom"]).optional(),
-  modelId: z.string().optional(),
-  embedUrl: z.string().optional(),
-  meshUrl: z.string().optional(),
-  meshFormat: z.enum(["glb", "gltf", "usdz"]).optional(),
-  photo360Url: z.string().optional(),
-  thumbnail: z.url().optional(),
-});
-
-/**
- * Anotada explícitamente (en vez de dejar que TS infiera el retorno de
- * `.transform()`) para que el resultado sea UNA sola forma con campos
- * opcionales, no una unión de formas distintas por cada `return` — así
- * `.default()` más abajo (acá y en el `media` que lo contiene) puede
- * matchear contra un tipo simple en vez de una unión.
- */
-type TourEntryOutput = {
-  label?: string;
-  kind: "iframe" | "mesh" | "photo360";
-  provider?: TourProvider;
-  modelId?: string;
-  embedUrl?: string;
-  meshUrl?: string;
-  meshFormat?: "glb" | "gltf" | "usdz";
-  photo360Url?: string;
-  thumbnail?: string;
-};
-
-const tourEntrySchema = tourEntryInputSchema.transform((v, ctx): TourEntryOutput => {
-  if (v.kind === "photo360") {
-    if (!v.photo360Url || !isValidUrl(v.photo360Url)) {
-      ctx.addIssue({ code: "custom", message: "Falta la foto 360°", path: ["photo360Url"] });
-      return z.NEVER;
-    }
-    return { label: v.label, kind: "photo360", photo360Url: v.photo360Url, thumbnail: v.thumbnail };
-  }
-
-  const raw = v.kind === "mesh" ? v.meshUrl : v.embedUrl;
-  if (!raw) {
-    ctx.addIssue({ code: "custom", message: "Falta la URL del recorrido", path: ["embedUrl"] });
-    return z.NEVER;
-  }
-
-  const detected = normalizeTourUrl(raw);
-  if (detected.kind === "invalid") {
-    ctx.addIssue({ code: "custom", message: detected.reason, path: ["embedUrl"] });
-    return z.NEVER;
-  }
-
-  if (detected.kind === "mesh") {
-    return {
-      label: v.label,
-      kind: "mesh",
-      provider: detected.provider,
-      modelId: v.modelId,
-      meshUrl: detected.url,
-      meshFormat: detected.format,
-      thumbnail: v.thumbnail,
-    };
-  }
-
-  return {
-    label: v.label,
-    kind: "iframe",
-    provider: detected.provider,
-    modelId: v.modelId,
-    embedUrl: detected.url,
-    thumbnail: v.thumbnail,
-  };
-});
 
 function isValidUrl(raw: string): boolean {
   try {
@@ -110,6 +19,18 @@ function isValidUrl(raw: string): boolean {
     return false;
   }
 }
+
+/**
+ * Un recorrido 360° — foto equirectangular ya subida a Cloudinary (mismo
+ * endpoint que las fotos de la propiedad, `/api/dashboard/upload`), así que
+ * acá sólo se valida que la URL exista y sea `https`. Una propiedad puede
+ * tener varios (`tours: []`) — distintos ambientes, por ejemplo.
+ */
+const tourEntrySchema = z.object({
+  /** Opcional — ej. "Living", "Fachada". Si falta, la UI usa "Recorrido N". */
+  label: z.string().trim().max(60).optional(),
+  photo360Url: z.string().refine(isValidUrl, "Falta la foto 360°"),
+});
 
 const MAX_TOURS = 6;
 const toursSchema = z.array(tourEntrySchema).max(MAX_TOURS, `Máximo ${MAX_TOURS} recorridos por propiedad.`).default([]);

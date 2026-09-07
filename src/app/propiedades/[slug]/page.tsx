@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { after } from "next/server";
 import type { Metadata } from "next";
+import { ArrowLeft, ArrowRight, Star } from "lucide-react";
 import { connectDB } from "@/lib/db/connect";
 import { Property } from "@/lib/db/models/Property";
 import { Interaction } from "@/lib/db/models/Interaction";
@@ -100,15 +101,18 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
     ])
   );
 
-  const initialComments: CommentItem[] = commentDocs.map((c) => ({
-    id: String(c._id),
-    body: c.body,
-    createdAt: c.createdAt?.toISOString?.() ?? new Date().toISOString(),
-    user: {
-      id: String((c.userId as unknown as { _id: unknown })._id),
-      name: (c.userId as unknown as { name: string }).name ?? "Usuario",
-    },
-  }));
+  const initialComments: CommentItem[] = commentDocs.map((c) => {
+    const commentUser = c.userId as unknown as { _id?: unknown; name?: string } | null | undefined;
+    return {
+      id: String(c._id),
+      body: c.body,
+      createdAt: c.createdAt?.toISOString?.() ?? new Date().toISOString(),
+      user: {
+        id: commentUser?._id ? String(commentUser._id) : "",
+        name: commentUser?.name ?? "Usuario",
+      },
+    };
+  });
 
   const addressLine = [property.address.neighborhood, property.address.city]
     .filter(Boolean)
@@ -128,14 +132,17 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
             </span>
             <Link
               href={`/dashboard/propiedades/${property.id}/editar`}
-              className="shrink-0 font-medium text-accent hover:underline"
+              className="inline-flex shrink-0 items-center gap-1 font-medium text-accent hover:underline"
             >
-              Editar →
+              Editar <ArrowRight className="h-3.5 w-3.5" aria-hidden />
             </Link>
           </div>
         )}
-        <Link href="/propiedades" className="text-sm font-medium text-text-muted hover:text-text">
-          ← Volver al listado
+        <Link
+          href="/propiedades"
+          className="inline-flex items-center gap-1 text-sm font-medium text-text-muted hover:text-text"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> Volver al listado
         </Link>
 
         <div className="mt-4 grid grid-cols-1 gap-8 lg:grid-cols-3">
@@ -163,7 +170,10 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
               <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-text-muted">
                 <span>{formatCompactNumber(property.stats.views)} visualizaciones</span>
                 {property.stats.ratingCount > 0 && (
-                  <span>★ {property.stats.ratingAvg.toFixed(1)} ({property.stats.ratingCount})</span>
+                  <span className="inline-flex items-center gap-1">
+                    <Star className="h-3.5 w-3.5 text-warning" fill="currentColor" aria-hidden />
+                    {property.stats.ratingAvg.toFixed(1)} ({property.stats.ratingCount})
+                  </span>
                 )}
                 {property.publishedAt && <span>Publicado {formatRelativeTime(property.publishedAt)}</span>}
               </div>
