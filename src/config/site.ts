@@ -8,6 +8,15 @@ export const PROVIDER_WHATSAPP =
   process.env.NEXT_PUBLIC_PROVIDER_WHATSAPP ?? "5491137796683";
 
 /**
+ * Nombre de la cookie (y, por compatibilidad hacia atrás, de la key de
+ * `localStorage`) donde se persiste el tema claro/oscuro elegido a mano.
+ * Compartido entre `layout.tsx` (la lee en el servidor para setear
+ * `data-theme` en el HTML que manda SSR, sin flash) y `ThemeToggle.tsx` (la
+ * escribe al togglear) — ver ese componente para el detalle completo.
+ */
+export const THEME_COOKIE_NAME = "umbral-theme";
+
+/**
  * Emails que reciben rol "admin" automáticamente al iniciar sesión con Google.
  * Se leen de `ADMIN_EMAILS` (separados por coma) — ver `src/auth.ts`.
  */

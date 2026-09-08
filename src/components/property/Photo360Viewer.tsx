@@ -42,24 +42,6 @@ export function Photo360Viewer({ src }: { src: string }) {
   const gyroRef = useRef<GyroscopePlugin | null>(null);
   const ownsFullscreenRef = useRef(false);
 
-  useEffect(() => {
-    // `.then()` en vez de un setState directo en el cuerpo del efecto — evita
-    // el warning de lint `react-hooks/set-state-in-effect` (mismo patrón que
-    // en `PropertyMedia.tsx`/`ModelViewer.tsx`). Hace falta resetear a
-    // "loading" acá (no sólo en el estado inicial) porque este componente
-    // sigue montado si la propiedad tiene varias fotos 360 y se cambia de
-    // una a otra con los chips — sólo cambia `src`.
-    Promise.resolve().then(() => setStatus("loading"));
-    const img = new Image();
-    img.onload = () => setStatus("ready");
-    img.onerror = () => setStatus("error");
-    img.src = src;
-    return () => {
-      img.onload = null;
-      img.onerror = null;
-    };
-  }, [src]);
-
   // Gate "sólo mobile" por capacidad, no por breakpoint: una tablet ancha en
   // landscape sí tiene sensor, una notebook táctil angosta no. Se muestra
   // optimista acá y se retira si `isSupported()` (§ handleReady) resuelve
@@ -97,62 +79,18 @@ export function Photo360Viewer({ src }: { src: string }) {
     });
   }, []);
 
-  // El viewer no se destruye solo al desmontar (el wrapper no lo hace) — sin
-  // esto quedaría un listener `deviceorientation` vivo consumiendo sensor y
-  // batería en un visor que ya no se ve (ej: al volver al tab de fotos).
-  useEffect(() => {
-    return () => {
-      viewerRef.current?.destroy();
-      viewerRef.current = null;
-    };
+  /**
+   * Apaga el modo inmersivo: para el sensor y sale de pantalla completa si
+   * fuimos nosotros quienes la pedimos. Es el único punto de apagado — lo
+   * usan el botón, el cambio de recorrido (efecto `[src]` más abajo),
+   * `visibilitychange` (el dispositivo se bloquea o la app pasa a segundo
+   * plano) y `fullscreenchange` cuando el usuario sale con Escape/gesto del
+   * sistema.
+   */
+  const deactivate = useCallback(() => {
+    gyroRef.current?.stop();
+    if (ownsFullscreenRef.current) void document.exitFullscreen().catch(() => {});
   }, []);
-
-  useEffect(() => {
-    function onFullscreenChange() {
-      const inFullscreen = document.fullscreenElement === wrapperRef.current;
-      if (!inFullscreen) {
-        ownsFullscreenRef.current = false;
-        // Si el usuario salió de fullscreen con Escape/gesto del sistema,
-        // apagamos el sensor también — no tiene sentido seguir consumiéndolo
-        // fuera del modo inmersivo.
-        gyroRef.current?.stop();
-      }
-      // PSV necesita recalcular el canvas al nuevo tamaño del contenedor.
-      viewerRef.current?.autoSize();
-    }
-    document.addEventListener("fullscreenchange", onFullscreenChange);
-    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
-  }, []);
-
-  // Entrada/salida del hint flotante — mismo idioma que `PropertyPopupCard`
-  // (opacity + y + scale, expo.out, guardado por prefers-reduced-motion): sin
-  // esto el mensaje aparece/desaparece de golpe, lo que se lee como roto.
-  useGSAP(
-    () => {
-      if (!hint || !hintRef.current) return;
-      const el = hintRef.current;
-      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-      if (reduceMotion) {
-        const timeout = window.setTimeout(() => setHint(null), 3000);
-        return () => window.clearTimeout(timeout);
-      }
-
-      gsap.fromTo(el, { opacity: 0, y: -6, scale: 0.95 }, { opacity: 1, y: 0, scale: 1, duration: 0.2, ease: "expo.out" });
-      const timeout = window.setTimeout(() => {
-        gsap.to(el, {
-          opacity: 0,
-          y: -6,
-          scale: 0.95,
-          duration: 0.15,
-          ease: "power2.in",
-          onComplete: () => setHint(null),
-        });
-      }, 3000);
-      return () => window.clearTimeout(timeout);
-    },
-    { dependencies: [hint], scope: wrapperRef }
-  );
 
   const activate = useCallback(async () => {
     // Tanto `requestFullscreen()` como `requestPermission()` (iOS) exigen
@@ -184,10 +122,98 @@ export function Photo360Viewer({ src }: { src: string }) {
     }
   }, []);
 
-  const deactivate = useCallback(() => {
-    gyroRef.current?.stop();
-    if (ownsFullscreenRef.current) void document.exitFullscreen().catch(() => {});
+  useEffect(() => {
+    // `.then()` en vez de un setState directo en el cuerpo del efecto — evita
+    // el warning de lint `react-hooks/set-state-in-effect` (mismo patrón que
+    // en `PropertyMedia.tsx`/`ModelViewer.tsx`). Hace falta resetear a
+    // "loading" acá (no sólo en el estado inicial) porque este componente
+    // sigue montado si la propiedad tiene varias fotos 360 y se cambia de
+    // una a otra con los chips — sólo cambia `src`.
+    Promise.resolve().then(() => setStatus("loading"));
+    const img = new Image();
+    img.onload = () => setStatus("ready");
+    img.onerror = () => setStatus("error");
+    img.src = src;
+    return () => {
+      img.onload = null;
+      img.onerror = null;
+      // Se ejecuta tanto al cambiar de `src` (otro recorrido, mismo
+      // Photo360Viewer — no remonta) como al desmontar de verdad. En los
+      // dos casos hay que tirar abajo el visor actual a mano:
+      // react-photo-sphere-viewer no lo destruye solo al desmontar su
+      // <ReactPhotoSphereViewer> interno. Sin esto, cambiar de recorrido con
+      // el modo inmersivo activo dejaba el listener de `deviceorientation`
+      // del visor viejo vivo (filtrado) y el botón marcado "activo"
+      // apuntando a una instancia reemplazada — el giroscopio del visor
+      // NUEVO nunca se había arrancado.
+      deactivate();
+      viewerRef.current?.destroy();
+      viewerRef.current = null;
+      gyroRef.current = null;
+      setImmersive(false);
+      setHint(null);
+    };
+  }, [src, deactivate]);
+
+  useEffect(() => {
+    function onFullscreenChange() {
+      const inFullscreen = document.fullscreenElement === wrapperRef.current;
+      if (!inFullscreen) {
+        ownsFullscreenRef.current = false;
+        // Si el usuario salió de fullscreen con Escape/gesto del sistema,
+        // apagamos el sensor también — no tiene sentido seguir consumiéndolo
+        // fuera del modo inmersivo.
+        gyroRef.current?.stop();
+      }
+      // PSV necesita recalcular el canvas al nuevo tamaño del contenedor.
+      viewerRef.current?.autoSize();
+    }
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
   }, []);
+
+  // El dispositivo se bloquea o la app pasa a segundo plano: apagar el modo
+  // inmersivo ahí mismo. No hay que esperar a que el navegador decida (o no)
+  // salir de fullscreen por su cuenta — `visibilitychange` es la señal
+  // directa, y cubre casos donde el sistema no sale de fullscreen al
+  // bloquear la pantalla.
+  useEffect(() => {
+    function onVisibilityChange() {
+      if (document.hidden) deactivate();
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, [deactivate]);
+
+  // Entrada/salida del hint flotante — mismo idioma que `PropertyPopupCard`
+  // (opacity + y + scale, expo.out, guardado por prefers-reduced-motion): sin
+  // esto el mensaje aparece/desaparece de golpe, lo que se lee como roto.
+  useGSAP(
+    () => {
+      if (!hint || !hintRef.current) return;
+      const el = hintRef.current;
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      if (reduceMotion) {
+        const timeout = window.setTimeout(() => setHint(null), 3000);
+        return () => window.clearTimeout(timeout);
+      }
+
+      gsap.fromTo(el, { opacity: 0, y: -6, scale: 0.95 }, { opacity: 1, y: 0, scale: 1, duration: 0.2, ease: "expo.out" });
+      const timeout = window.setTimeout(() => {
+        gsap.to(el, {
+          opacity: 0,
+          y: -6,
+          scale: 0.95,
+          duration: 0.15,
+          ease: "power2.in",
+          onComplete: () => setHint(null),
+        });
+      }, 3000);
+      return () => window.clearTimeout(timeout);
+    },
+    { dependencies: [hint], scope: wrapperRef }
+  );
 
   if (status === "error") {
     return (
@@ -213,7 +239,22 @@ export function Photo360Viewer({ src }: { src: string }) {
         </div>
       )}
       {status === "ready" && (
-        <ReactPhotoSphereViewer src={src} height="100%" width="100%" plugins={plugins} onReady={handleReady} />
+        // navbar sin "fullscreen" (default de la librería: ["zoom", "fullscreen"])
+        // a propósito: el botón de fullscreen propio de PSV pide pantalla
+        // completa sobre SU contenedor interno, distinto del `wrapperRef` que
+        // usa nuestro "Modo inmersivo" — combinar los dos genera un pedido de
+        // fullscreen anidado (uno sobre un descendiente del otro), que el
+        // navegador resuelve reemplazando el elemento en fullscreen y deja
+        // nuestro propio botón fuera de él (inaccesible) y el giroscopio
+        // apagado a mitad de camino. Con un solo control no hay conflicto.
+        <ReactPhotoSphereViewer
+          src={src}
+          height="100%"
+          width="100%"
+          plugins={plugins}
+          navbar={["zoom"]}
+          onReady={handleReady}
+        />
       )}
 
       {status === "ready" && canImmerse && (

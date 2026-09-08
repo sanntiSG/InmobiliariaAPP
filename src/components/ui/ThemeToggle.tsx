@@ -4,10 +4,9 @@ import { useEffect, useState } from "react";
 import { Sun, Moon } from "lucide-react";
 import { IconButton } from "./IconButton";
 import { cn } from "@/lib/utils/cn";
+import { THEME_COOKIE_NAME } from "@/config/site";
 
 type ThemeChoice = "light" | "dark";
-
-const STORAGE_KEY = "umbral-theme";
 
 function getSystemTheme(): ThemeChoice {
   if (typeof window === "undefined") return "light";
@@ -16,7 +15,9 @@ function getSystemTheme(): ThemeChoice {
 
 /**
  * Toggle claro/oscuro. `layout.tsx` ya setea data-theme antes de hidratar
- * (evita flash); acá solo leemos ese estado y lo actualizamos al click.
+ * (lee la cookie en el servidor — evita flash incluso en cargas de página
+ * completas, no sólo navegación soft); acá solo leemos ese estado y lo
+ * actualizamos al click.
  */
 export function ThemeToggle() {
   const [theme, setTheme] = useState<ThemeChoice | null>(null);
@@ -32,11 +33,16 @@ export function ThemeToggle() {
   function toggle() {
     const next: ThemeChoice = (theme ?? getSystemTheme()) === "dark" ? "light" : "dark";
     setTheme(next);
+    // Cookie = fuente de verdad para la próxima carga completa (el servidor
+    // la lee en `layout.tsx`, ver ese archivo). `localStorage` se mantiene
+    // además, barato, como respaldo si algún navegador bloquea cookies pero
+    // no localStorage — el script de `layout.tsx` migra desde ahí.
     try {
-      localStorage.setItem(STORAGE_KEY, next);
+      localStorage.setItem(THEME_COOKIE_NAME, next);
     } catch {
       // localStorage puede fallar en navegación privada — el toggle sigue funcionando en memoria.
     }
+    document.cookie = `${THEME_COOKIE_NAME}=${next}; path=/; max-age=31536000; SameSite=Lax`;
     document.documentElement.setAttribute("data-theme", next);
   }
 
