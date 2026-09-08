@@ -111,9 +111,9 @@ export function Photo360Viewer({ src }: { src: string }) {
       const next = !prev;
       if (typeof document !== "undefined") {
         if (next && wrapperRef.current && document.fullscreenEnabled && !document.fullscreenElement) {
-          wrapperRef.current.requestFullscreen().catch(() => {});
+          wrapperRef.current.requestFullscreen().catch(() => { });
         } else if (!next && document.fullscreenElement) {
-          document.exitFullscreen().catch(() => {});
+          document.exitFullscreen().catch(() => { });
         }
       }
       return next;
@@ -139,7 +139,7 @@ export function Photo360Viewer({ src }: { src: string }) {
       img.onerror = null;
       deactivate();
       if (typeof document !== "undefined" && document.fullscreenElement === wrapperRef.current) {
-        void document.exitFullscreen().catch(() => {});
+        void document.exitFullscreen().catch(() => { });
       }
       viewerRef.current?.destroy();
       viewerRef.current = null;
@@ -266,8 +266,8 @@ export function Photo360Viewer({ src }: { src: string }) {
           <button
             type="button"
             onClick={toggleFullscreen}
-            aria-label={isMaximized ? "Salir de pantalla completa" : "Maximizar pantalla"}
-            title={isMaximized ? "Salir de pantalla completa" : "Maximizar pantalla"}
+            aria-label={isMaximized ? "Salir de pantalla completa" : "Maximizar"}
+            title={isMaximized ? "Salir de pantalla completa" : "Maximizar"}
             className={cn(
               "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-pill px-3.5 text-xs font-medium",
               "backdrop-blur shadow-pop transition-[transform,background-color,box-shadow] duration-150",
@@ -284,7 +284,7 @@ export function Photo360Viewer({ src }: { src: string }) {
             ) : (
               <>
                 <Maximize className="h-3.5 w-3.5" aria-hidden />
-                <span>Maximizar</span>
+                <span></span>
               </>
             )}
           </button>
