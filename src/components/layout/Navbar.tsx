@@ -3,6 +3,7 @@ import { Logo } from "./Logo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { TrendingUp } from "lucide-react";
 
 const LINKS = [
   { href: "/mapa", label: "Mapa" },
