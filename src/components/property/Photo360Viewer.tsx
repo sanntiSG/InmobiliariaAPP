@@ -34,8 +34,7 @@ export function Photo360Viewer({ src }: { src: string }) {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [canImmerse, setCanImmerse] = useState(false);
   const [immersive, setImmersive] = useState(false);
-  const [canFullscreen, setCanFullscreen] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isMaximized, setIsMaximized] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
 
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -53,7 +52,6 @@ export function Photo360Viewer({ src }: { src: string }) {
     if (coarsePointer && hasOrientationApi) {
       Promise.resolve().then(() => setCanImmerse(true));
     }
-    setCanFullscreen(typeof document !== "undefined" && Boolean(document.fullscreenEnabled));
   }, []);
 
   // Array de plugins memoizado: el wrapper mete `props.plugins` en las deps
@@ -108,19 +106,20 @@ export function Photo360Viewer({ src }: { src: string }) {
     }
   }, []);
 
-  const toggleFullscreen = useCallback(async () => {
-    if (!wrapperRef.current) return;
-    try {
-      if (document.fullscreenElement === wrapperRef.current) {
-        await document.exitFullscreen();
-      } else {
-        await wrapperRef.current.requestFullscreen();
+  const toggleFullscreen = useCallback(() => {
+    setIsMaximized((prev) => {
+      const next = !prev;
+      if (typeof document !== "undefined") {
+        if (next && wrapperRef.current && document.fullscreenEnabled && !document.fullscreenElement) {
+          wrapperRef.current.requestFullscreen().catch(() => {});
+        } else if (!next && document.fullscreenElement) {
+          document.exitFullscreen().catch(() => {});
+        }
       }
-    } catch {
-      // Ignorar rechazos o restricciones del navegador
-    } finally {
-      viewerRef.current?.autoSize();
-    }
+      return next;
+    });
+    setTimeout(() => viewerRef.current?.autoSize(), 50);
+    setTimeout(() => viewerRef.current?.autoSize(), 250);
   }, []);
 
   useEffect(() => {
@@ -139,22 +138,22 @@ export function Photo360Viewer({ src }: { src: string }) {
       img.onload = null;
       img.onerror = null;
       deactivate();
-      if (document.fullscreenElement === wrapperRef.current) {
+      if (typeof document !== "undefined" && document.fullscreenElement === wrapperRef.current) {
         void document.exitFullscreen().catch(() => {});
       }
       viewerRef.current?.destroy();
       viewerRef.current = null;
       gyroRef.current = null;
       setImmersive(false);
-      setIsFullscreen(false);
+      setIsMaximized(false);
       setHint(null);
     };
   }, [src, deactivate]);
 
   useEffect(() => {
     function onFullscreenChange() {
-      const inFullscreen = document.fullscreenElement === wrapperRef.current;
-      setIsFullscreen(inFullscreen);
+      const inFullscreen = Boolean(document.fullscreenElement && document.fullscreenElement === wrapperRef.current);
+      setIsMaximized(inFullscreen);
       viewerRef.current?.autoSize();
       requestAnimationFrame(() => {
         viewerRef.current?.autoSize();
@@ -221,7 +220,13 @@ export function Photo360Viewer({ src }: { src: string }) {
   }
 
   return (
-    <div ref={wrapperRef} className="relative h-full w-full bg-surface-2">
+    <div
+      ref={wrapperRef}
+      className={cn(
+        "relative h-full w-full bg-surface-2",
+        isMaximized && "fixed inset-0 z-50 h-[100dvh] w-screen"
+      )}
+    >
       {status === "loading" && (
         <div className="absolute inset-0 flex items-center justify-center bg-surface-2 text-sm text-text-muted">
           Cargando foto 360°…
@@ -258,33 +263,31 @@ export function Photo360Viewer({ src }: { src: string }) {
             </button>
           )}
 
-          {canFullscreen && (
-            <button
-              type="button"
-              onClick={toggleFullscreen}
-              aria-label={isFullscreen ? "Salir de pantalla completa" : "Maximizar pantalla"}
-              title={isFullscreen ? "Salir de pantalla completa" : "Maximizar pantalla"}
-              className={cn(
-                "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-pill px-3.5 text-xs font-medium",
-                "backdrop-blur shadow-pop transition-[transform,background-color,box-shadow] duration-150",
-                "[transition-timing-function:var(--ease-out)] active:scale-[0.97]",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-bg",
-                isFullscreen ? "bg-accent text-accent-contrast" : "bg-surface/85 text-text hover:bg-surface"
-              )}
-            >
-              {isFullscreen ? (
-                <>
-                  <Minimize className="h-3.5 w-3.5" aria-hidden />
-                  <span className="hidden sm:inline">Restaurar</span>
-                </>
-              ) : (
-                <>
-                  <Maximize className="h-3.5 w-3.5" aria-hidden />
-                  <span className="hidden sm:inline">Maximizar</span>
-                </>
-              )}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            aria-label={isMaximized ? "Salir de pantalla completa" : "Maximizar pantalla"}
+            title={isMaximized ? "Salir de pantalla completa" : "Maximizar pantalla"}
+            className={cn(
+              "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-pill px-3.5 text-xs font-medium",
+              "backdrop-blur shadow-pop transition-[transform,background-color,box-shadow] duration-150",
+              "[transition-timing-function:var(--ease-out)] active:scale-[0.97]",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-bg",
+              isMaximized ? "bg-accent text-accent-contrast" : "bg-surface/85 text-text hover:bg-surface"
+            )}
+          >
+            {isMaximized ? (
+              <>
+                <Minimize className="h-3.5 w-3.5" aria-hidden />
+                <span>Restaurar</span>
+              </>
+            ) : (
+              <>
+                <Maximize className="h-3.5 w-3.5" aria-hidden />
+                <span>Maximizar</span>
+              </>
+            )}
+          </button>
         </div>
       )}
 
