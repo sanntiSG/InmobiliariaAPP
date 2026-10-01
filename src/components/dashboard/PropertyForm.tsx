@@ -3,7 +3,7 @@
 import { useState } from "react";
 import dynamicImport from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { Plus, X } from "lucide-react";
+import { Plus, Route, X } from "lucide-react";
 import { FormField } from "@/components/ui/FormField";
 import { SelectField } from "@/components/ui/SelectField";
 import { Button } from "@/components/ui/Button";
@@ -24,11 +24,23 @@ import {
   type Amenity,
 } from "@/config/filters";
 import { MAP_DEFAULTS } from "@/config/site";
-import { MAX_SCENES, newId, removeScene, type TourLink, type VirtualTourConfig } from "@/components/tour/tour-types";
+import {
+  MAX_SCENES,
+  newId,
+  removeScene,
+  type TourLink,
+  type TourScene,
+  type VirtualTourConfig,
+} from "@/components/tour/tour-types";
+import { uploadPhoto360File } from "@/lib/media/upload-photo360";
 
 const LocationPicker = dynamicImport(() => import("./LocationPicker").then((m) => m.LocationPicker), {
   ssr: false,
   loading: () => <Skeleton className="h-64 w-full rounded-card" />,
+});
+
+const TourEditor = dynamicImport(() => import("./tour-editor/TourEditor").then((m) => m.TourEditor), {
+  ssr: false,
 });
 
 export type PropertyFormValues = {
@@ -202,6 +214,32 @@ export function PropertyForm({
   const [error, setError] = useState<string | null>(null);
   const [tourUploadError, setTourUploadError] = useState<string | null>(null);
   const [uploadingTourIndex, setUploadingTourIndex] = useState<number | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+
+  const editableScenes: TourScene[] = values.tours.flatMap((r) =>
+    r.photo360Url ? [{ id: r.id, label: r.label, photo360Url: r.photo360Url, links: r.links, graph: r.graph }] : []
+  );
+
+  function applyEditor(scenes: TourScene[], virtualTour: VirtualTourConfig) {
+    setValues((v) => {
+      const byId = new Map(scenes.map((sc) => [sc.id, sc]));
+      const kept: TourFormRow[] = v.tours.flatMap((r) => {
+        const sc = byId.get(r.id);
+        if (sc) byId.delete(r.id);
+        // Filas sin foto siguen en el form; las que el editor borró se van.
+        if (!r.photo360Url) return [r];
+        return sc ? [{ ...r, label: sc.label ?? "", links: sc.links, graph: sc.graph }] : [];
+      });
+      const added: TourFormRow[] = [...byId.values()].map((sc) => ({
+        id: sc.id,
+        label: sc.label ?? "",
+        photo360Url: sc.photo360Url,
+        links: sc.links,
+        graph: sc.graph,
+      }));
+      return { ...v, tours: [...kept, ...added], virtualTour };
+    });
+  }
 
   function set<K extends keyof PropertyFormValues>(key: K, value: PropertyFormValues[K]) {
     setValues((v) => ({ ...v, [key]: value }));
@@ -237,19 +275,8 @@ export function PropertyForm({
     setTourUploadError(null);
     setUploadingTourIndex(i);
 
-    const formData = new FormData();
-    formData.append("file", file);
-    // Le pide al servidor menos compresión y un límite de tamaño más alto
-    // que una foto común — un panorama se ve de cerca (zoom dentro de la
-    // esfera) y la compresión estándar se nota mucho más ahí.
-    formData.append("kind", "photo360");
-    if (agencies) formData.append("agencyId", values.agencyId);
-
     try {
-      const res = await fetch("/api/dashboard/upload", { method: "POST", body: formData });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "No se pudo subir la foto 360°.");
-      updateTourRow(i, { photo360Url: data.url });
+      updateTourRow(i, { photo360Url: await uploadPhoto360File(file, agencies ? values.agencyId : undefined) });
     } catch (err) {
       setTourUploadError(err instanceof Error ? err.message : "No se pudo subir la foto 360°.");
     } finally {
@@ -409,10 +436,10 @@ export function PropertyForm({
       </section>
 
       <section className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
-        <h2 className="font-display text-lg font-semibold text-text">Recorrido 360°</h2>
+        <h2 className="font-display text-lg font-semibold text-text">Fotos 360°</h2>
         <p className="text-sm text-text-muted">
           Subí una foto 360° (equirectangular) del ambiente — se ve embebida en la ficha, en cualquier
-          dispositivo. Podés cargar más de una (distintos ambientes, por ejemplo).
+          dispositivo. Podés cargar hasta {MAX_TOUR_ROWS} (distintos ambientes, por ejemplo).
         </p>
 
         {values.tours.map((row, i) => (
@@ -444,12 +471,46 @@ export function PropertyForm({
           <Plus className="h-4 w-4" aria-hidden /> Agregar recorrido
         </Button>
 
+        {editableScenes.length >= 2 && (
+          <div className="flex flex-col gap-3 rounded-media border border-border p-4">
+            <label className="flex items-start gap-2 text-sm text-text">
+              <input
+                type="checkbox"
+                checked={values.virtualTour.enabled}
+                onChange={(e) => set("virtualTour", { ...values.virtualTour, enabled: e.target.checked })}
+                className="mt-0.5 h-4 w-4 accent-accent"
+              />
+              <span>
+                <strong className="font-medium">Recorrido 360° navegable</strong>
+                <span className="block text-text-muted">
+                  Conectá las fotos con marcadores (ej: Patio → Entrada → Comedor) para que el visitante camine la casa.
+                </span>
+              </span>
+            </label>
+            {values.virtualTour.enabled && (
+              <Button type="button" variant="secondary" onClick={() => setEditorOpen(true)}>
+                <Route className="h-4 w-4" aria-hidden /> Configurar recorrido
+              </Button>
+            )}
+          </div>
+        )}
+
         {tourUploadError && (
           <p className="text-sm text-danger" role="alert">
             {tourUploadError}
           </p>
         )}
       </section>
+
+      {editorOpen && (
+        <TourEditor
+          scenes={editableScenes}
+          virtualTour={values.virtualTour}
+          agencyId={agencies ? values.agencyId : undefined}
+          onChange={applyEditor}
+          onClose={() => setEditorOpen(false)}
+        />
+      )}
 
       {error && (
         <p className="rounded-card bg-danger-soft p-4 text-sm text-danger" role="alert">
