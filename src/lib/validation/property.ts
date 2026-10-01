@@ -26,13 +26,45 @@ function isValidUrl(raw: string): boolean {
  * acá sólo se valida que la URL exista y sea `https`. Una propiedad puede
  * tener varios (`tours: []`) — distintos ambientes, por ejemplo.
  */
+const sceneIdSchema = z.string().regex(/^[a-zA-Z0-9-]{8,40}$/, "Id de escena inválido");
+
+/** Ángulos en radianes: yaw normalizado a [0, 2π), pitch acotado a [-π/2, π/2]. */
+const yawSchema = z
+  .number()
+  .finite()
+  .transform((n) => ((n % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2));
+const pitchSchema = z
+  .number()
+  .finite()
+  .transform((n) => Math.max(-Math.PI / 2, Math.min(Math.PI / 2, n)));
+
+const tourLinkSchema = z.object({
+  id: sceneIdSchema,
+  targetId: sceneIdSchema,
+  label: z.string().trim().max(40).default(""),
+  yaw: yawSchema,
+  pitch: pitchSchema,
+  arrivalYaw: yawSchema.default(0),
+  arrivalPitch: pitchSchema.default(0),
+});
+
 const tourEntrySchema = z.object({
+  id: sceneIdSchema,
   /** Opcional — ej. "Living", "Fachada". Si falta, la UI usa "Recorrido N". */
   label: z.string().trim().max(60).optional(),
   photo360Url: z.string().refine(isValidUrl, "Falta la foto 360°"),
+  links: z.array(tourLinkSchema).max(12, "Máximo 12 marcadores por foto.").default([]),
+  graph: z.object({ x: z.number().finite(), y: z.number().finite() }).optional(),
 });
 
-const MAX_TOURS = 6;
+const virtualTourSchema = z
+  .object({
+    enabled: z.boolean().default(false),
+    startId: sceneIdSchema.optional(),
+  })
+  .default({ enabled: false });
+
+const MAX_TOURS = 20;
 const toursSchema = z.array(tourEntrySchema).max(MAX_TOURS, `Máximo ${MAX_TOURS} recorridos por propiedad.`).default([]);
 
 const imageSchema = z.object({
@@ -102,18 +134,48 @@ export const propertyInputSchema = z.object({
         .default([]),
       floorPlans: z.array(imageSchema).default([]),
       tours: toursSchema,
+      virtualTour: virtualTourSchema,
     })
     .default({
       images: [],
       videos: [],
       floorPlans: [],
       tours: [],
+      virtualTour: { enabled: false },
+    })
+    .superRefine((v, ctx) => {
+      const ids = new Set(v.tours.map((t) => t.id));
+      if (ids.size !== v.tours.length) {
+        ctx.addIssue({ code: "custom", message: "Ids de escena duplicados.", path: ["tours"] });
+      }
+      v.tours.forEach((t, i) =>
+        t.links.forEach((l, j) => {
+          if (!ids.has(l.targetId) || l.targetId === t.id) {
+            ctx.addIssue({
+              code: "custom",
+              message: "Un marcador apunta a una foto inexistente.",
+              path: ["tours", i, "links", j, "targetId"],
+            });
+          }
+        })
+      );
+      if (v.virtualTour.startId && !ids.has(v.virtualTour.startId)) {
+        ctx.addIssue({ code: "custom", message: "La foto de inicio no existe.", path: ["virtualTour", "startId"] });
+      }
     })
     // `hasTour3d` desnormalizado a partir de `tours.length` — así los
     // filtros/queries (`property-query.ts`, `agency-stats.ts`) no necesitan
     // inspeccionar el array. Se recalcula acá mismo en cada guardado, nunca
-    // lo manda el cliente.
-    .transform((v) => ({ ...v, hasTour3d: v.tours.length > 0 })),
+    // lo manda el cliente. El recorrido navegable sólo queda activo si hay
+    // al menos un vínculo.
+    .transform((v) => ({
+      ...v,
+      hasTour3d: v.tours.length > 0,
+      virtualTour: {
+        ...v.virtualTour,
+        enabled: v.virtualTour.enabled && v.tours.some((t) => t.links.length > 0),
+      },
+    })),
 });
 
 export type PropertyInput = z.infer<typeof propertyInputSchema>;

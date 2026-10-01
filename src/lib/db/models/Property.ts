@@ -47,12 +47,31 @@ const videoSchema = new Schema(
  * Viewer vía Three.js/WebGL). Una propiedad puede tener varios
  * (`media.tours`, ver más abajo) — distintos ambientes, por ejemplo.
  */
+const tourLinkSchema = new Schema(
+  {
+    id: { type: String, required: true },
+    targetId: { type: String, required: true },
+    label: { type: String, maxlength: 40, default: "" },
+    yaw: { type: Number, required: true },
+    pitch: { type: Number, required: true },
+    arrivalYaw: { type: Number, default: 0 },
+    arrivalPitch: { type: Number, default: 0 },
+  },
+  { _id: false }
+);
+
 const tourEntrySchema = new Schema(
   {
+    /** Id estable de la escena — lo referencian los `links` de otras escenas. Ausente en documentos legacy. */
+    id: { type: String },
     /** Opcional — ej. "Living", "Fachada". Si falta, la UI usa "Recorrido N". */
     label: { type: String, maxlength: 60 },
     /** URL (Cloudinary) de la foto 360°. */
     photo360Url: { type: String, required: true },
+    /** Marcadores hacia otras escenas (recorrido navegable). */
+    links: { type: [tourLinkSchema], default: [] },
+    /** Posición del nodo en la vista de grafo del editor. */
+    graph: { type: new Schema({ x: Number, y: Number }, { _id: false }) },
   },
   { _id: false }
 );
@@ -116,6 +135,11 @@ const propertySchema = new Schema(
       videos: [videoSchema],
       floorPlans: [imageSchema],
       tours: [tourEntrySchema],
+      /** Recorrido navegable entre las escenas de `tours`. */
+      virtualTour: {
+        enabled: { type: Boolean, default: false },
+        startId: { type: String },
+      },
       /** Desnormalizado a partir de `tours.length > 0` — evita inspeccionar el array en cada query/filtro (ver `property-query.ts`, `agency-stats.ts`). */
       hasTour3d: { type: Boolean, default: false, index: true },
     },

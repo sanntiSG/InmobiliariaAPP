@@ -1,3 +1,5 @@
+import type { TourScene, VirtualTourConfig } from "@/components/tour/tour-types";
+
 /** Forma liviana de propiedad usada por el mapa, el panel de resultados y sus cards. */
 export type PropertyCardData = {
   id: string;
@@ -26,10 +28,7 @@ export type PropertyCardData = {
  * renderizada con `Photo360Viewer` (Photo Sphere Viewer). Una propiedad
  * puede tener varios (`PropertyDetail.tours`) — distintos ambientes.
  */
-export type Tour3DEntry = {
-  label?: string;
-  photo360Url: string;
-};
+export type Tour3DEntry = TourScene;
 
 /** Forma completa de una propiedad, usada por la página de detalle. */
 export type PropertyDetail = {
@@ -71,6 +70,7 @@ export type PropertyDetail = {
   images: { url: string; alt: string }[];
   videos: { url: string; thumbnail?: string }[];
   tours: Tour3DEntry[];
+  virtualTour: VirtualTourConfig;
 
   stats: { views: number; likes: number; saves: number; comments: number; ratingAvg: number; ratingCount: number };
 

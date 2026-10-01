@@ -1,5 +1,6 @@
 import { fuzzLocation } from "@/lib/map/geo";
 import type { PropertyDetail } from "@/components/property/types";
+import type { TourLink } from "@/components/tour/tour-types";
 
 /** Mapea el doc completo `.lean()` de Property (con agencyId populado) a PropertyDetail. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -59,10 +60,26 @@ export function toPropertyDetail(doc: any): PropertyDetail {
       url: v.url,
       thumbnail: v.thumbnail,
     })),
-    tours: (doc.media?.tours ?? []).map((t: { label?: string; photo360Url: string }) => ({
-      label: t.label,
-      photo360Url: t.photo360Url,
-    })),
+    tours: (doc.media?.tours ?? []).map(
+      (t: { id?: string; label?: string; photo360Url: string; links?: TourLink[] }, i: number) => ({
+        id: t.id ?? `legacy-${i}`,
+        label: t.label,
+        photo360Url: t.photo360Url,
+        links: (t.links ?? []).map((l) => ({
+          id: l.id,
+          targetId: l.targetId,
+          label: l.label ?? "",
+          yaw: l.yaw,
+          pitch: l.pitch,
+          arrivalYaw: l.arrivalYaw ?? 0,
+          arrivalPitch: l.arrivalPitch ?? 0,
+        })),
+      })
+    ),
+    virtualTour: {
+      enabled: !!doc.media?.virtualTour?.enabled,
+      startId: doc.media?.virtualTour?.startId ?? undefined,
+    },
 
     stats: {
       views: doc.stats?.views ?? 0,

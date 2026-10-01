@@ -50,7 +50,7 @@ export function PropertyMedia({ images, tours, title }: Pick<PropertyDetail, "im
             Fotos {images.length > 0 && `(${images.length})`}
           </TabButton>
           <TabButton active={tab === "tour360"} onClick={() => setTab("tour360")}>
-            <Orbit className="h-3.5 w-3.5" aria-hidden /> Recorrido 360°
+            <Orbit className="h-3.5 w-3.5" aria-hidden /> Vista 360°
           </TabButton>
         </div>
 

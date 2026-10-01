@@ -24,6 +24,7 @@ import {
   type Amenity,
 } from "@/config/filters";
 import { MAP_DEFAULTS } from "@/config/site";
+import { MAX_SCENES, newId, removeScene, type TourLink, type VirtualTourConfig } from "@/components/tour/tour-types";
 
 const LocationPicker = dynamicImport(() => import("./LocationPicker").then((m) => m.LocationPicker), {
   ssr: false,
@@ -63,14 +64,20 @@ export type PropertyFormValues = {
   images: UploadedImage[];
   /** Una propiedad puede tener varios recorridos 360° — distintos ambientes, por ejemplo. */
   tours: TourFormRow[];
+  /** Recorrido navegable entre las fotos 360° (hotspots). */
+  virtualTour: VirtualTourConfig;
 };
 
 /** Una fila del formulario de recorridos — foto 360° equirectangular subida (imagen común, mismo endpoint que las fotos de la propiedad). */
-export type TourFormRow = { label: string; photo360Url?: string };
+export type TourFormRow = {
+  id: string;
+  label: string;
+  photo360Url?: string;
+  links: TourLink[];
+  graph?: { x: number; y: number };
+};
 
-const emptyTourRow: TourFormRow = { label: "" };
-
-const MAX_TOUR_ROWS = 6;
+const MAX_TOUR_ROWS = MAX_SCENES;
 
 export const emptyPropertyForm: PropertyFormValues = {
   agencyId: "",
@@ -103,6 +110,7 @@ export const emptyPropertyForm: PropertyFormValues = {
   amenities: [],
   images: [],
   tours: [],
+  virtualTour: { enabled: false },
 };
 
 function toPayload(v: PropertyFormValues) {
@@ -153,6 +161,7 @@ function toPayload(v: PropertyFormValues) {
       videos: [],
       floorPlans: [],
       tours: buildToursPayload(v),
+      virtualTour: v.virtualTour,
     },
   };
 }
@@ -160,7 +169,13 @@ function toPayload(v: PropertyFormValues) {
 function buildToursPayload(v: PropertyFormValues) {
   return v.tours
     .filter((row) => !!row.photo360Url)
-    .map((row) => ({ label: row.label.trim() || undefined, photo360Url: row.photo360Url! }));
+    .map((row) => ({
+      id: row.id,
+      label: row.label.trim() || undefined,
+      photo360Url: row.photo360Url!,
+      links: row.links,
+      graph: row.graph,
+    }));
 }
 
 export function PropertyForm({
@@ -200,7 +215,7 @@ export function PropertyForm({
   }
 
   function addTourRow() {
-    setValues((v) => ({ ...v, tours: [...v.tours, { ...emptyTourRow }] }));
+    setValues((v) => ({ ...v, tours: [...v.tours, { id: newId(), label: "", links: [] }] }));
   }
 
   function updateTourRow(i: number, patch: Partial<TourFormRow>) {
@@ -208,7 +223,13 @@ export function PropertyForm({
   }
 
   function removeTourRow(i: number) {
-    setValues((v) => ({ ...v, tours: v.tours.filter((_, idx) => idx !== i) }));
+    setValues((v) => {
+      const removed = v.tours[i];
+      if (!removed) return v;
+      // Quita la fila y limpia los vínculos de otras fotos que apuntaban a ella.
+      const startId = v.virtualTour.startId === removed.id ? undefined : v.virtualTour.startId;
+      return { ...v, tours: removeScene(v.tours, removed.id), virtualTour: { ...v.virtualTour, startId } };
+    });
   }
 
   async function uploadPhoto360(i: number, file: File | undefined) {

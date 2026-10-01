@@ -220,6 +220,7 @@ async function main() {
         videos: [],
         floorPlans: [],
         tours: buildTours(hasTour, i),
+        virtualTour: { enabled: hasTour && i === DEMO_MULTI_TOUR_INDEX, startId: i === DEMO_MULTI_TOUR_INDEX ? "demo-living" : undefined },
         hasTour3d: hasTour,
       },
       // Sin datos inventados: `stats` nace en 0, igual que cualquier
@@ -258,13 +259,28 @@ function buildTours(hasTour: boolean, index: number) {
   if (!hasTour) return [];
 
   if (index === DEMO_MULTI_TOUR_INDEX) {
+    // Dos escenas vinculadas entre sí: sirve para probar el recorrido navegable.
     return [
-      { label: "Living", photo360Url: PHOTO360_SAMPLES[0] },
-      { label: "Dormitorio", photo360Url: PHOTO360_SAMPLES[1] },
+      {
+        id: "demo-living",
+        label: "Living",
+        photo360Url: PHOTO360_SAMPLES[0],
+        links: [
+          { id: "demo-link-a", targetId: "demo-dormitorio", label: "Dormitorio", yaw: 1.2, pitch: 0, arrivalYaw: 3.14, arrivalPitch: 0 },
+        ],
+      },
+      {
+        id: "demo-dormitorio",
+        label: "Dormitorio",
+        photo360Url: PHOTO360_SAMPLES[1],
+        links: [
+          { id: "demo-link-b", targetId: "demo-living", label: "Living", yaw: 4.34, pitch: 0, arrivalYaw: 4.34, arrivalPitch: 0 },
+        ],
+      },
     ];
   }
 
-  return [{ photo360Url: PHOTO360_SAMPLES[index % PHOTO360_SAMPLES.length] }];
+  return [{ id: `demo-tour-${index}`, photo360Url: PHOTO360_SAMPLES[index % PHOTO360_SAMPLES.length], links: [] }];
 }
 
 function typeLabel(type: string) {

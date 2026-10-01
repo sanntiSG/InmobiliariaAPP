@@ -63,7 +63,25 @@ export default async function EditPropertyPage({ params }: PageProps<"/dashboard
       order: img.order ?? i,
       providerId: img.providerId ?? undefined,
     })),
-    tours: (doc.media?.tours ?? []).map((t) => ({ label: t.label ?? "", photo360Url: t.photo360Url })),
+    tours: (doc.media?.tours ?? []).map((t, i) => ({
+      id: t.id ?? `legacy-${i}`,
+      label: t.label ?? "",
+      photo360Url: t.photo360Url,
+      links: (t.links ?? []).map((l) => ({
+        id: l.id,
+        targetId: l.targetId,
+        label: l.label ?? "",
+        yaw: l.yaw,
+        pitch: l.pitch,
+        arrivalYaw: l.arrivalYaw ?? 0,
+        arrivalPitch: l.arrivalPitch ?? 0,
+      })),
+      graph: t.graph?.x != null && t.graph?.y != null ? { x: t.graph.x, y: t.graph.y } : undefined,
+    })),
+    virtualTour: {
+      enabled: !!doc.media?.virtualTour?.enabled,
+      startId: doc.media?.virtualTour?.startId ?? undefined,
+    },
   };
 
   return (
