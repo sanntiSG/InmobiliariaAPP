@@ -185,3 +185,45 @@ body {
 .maplibregl-popup-tip {
   display: none;
 }
+
+/* Recorrido 360°: marcadores anclados a la esfera (DOM creado por el hook useTourViewer). */
+.tour-marker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px 0 8px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklab, var(--surface) 88%, transparent);
+  color: var(--text);
+  font: 600 13px/1 var(--font-body, inherit);
+  box-shadow: var(--shadow-pop);
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 150ms var(--ease-out), background-color 150ms var(--ease-out);
+}
+.tour-marker:hover {
+  transform: scale(1.04);
+}
+.tour-marker:active {
+  transform: scale(0.97);
+}
+.tour-marker__dot {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 14px;
+}
+.tour-marker[data-selected="true"] {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.tour-marker[data-ghost="true"] {
+  opacity: 0.8;
+  border: 2px dashed var(--accent);
+}

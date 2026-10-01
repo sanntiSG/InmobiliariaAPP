@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import dynamicImport from "next/dynamic";
-import { Orbit } from "lucide-react";
+import { Orbit, Route } from "lucide-react";
 import { Gallery } from "./Gallery";
 import { cn } from "@/lib/utils/cn";
 import type { PropertyDetail } from "./types";
@@ -18,7 +18,16 @@ const Photo360Viewer = dynamicImport(() => import("./Photo360Viewer").then((m) =
   ),
 });
 
-type Tab = "fotos" | "tour360";
+const VirtualTourViewer = dynamicImport(() => import("./VirtualTourViewer").then((m) => m.VirtualTourViewer), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-full items-center justify-center bg-surface-2 text-sm text-text-muted">
+      Cargando recorrido 360°…
+    </div>
+  ),
+});
+
+type Tab = "fotos" | "vista360" | "recorrido360";
 
 /**
  * Combina fotos y foto(s) 360° en tabs. Si la propiedad no tiene ningún
@@ -31,12 +40,18 @@ type Tab = "fotos" | "tour360";
  * el primero de la lista por defecto (el orden lo elige la inmobiliaria al
  * cargarlos).
  */
-export function PropertyMedia({ images, tours, title }: Pick<PropertyDetail, "images" | "tours" | "title">) {
+export function PropertyMedia({
+  images,
+  tours,
+  virtualTour,
+  title,
+}: Pick<PropertyDetail, "images" | "tours" | "virtualTour" | "title">) {
   const hasTours = tours.length > 0;
   const [tab, setTab] = useState<Tab>("fotos");
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   const active = tours[selectedIndex];
+  const hasVirtualTour = virtualTour.enabled && tours.length > 1 && tours.some((t) => t.links.length > 0);
 
   if (!hasTours || !active) {
     return <Gallery images={images} title={title} />;
@@ -49,12 +64,17 @@ export function PropertyMedia({ images, tours, title }: Pick<PropertyDetail, "im
           <TabButton active={tab === "fotos"} onClick={() => setTab("fotos")}>
             Fotos {images.length > 0 && `(${images.length})`}
           </TabButton>
-          <TabButton active={tab === "tour360"} onClick={() => setTab("tour360")}>
+          <TabButton active={tab === "vista360"} onClick={() => setTab("vista360")}>
             <Orbit className="h-3.5 w-3.5" aria-hidden /> Vista 360°
           </TabButton>
+          {hasVirtualTour && (
+            <TabButton active={tab === "recorrido360"} onClick={() => setTab("recorrido360")}>
+              <Route className="h-3.5 w-3.5" aria-hidden /> Recorrido 360°
+            </TabButton>
+          )}
         </div>
 
-        {tab === "tour360" && tours.length > 1 && (
+        {tab === "vista360" && tours.length > 1 && (
           <div className="inline-flex flex-wrap gap-1.5">
             {tours.map((t, i) => (
               <button
@@ -76,7 +96,13 @@ export function PropertyMedia({ images, tours, title }: Pick<PropertyDetail, "im
         )}
       </div>
 
-      {tab === "tour360" ? (
+      {tab === "recorrido360" && hasVirtualTour ? (
+        <div className="overflow-hidden rounded-card bg-surface-2 shadow-card">
+          <div className="aspect-[16/10] w-full">
+            <VirtualTourViewer scenes={tours} startId={virtualTour.startId} />
+          </div>
+        </div>
+      ) : tab === "vista360" ? (
         <div className="overflow-hidden rounded-card bg-surface-2 shadow-card">
           <div className="aspect-[16/10] w-full">
             <Photo360Viewer src={active.photo360Url} />
