@@ -227,3 +227,8 @@ body {
   opacity: 0.8;
   border: 2px dashed var(--accent);
 }
+
+/* Netlify inyecta un badge "Powered by Netlify" (iframe) en los sitios publicados — se oculta. */
+#nl-badge-frame {
+  display: none !important;
+}

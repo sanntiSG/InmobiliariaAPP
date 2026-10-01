@@ -14,19 +14,26 @@ const btn = cn(
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
 );
 
-type Step = { sceneId: string; position: SpherePosition };
-
 /**
  * Recorrido 360° navegable: cada foto 360° tiene marcadores anclados que
- * llevan a otra foto, mirando hacia la dirección que configuró la
- * inmobiliaria. Se carga con `next/dynamic({ ssr: false })`.
+ * llevan a otra foto. La primera vez que se llega a una foto, la cámara mira
+ * hacia la dirección que configuró la inmobiliaria; al volver a una foto ya
+ * visitada queda exactamente como el visitante la dejó (si estaba mirando la
+ * cocina, sigue mirando la cocina). Se carga con `next/dynamic({ ssr: false })`.
  */
 export function VirtualTourViewer({ scenes, startId }: { scenes: TourScene[]; startId?: string }) {
   const firstId = scenes.find((s) => s.id === startId)?.id ?? scenes[0]?.id ?? "";
   const [sceneId, setSceneId] = useState(firstId);
   const [entry, setEntry] = useState<SpherePosition | undefined>(undefined);
-  const [history, setHistory] = useState<Step[]>([]);
+  const [history, setHistory] = useState<string[]>([]);
+  // Última vista del visitante en cada foto — vive sólo mientras el visor está abierto.
+  const lastViewRef = useRef(new Map<string, SpherePosition>());
   const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // Guarda hacia dónde estaba mirando el visitante en la foto actual, para restaurarlo al volver.
+  function rememberView() {
+    lastViewRef.current.set(sceneId, getPosition());
+  }
 
   const go = useCallback(
     (targetId: string, arrival: SpherePosition) => {
@@ -36,14 +43,15 @@ export function VirtualTourViewer({ scenes, startId }: { scenes: TourScene[]; st
     []
   );
 
-  const { containerRef, viewerRef, gyroRef, shownSceneId, loadError } = useTourViewer({
+  const { containerRef, viewerRef, gyroRef, shownSceneId, loadError, getPosition } = useTourViewer({
     scenes,
     sceneId,
     entry,
     gyroscope: true,
     onLinkSelect: (link) => {
-      setHistory((h) => [...h, { sceneId, position: { yaw: link.yaw, pitch: link.pitch } }]);
-      go(link.targetId, { yaw: link.arrivalYaw, pitch: link.arrivalPitch });
+      rememberView();
+      setHistory((h) => [...h, sceneId]);
+      go(link.targetId, lastViewRef.current.get(link.targetId) ?? { yaw: link.arrivalYaw, pitch: link.arrivalPitch });
     },
   });
 
@@ -65,13 +73,15 @@ export function VirtualTourViewer({ scenes, startId }: { scenes: TourScene[]; st
   function goBack() {
     const prev = history[history.length - 1];
     if (!prev) return;
+    rememberView();
     setHistory((h) => h.slice(0, -1));
-    go(prev.sceneId, prev.position);
+    go(prev, lastViewRef.current.get(prev) ?? { yaw: 0, pitch: 0 });
   }
 
   function goHome() {
+    rememberView();
     setHistory([]);
-    go(firstId, { yaw: 0, pitch: 0 });
+    go(firstId, lastViewRef.current.get(firstId) ?? { yaw: 0, pitch: 0 });
   }
 
   if (!current) return null;

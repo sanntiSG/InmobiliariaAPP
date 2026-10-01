@@ -55,16 +55,13 @@ export function sceneName(scene: TourScene, index: number): string {
 /**
  * Vínculo de regreso: vive en la escena destino de `link` y apunta a la
  * escena de origen. La posición del marcador la elige la persona a mano; al
- * volver, por defecto la cámara mira hacia el marcador original (la puerta
- * o esquina por la que se salió), así el visitante sabe de dónde viene;
- * se puede ajustar a mano con `arrival`.
+ * volver, la cámara mira de espaldas al marcador original (180°).
  */
 export function makeReturnLink(
   link: TourLink,
   pos: { yaw: number; pitch: number },
   label: string,
-  originId: string,
-  arrival?: { yaw: number; pitch: number }
+  originId: string
 ): TourLink {
   return {
     id: newId(),
@@ -72,8 +69,8 @@ export function makeReturnLink(
     label: label.slice(0, 40),
     yaw: normalizeYaw(pos.yaw),
     pitch: pos.pitch,
-    arrivalYaw: normalizeYaw(arrival?.yaw ?? link.yaw),
-    arrivalPitch: arrival?.pitch ?? link.pitch,
+    arrivalYaw: normalizeYaw(link.yaw + Math.PI),
+    arrivalPitch: 0,
   };
 }
 

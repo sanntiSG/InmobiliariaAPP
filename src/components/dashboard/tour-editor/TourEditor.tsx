@@ -23,13 +23,9 @@ import { uploadPhoto360File } from "@/lib/media/upload-photo360";
 import { ArrivalAligner, type AlignResult } from "./ArrivalAligner";
 import { TargetPicker } from "./TargetPicker";
 import { TourMiniMap } from "./TourMiniMap";
+import { TourTestOverlay } from "./TourTestOverlay";
 
 const TourGraph = dynamicImport(() => import("./TourGraph").then((m) => m.TourGraph), { ssr: false });
-
-const VirtualTourViewer = dynamicImport(
-  () => import("@/components/property/VirtualTourViewer").then((m) => m.VirtualTourViewer),
-  { ssr: false }
-);
 
 type Mode = "view" | "add" | "relocate";
 type Draft = SpherePosition & { label: string };
@@ -198,20 +194,11 @@ export function TourEditor({
       if (!backPos) return target.links;
       if (existingBack) {
         return target.links.map((l) =>
-          l.id === existingBack.id
-            ? {
-                ...l,
-                yaw: backPos.yaw,
-                pitch: backPos.pitch,
-                label: backPos.label.slice(0, 40),
-                arrivalYaw: backPos.arrival.yaw,
-                arrivalPitch: backPos.arrival.pitch,
-              }
-            : l
+          l.id === existingBack.id ? { ...l, yaw: backPos.yaw, pitch: backPos.pitch, label: backPos.label.slice(0, 40) } : l
         );
       }
       if (target.links.length >= MAX_LINKS_PER_SCENE) return target.links;
-      return [...target.links, makeReturnLink(link, backPos, backPos.label, scene.id, backPos.arrival)];
+      return [...target.links, makeReturnLink(link, backPos, backPos.label, scene.id)];
     })();
     savedBack = !!backPos && nextTargetLinks !== target.links;
 
@@ -543,24 +530,7 @@ export function TourEditor({
         </aside>
       </div>
 
-      {testing && (
-        <div role="dialog" aria-modal="true" aria-label="Probar el recorrido" className="absolute inset-0 z-30 flex flex-col bg-bg">
-          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
-            <div className="min-w-0">
-              <h3 className="font-display text-base font-semibold text-text">Probar recorrido</h3>
-              <p className="truncate text-xs text-text-muted">
-                Así lo verá el visitante, con lo que tenés ahora (aún sin guardar). Tocá los marcadores para moverte.
-              </p>
-            </div>
-            <Button type="button" size="sm" onClick={() => setTesting(false)}>
-              Volver al editor
-            </Button>
-          </div>
-          <div className="min-h-0 flex-1">
-            <VirtualTourViewer scenes={scenes} startId={sceneId} />
-          </div>
-        </div>
-      )}
+      {testing && <TourTestOverlay inline scenes={scenes} startId={sceneId} onClose={() => setTesting(false)} />}
 
       {showGraph && (
         <TourGraph
@@ -602,12 +572,6 @@ export function TourEditor({
           // `key`: el alineador crea su propio viewer — uno nuevo por destino.
           key={flow.targetId}
           target={scenes.find((s) => s.id === flow.targetId)!}
-          origin={scene}
-          originMarker={
-            flow.purpose === "new" && draft
-              ? { yaw: draft.yaw, pitch: draft.pitch }
-              : { yaw: selectedLink?.yaw ?? 0, pitch: selectedLink?.pitch ?? 0 }
-          }
           fromLabel={sceneName(scene, sceneIndex)}
           initial={flow.initial}
           askReturn={flow.purpose === "new"}

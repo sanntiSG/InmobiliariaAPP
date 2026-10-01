@@ -3,7 +3,7 @@
 import { useState } from "react";
 import dynamicImport from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { Plus, Route, X } from "lucide-react";
+import { Play, Plus, Route, X } from "lucide-react";
 import { FormField } from "@/components/ui/FormField";
 import { SelectField } from "@/components/ui/SelectField";
 import { Button } from "@/components/ui/Button";
@@ -39,6 +39,12 @@ const LocationPicker = dynamicImport(() => import("./LocationPicker").then((m) =
   loading: () => <Skeleton className="h-64 w-full rounded-card" />,
 });
 
+const TourTestOverlay = dynamicImport(() => import("./tour-editor/TourTestOverlay").then((m) => m.TourTestOverlay), {
+  ssr: false,
+});
+const TourMiniMap = dynamicImport(() => import("./tour-editor/TourMiniMap").then((m) => m.TourMiniMap), {
+  ssr: false,
+});
 const TourEditor = dynamicImport(() => import("./tour-editor/TourEditor").then((m) => m.TourEditor), {
   ssr: false,
 });
@@ -215,6 +221,8 @@ export function PropertyForm({
   const [tourUploadError, setTourUploadError] = useState<string | null>(null);
   const [uploadingTourIndex, setUploadingTourIndex] = useState<number | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
+  const [editorSceneId, setEditorSceneId] = useState<string | undefined>(undefined);
+  const [testOpen, setTestOpen] = useState(false);
 
   const editableScenes: TourScene[] = values.tours.flatMap((r) =>
     r.photo360Url ? [{ id: r.id, label: r.label, photo360Url: r.photo360Url, links: r.links, graph: r.graph }] : []
@@ -488,9 +496,40 @@ export function PropertyForm({
               </span>
             </label>
             {values.virtualTour.enabled && (
-              <Button type="button" variant="secondary" onClick={() => setEditorOpen(true)}>
-                <Route className="h-4 w-4" aria-hidden /> Configurar recorrido
-              </Button>
+              <>
+                <TourMiniMap
+                  scenes={editableScenes}
+                  startId={values.virtualTour.startId}
+                  currentId={editorSceneId ?? editableScenes[0]?.id ?? ""}
+                  onSelect={(id) => {
+                    setEditorSceneId(id);
+                    setEditorOpen(true);
+                  }}
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => {
+                      setEditorSceneId(undefined);
+                      setEditorOpen(true);
+                    }}
+                  >
+                    <Route className="h-4 w-4" aria-hidden /> Configurar recorrido
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={!editableScenes.some((sc) => sc.links.length > 0)}
+                    onClick={() => setTestOpen(true)}
+                  >
+                    <Play className="h-4 w-4" aria-hidden /> Probar recorrido
+                  </Button>
+                </div>
+                {!editableScenes.some((sc) => sc.links.length > 0) && (
+                  <p className="text-xs text-text-muted">Configurá el recorrido (al menos un marcador) para poder probarlo.</p>
+                )}
+              </>
             )}
           </div>
         )}
@@ -507,9 +546,14 @@ export function PropertyForm({
           scenes={editableScenes}
           virtualTour={values.virtualTour}
           agencyId={agencies ? values.agencyId : undefined}
+          initialSceneId={editorSceneId}
           onChange={applyEditor}
           onClose={() => setEditorOpen(false)}
         />
+      )}
+
+      {testOpen && (
+        <TourTestOverlay scenes={editableScenes} startId={values.virtualTour.startId} onClose={() => setTestOpen(false)} />
       )}
 
       {error && (
