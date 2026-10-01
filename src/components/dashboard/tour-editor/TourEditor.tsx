@@ -13,14 +13,14 @@ import {
   MAX_SCENES,
   newId,
   removeScene,
-  reverseLink,
+  makeReturnLink,
   sceneName,
   type TourLink,
   type TourScene,
   type VirtualTourConfig,
 } from "@/components/tour/tour-types";
 import { uploadPhoto360File } from "@/lib/media/upload-photo360";
-import { ArrivalAligner } from "./ArrivalAligner";
+import { ArrivalAligner, type AlignResult } from "./ArrivalAligner";
 import { TargetPicker } from "./TargetPicker";
 
 const TourGraph = dynamicImport(() => import("./TourGraph").then((m) => m.TourGraph), { ssr: false });
@@ -155,8 +155,8 @@ export function TourEditor({
     return id;
   }
 
-  /** Aplica el resultado del alineador: crea/edita el marcador y el vínculo de vuelta. */
-  function applyArrival(targetId: string, purpose: "new" | "edit", arrival: SpherePosition) {
+  /** Aplica el resultado del alineador: crea/edita el marcador y, si se ubicó, el de regreso. */
+  function applyArrival(targetId: string, purpose: "new" | "edit", { arrival, back: backPos }: AlignResult) {
     if (!scene) return;
     const targetIdx = scenes.findIndex((s) => s.id === targetId);
     const target = scenes[targetIdx];
@@ -182,14 +182,26 @@ export function TourEditor({
       return;
     }
 
-    // Vínculo de vuelta automático, si la foto destino todavía no apunta acá.
-    const needsBack = !target.links.some((l) => l.targetId === scene.id) && target.links.length < MAX_LINKS_PER_SCENE;
-    const back = needsBack ? reverseLink(link, sceneName(scene, sceneIndex), scene.id) : null;
+    // Marcador de regreso: sólo si la persona lo ubicó a mano. Si la foto
+    // destino ya tenía uno hacia acá, se reubica en vez de duplicarlo.
+    const existingBack = target.links.find((l) => l.targetId === scene.id);
+    let savedBack = false;
+    const nextTargetLinks = (() => {
+      if (!backPos) return target.links;
+      if (existingBack) {
+        return target.links.map((l) =>
+          l.id === existingBack.id ? { ...l, yaw: backPos.yaw, pitch: backPos.pitch, label: backPos.label.slice(0, 40) } : l
+        );
+      }
+      if (target.links.length >= MAX_LINKS_PER_SCENE) return target.links;
+      return [...target.links, makeReturnLink(link, backPos, backPos.label, scene.id)];
+    })();
+    savedBack = !!backPos && nextTargetLinks !== target.links;
 
     onChange(
       scenes.map((s) => {
         if (s.id === scene.id) return { ...s, links: nextLinks };
-        if (s.id === targetId && back) return { ...s, links: [...s.links, back] };
+        if (s.id === targetId && savedBack) return { ...s, links: nextTargetLinks };
         return s;
       }),
       virtualTour
@@ -199,8 +211,8 @@ export function TourEditor({
     setMode("view");
     setSelectedLinkId(link.id);
     setFlow(null);
-    if (back) {
-      setNotice(`Se creó "${back.label}" en "${sceneName(target, targetIdx)}" para volver. Podés moverlo o borrarlo.`);
+    if (savedBack && backPos) {
+      setNotice(`Marcador de regreso "${backPos.label}" guardado en "${sceneName(target, targetIdx)}".`);
     }
   }
 
@@ -545,8 +557,10 @@ export function TourEditor({
           target={scenes.find((s) => s.id === flow.targetId)!}
           fromLabel={sceneName(scene, sceneIndex)}
           initial={flow.initial}
+          askReturn={flow.purpose === "new"}
+          existingReturn={scenes.find((s) => s.id === flow.targetId)?.links.find((l) => l.targetId === scene.id)}
           onCancel={() => setFlow(null)}
-          onConfirm={(pos) => applyArrival(flow.targetId, flow.purpose, pos)}
+          onConfirm={(result) => applyArrival(flow.targetId, flow.purpose, result)}
         />
       )}
 

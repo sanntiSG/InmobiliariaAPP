@@ -152,7 +152,7 @@ export function useTourViewer(options: TourViewerOptions) {
   // Marcadores de la escena visible.
   useEffect(() => {
     const markers = markersRef.current;
-    if (!markers || !scene || shownSceneId !== scene.id) return;
+    if (!markers || !scene || shownSceneId !== scene.id || loadedRef.current !== scene.id) return;
     const configs = scene.links.map((l) => ({
       id: l.id,
       position: { yaw: l.yaw, pitch: l.pitch },
