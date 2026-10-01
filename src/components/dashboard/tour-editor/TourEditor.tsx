@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import dynamicImport from "next/dynamic";
 import { createPortal } from "react-dom";
-import { ChevronDown, Crosshair, Flag, MapPin, Move, Network, Plus, Trash2, X } from "lucide-react";
+import { ChevronDown, Crosshair, Flag, MapPin, Move, Network, Play, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { FormField } from "@/components/ui/FormField";
 import { cn } from "@/lib/utils/cn";
@@ -22,8 +22,14 @@ import {
 import { uploadPhoto360File } from "@/lib/media/upload-photo360";
 import { ArrivalAligner, type AlignResult } from "./ArrivalAligner";
 import { TargetPicker } from "./TargetPicker";
+import { TourMiniMap } from "./TourMiniMap";
 
 const TourGraph = dynamicImport(() => import("./TourGraph").then((m) => m.TourGraph), { ssr: false });
+
+const VirtualTourViewer = dynamicImport(
+  () => import("@/components/property/VirtualTourViewer").then((m) => m.VirtualTourViewer),
+  { ssr: false }
+);
 
 type Mode = "view" | "add" | "relocate";
 type Draft = SpherePosition & { label: string };
@@ -65,6 +71,7 @@ export function TourEditor({
   const [panelOpen, setPanelOpen] = useState(true);
   const [confirmDeleteScene, setConfirmDeleteScene] = useState(false);
   const [showGraph, setShowGraph] = useState(false);
+  const [testing, setTesting] = useState(false);
 
   const scene = scenes.find((s) => s.id === sceneId);
   const sceneIndex = scenes.findIndex((s) => s.id === sceneId);
@@ -112,7 +119,8 @@ export function TourEditor({
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
-      if (showGraph) setShowGraph(false);
+      if (testing) setTesting(false);
+      else if (showGraph) setShowGraph(false);
       else if (flow) setFlow(null);
       else if (draft) setDraft(null);
       else if (mode !== "view") setMode("view");
@@ -120,7 +128,7 @@ export function TourEditor({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [showGraph, flow, draft, mode, onClose]);
+  }, [testing, showGraph, flow, draft, mode, onClose]);
 
   // Bloquea el scroll de la página de atrás mientras el editor está abierto.
   useEffect(() => {
@@ -190,11 +198,20 @@ export function TourEditor({
       if (!backPos) return target.links;
       if (existingBack) {
         return target.links.map((l) =>
-          l.id === existingBack.id ? { ...l, yaw: backPos.yaw, pitch: backPos.pitch, label: backPos.label.slice(0, 40) } : l
+          l.id === existingBack.id
+            ? {
+                ...l,
+                yaw: backPos.yaw,
+                pitch: backPos.pitch,
+                label: backPos.label.slice(0, 40),
+                arrivalYaw: backPos.arrival.yaw,
+                arrivalPitch: backPos.arrival.pitch,
+              }
+            : l
         );
       }
       if (target.links.length >= MAX_LINKS_PER_SCENE) return target.links;
-      return [...target.links, makeReturnLink(link, backPos, backPos.label, scene.id)];
+      return [...target.links, makeReturnLink(link, backPos, backPos.label, scene.id, backPos.arrival)];
     })();
     savedBack = !!backPos && nextTargetLinks !== target.links;
 
@@ -252,6 +269,9 @@ export function TourEditor({
       <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
         <h2 className="font-display text-base font-semibold text-text">Recorrido 360°</h2>
         <div className="flex items-center gap-2">
+          <Button type="button" size="sm" variant="secondary" onClick={() => setTesting(true)}>
+            <Play className="h-3.5 w-3.5" aria-hidden /> Probar recorrido
+          </Button>
           <Button type="button" size="sm" variant="secondary" onClick={() => setShowGraph(true)}>
             <Network className="h-3.5 w-3.5" aria-hidden /> Mapa de nodos
           </Button>
@@ -408,6 +428,14 @@ export function TourEditor({
               </section>
             )}
 
+            {/* Mini mapa de conexiones */}
+            {scenes.length > 1 && (
+              <section className="flex flex-col gap-2">
+                <h3 className="text-sm font-semibold text-text">Conexiones</h3>
+                <TourMiniMap scenes={scenes} startId={startId} currentId={sceneId} onSelect={selectScene} />
+              </section>
+            )}
+
             {/* Marcadores de esta foto */}
             <section className="flex flex-col gap-2">
               <h3 className="text-sm font-semibold text-text">
@@ -515,6 +543,25 @@ export function TourEditor({
         </aside>
       </div>
 
+      {testing && (
+        <div role="dialog" aria-modal="true" aria-label="Probar el recorrido" className="absolute inset-0 z-30 flex flex-col bg-bg">
+          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
+            <div className="min-w-0">
+              <h3 className="font-display text-base font-semibold text-text">Probar recorrido</h3>
+              <p className="truncate text-xs text-text-muted">
+                Así lo verá el visitante, con lo que tenés ahora (aún sin guardar). Tocá los marcadores para moverte.
+              </p>
+            </div>
+            <Button type="button" size="sm" onClick={() => setTesting(false)}>
+              Volver al editor
+            </Button>
+          </div>
+          <div className="min-h-0 flex-1">
+            <VirtualTourViewer scenes={scenes} startId={sceneId} />
+          </div>
+        </div>
+      )}
+
       {showGraph && (
         <TourGraph
           scenes={scenes}
@@ -555,6 +602,12 @@ export function TourEditor({
           // `key`: el alineador crea su propio viewer — uno nuevo por destino.
           key={flow.targetId}
           target={scenes.find((s) => s.id === flow.targetId)!}
+          origin={scene}
+          originMarker={
+            flow.purpose === "new" && draft
+              ? { yaw: draft.yaw, pitch: draft.pitch }
+              : { yaw: selectedLink?.yaw ?? 0, pitch: selectedLink?.pitch ?? 0 }
+          }
           fromLabel={sceneName(scene, sceneIndex)}
           initial={flow.initial}
           askReturn={flow.purpose === "new"}

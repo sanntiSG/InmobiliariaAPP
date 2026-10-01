@@ -17,7 +17,7 @@ import "@xyflow/react/dist/style.css";
 import { Flag, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils/cn";
-import { sceneName, type TourScene } from "@/components/tour/tour-types";
+import { layoutScenes, sceneName, type TourScene } from "@/components/tour/tour-types";
 
 type SceneNodeData = { label: string; url: string; isStart: boolean; isCurrent: boolean; linkCount: number };
 type SceneNode = Node<SceneNodeData, "scene">;
@@ -52,34 +52,11 @@ function SceneNodeView({ data }: NodeProps<SceneNode>) {
 
 const nodeTypes = { scene: SceneNodeView };
 
-/** Posiciones iniciales por BFS desde la foto de inicio (una columna por "salto"). */
+/** Posiciones iniciales (px) a partir de la grilla BFS compartida. */
 function autoLayout(scenes: TourScene[], startId: string | undefined): Map<string, { x: number; y: number }> {
-  const byId = new Map(scenes.map((s) => [s.id, s]));
-  const layer = new Map<string, number>();
-  const queue: string[] = [];
-  const seed = startId && byId.has(startId) ? startId : scenes[0]?.id;
-  if (seed) {
-    layer.set(seed, 0);
-    queue.push(seed);
-  }
-  while (queue.length) {
-    const id = queue.shift()!;
-    for (const l of byId.get(id)?.links ?? []) {
-      if (!layer.has(l.targetId) && byId.has(l.targetId)) {
-        layer.set(l.targetId, layer.get(id)! + 1);
-        queue.push(l.targetId);
-      }
-    }
-  }
-  // Escenas inalcanzables: una columna extra al final.
-  const extra = Math.max(-1, ...layer.values()) + 1;
-  const rows = new Map<number, number>();
   const out = new Map<string, { x: number; y: number }>();
-  for (const s of scenes) {
-    const col = layer.get(s.id) ?? extra;
-    const row = rows.get(col) ?? 0;
-    rows.set(col, row + 1);
-    out.set(s.id, { x: col * (NODE_W + COL_GAP), y: row * (NODE_W * 0.8 + ROW_GAP + 40) });
+  for (const [id, { col, row }] of layoutScenes(scenes, startId)) {
+    out.set(id, { x: col * (NODE_W + COL_GAP), y: row * (NODE_W * 0.8 + ROW_GAP + 40) });
   }
   return out;
 }

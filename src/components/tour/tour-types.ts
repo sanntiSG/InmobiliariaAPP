@@ -55,13 +55,16 @@ export function sceneName(scene: TourScene, index: number): string {
 /**
  * Vínculo de regreso: vive en la escena destino de `link` y apunta a la
  * escena de origen. La posición del marcador la elige la persona a mano; al
- * volver, la cámara mira de espaldas al marcador original (180°).
+ * volver, por defecto la cámara mira hacia el marcador original (la puerta
+ * o esquina por la que se salió), así el visitante sabe de dónde viene;
+ * se puede ajustar a mano con `arrival`.
  */
 export function makeReturnLink(
   link: TourLink,
   pos: { yaw: number; pitch: number },
   label: string,
-  originId: string
+  originId: string,
+  arrival?: { yaw: number; pitch: number }
 ): TourLink {
   return {
     id: newId(),
@@ -69,8 +72,8 @@ export function makeReturnLink(
     label: label.slice(0, 40),
     yaw: normalizeYaw(pos.yaw),
     pitch: pos.pitch,
-    arrivalYaw: normalizeYaw(link.yaw + Math.PI),
-    arrivalPitch: 0,
+    arrivalYaw: normalizeYaw(arrival?.yaw ?? link.yaw),
+    arrivalPitch: arrival?.pitch ?? link.pitch,
   };
 }
 
@@ -107,4 +110,45 @@ export function normalizeLegacyScene(
     links: (t.links ?? []) as TourLink[],
     graph: t.graph,
   };
+}
+
+const NODE_COL_GAP = 1;
+
+/**
+ * Posiciones por BFS desde la foto de inicio: una columna por "salto" y una
+ * fila por escena dentro de cada columna (unidades de grilla, no píxeles).
+ * Las escenas inalcanzables van en una columna extra al final. Lo usan el
+ * mapa de nodos (React Flow) y el mini mapa del panel.
+ */
+export function layoutScenes(
+  scenes: TourScene[],
+  startId: string | undefined
+): Map<string, { col: number; row: number }> {
+  const byId = new Map(scenes.map((s) => [s.id, s]));
+  const layer = new Map<string, number>();
+  const queue: string[] = [];
+  const seed = startId && byId.has(startId) ? startId : scenes[0]?.id;
+  if (seed) {
+    layer.set(seed, 0);
+    queue.push(seed);
+  }
+  while (queue.length) {
+    const id = queue.shift()!;
+    for (const l of byId.get(id)?.links ?? []) {
+      if (!layer.has(l.targetId) && byId.has(l.targetId)) {
+        layer.set(l.targetId, layer.get(id)! + NODE_COL_GAP);
+        queue.push(l.targetId);
+      }
+    }
+  }
+  const extra = Math.max(-1, ...layer.values()) + 1;
+  const rows = new Map<number, number>();
+  const out = new Map<string, { col: number; row: number }>();
+  for (const s of scenes) {
+    const col = layer.get(s.id) ?? extra;
+    const row = rows.get(col) ?? 0;
+    rows.set(col, row + 1);
+    out.set(s.id, { col, row });
+  }
+  return out;
 }
