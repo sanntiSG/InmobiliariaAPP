@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import dynamicImport from "next/dynamic";
 import { createPortal } from "react-dom";
-import { ChevronDown, Crosshair, Flag, MapPin, Move, Plus, Trash2, X } from "lucide-react";
+import { ChevronDown, Crosshair, Flag, MapPin, Move, Network, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { FormField } from "@/components/ui/FormField";
 import { cn } from "@/lib/utils/cn";
@@ -21,6 +22,8 @@ import {
 import { uploadPhoto360File } from "@/lib/media/upload-photo360";
 import { ArrivalAligner } from "./ArrivalAligner";
 import { TargetPicker } from "./TargetPicker";
+
+const TourGraph = dynamicImport(() => import("./TourGraph").then((m) => m.TourGraph), { ssr: false });
 
 type Mode = "view" | "add" | "relocate";
 type Draft = SpherePosition & { label: string };
@@ -61,6 +64,7 @@ export function TourEditor({
   const [notice, setNotice] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(true);
   const [confirmDeleteScene, setConfirmDeleteScene] = useState(false);
+  const [showGraph, setShowGraph] = useState(false);
 
   const scene = scenes.find((s) => s.id === sceneId);
   const sceneIndex = scenes.findIndex((s) => s.id === sceneId);
@@ -108,14 +112,15 @@ export function TourEditor({
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
-      if (flow) setFlow(null);
+      if (showGraph) setShowGraph(false);
+      else if (flow) setFlow(null);
       else if (draft) setDraft(null);
       else if (mode !== "view") setMode("view");
       else onClose();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [flow, draft, mode, onClose]);
+  }, [showGraph, flow, draft, mode, onClose]);
 
   // Bloquea el scroll de la página de atrás mientras el editor está abierto.
   useEffect(() => {
@@ -234,9 +239,14 @@ export function TourEditor({
     <div role="dialog" aria-modal="true" aria-label="Editor del recorrido 360°" className="fixed inset-0 z-[60] flex flex-col bg-bg">
       <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
         <h2 className="font-display text-base font-semibold text-text">Recorrido 360°</h2>
-        <Button type="button" size="sm" onClick={onClose}>
-          Listo
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button type="button" size="sm" variant="secondary" onClick={() => setShowGraph(true)}>
+            <Network className="h-3.5 w-3.5" aria-hidden /> Mapa de nodos
+          </Button>
+          <Button type="button" size="sm" onClick={onClose}>
+            Listo
+          </Button>
+        </div>
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
@@ -492,6 +502,24 @@ export function TourEditor({
           </div>
         </aside>
       </div>
+
+      {showGraph && (
+        <TourGraph
+          scenes={scenes}
+          startId={startId}
+          currentId={sceneId}
+          onClose={() => setShowGraph(false)}
+          onOpenScene={(id) => {
+            selectScene(id);
+            setShowGraph(false);
+          }}
+          onMoveNode={(id, pos) => patchScene(id, (sc) => ({ ...sc, graph: pos }))}
+          onDeleteLink={(sid, lid) => {
+            patchScene(sid, (sc) => ({ ...sc, links: sc.links.filter((l) => l.id !== lid) }));
+            if (sid === sceneId && selectedLinkId === lid) setSelectedLinkId(null);
+          }}
+        />
+      )}
 
       {flow?.kind === "picking" && (
         <TargetPicker
