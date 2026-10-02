@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 
+// Render (plan free, 512 MB) se queda sin memoria en el type-check de `next build`.
+// `npm run typecheck` ya corre antes de cada commit; sólo se saltea acá (Render define RENDER=true).
+const onRender = process.env.RENDER === "true";
+
 const nextConfig: NextConfig = {
+  typescript: { ignoreBuildErrors: onRender },
   allowedDevOrigins: [
     "192.168.56.1",
     "192.168.0.21", // IP real de Wi-Fi
