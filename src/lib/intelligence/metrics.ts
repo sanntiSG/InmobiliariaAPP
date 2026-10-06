@@ -119,7 +119,10 @@ export function sumMetrics(all: Iterable<PropertyMetrics>): { w7: Totals; p7: To
   return { w7, p7, d30 };
 }
 
-export type DailyPoint = { day: string } & Pick<Totals, "views" | "saves" | "likes" | "inquiries" | "contacts" | "shares">;
+export type DailyPoint = { day: string } & Pick<
+  Totals,
+  "views" | "uniqueViews" | "saves" | "likes" | "inquiries" | "contacts" | "shares" | "tourOpens"
+>;
 
 /** Serie diaria de los últimos `days` días (con ceros en los días sin actividad) — para gráficos de tendencia. */
 export async function getDailySeries(scope: MetricsScope, days = 30, now = new Date()): Promise<DailyPoint[]> {
@@ -132,11 +135,13 @@ export async function getDailySeries(scope: MetricsScope, days = 30, now = new D
       $group: {
         _id: "$day",
         views: { $sum: "$views" },
+        uniqueViews: { $sum: "$uniqueViews" },
         saves: { $sum: "$saves" },
         likes: { $sum: "$likes" },
         inquiries: { $sum: "$inquiries" },
         contacts: { $sum: "$contacts" },
         shares: { $sum: "$shares" },
+        tourOpens: { $sum: "$tourOpens" },
       },
     },
   ]);
@@ -149,11 +154,13 @@ export async function getDailySeries(scope: MetricsScope, days = 30, now = new D
     series.push({
       day: new Date(t).toISOString(),
       views: r?.views ?? 0,
+      uniqueViews: r?.uniqueViews ?? 0,
       saves: r?.saves ?? 0,
       likes: r?.likes ?? 0,
       inquiries: r?.inquiries ?? 0,
       contacts: r?.contacts ?? 0,
       shares: r?.shares ?? 0,
+      tourOpens: r?.tourOpens ?? 0,
     });
   }
   return series;

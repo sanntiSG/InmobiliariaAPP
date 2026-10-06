@@ -1,6 +1,6 @@
 import { Types } from "mongoose";
 import { Property } from "@/lib/db/models/Property";
-import { benchFor, getBenchmarks } from "./benchmarks";
+import { benchFor, getBenchmarks, type Bench } from "./benchmarks";
 import { memo } from "./cache";
 import {
   diagnoseProperty,
@@ -35,6 +35,7 @@ export type PropertyInsight = {
   neighborhood: string | null;
   d30: Totals;
   w7: Totals;
+  p7: Totals;
   score: number;
   dominant: InteractionKind | null;
   diagnostics: Diagnostic[];
@@ -45,6 +46,8 @@ export type Intelligence = {
   totals: { w7: Totals; p7: Totals; d30: Totals };
   funnels: Funnels;
   leads: LeadFunnel;
+  /** Referencia de la plataforma (mediana de tasas) para comparar los embudos propios. */
+  benchmark: Bench;
   /** Todas las propiedades publicadas con su diagnóstico, ordenadas por interés. */
   properties: PropertyInsight[];
   /** Las que más interés generan. */
@@ -125,6 +128,7 @@ async function computeIntelligence(agencyId: string | null): Promise<Intelligenc
       neighborhood: doc.address?.neighborhood ?? null,
       d30,
       w7: metrics?.w7 ?? emptyTotals(),
+      p7: metrics?.p7 ?? emptyTotals(),
       score: interestScore(d30),
       dominant: dominantInteraction(d30),
       diagnostics,
@@ -152,6 +156,7 @@ async function computeIntelligence(agencyId: string | null): Promise<Intelligenc
     totals,
     funnels: computeFunnels(totals.d30, leads),
     leads,
+    benchmark: benchmarks.platform,
     properties,
     working: properties.filter((p) => p.score > 0).slice(0, 3),
     needsAttention: needsAttention.slice(0, 3),

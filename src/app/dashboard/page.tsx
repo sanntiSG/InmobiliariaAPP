@@ -1,179 +1,239 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Plus, ArrowRight } from "lucide-react";
+import { after } from "next/server";
+import { ArrowRight, Plus } from "lucide-react";
 import { requireDashboardAccess } from "@/lib/auth/require-dashboard-access";
+import { agencyScope } from "@/lib/auth/agency-scope";
 import { connectDB } from "@/lib/db/connect";
-import { Property } from "@/lib/db/models/Property";
-import { getAgencyWeeklyStats, getAgencyRecommendations } from "@/lib/analytics/agency-stats";
+import { Agency } from "@/lib/db/models/Agency";
+import { getIntelligence } from "@/lib/intelligence/opportunities";
+import { avgDwellSec, consultas, deltaPct, getDailySeries, type Totals } from "@/lib/intelligence/metrics";
+import { maybeSendOpportunityNotifications } from "@/lib/intelligence/notify";
 import { StatTile } from "@/components/dashboard/StatTile";
-import { RecommendationsList } from "@/components/dashboard/RecommendationsList";
+import { DiagnosticCard } from "@/components/dashboard/DiagnosticCard";
+import { DashboardReveal } from "@/components/dashboard/DashboardReveal";
+import { AgencyFilterSelect } from "@/components/dashboard/AgencyFilterSelect";
+import { TrendChart } from "@/components/dashboard/charts/TrendChart";
+import { Meter } from "@/components/dashboard/charts/Meter";
+import { BarList } from "@/components/dashboard/charts/BarList";
 import { buttonClasses } from "@/components/ui/Button";
-import { formatPrice } from "@/lib/utils/format";
-import { PROPERTY_STATUS_LABELS } from "@/config/filters";
 
-export const metadata = { title: "Dashboard" };
+export const metadata = { title: "Resumen" };
 
-export default async function DashboardOverviewPage() {
+const pctText = (n: number | null) => (n == null ? "—" : `${(n * 100).toFixed(n < 0.1 ? 1 : 0)}%`);
+const nf = new Intl.NumberFormat("es-AR");
+
+export default async function DashboardOverviewPage({ searchParams }: PageProps<"/dashboard">) {
   const access = await requireDashboardAccess();
   if (!access) redirect("/ingresar");
 
+  const rawAgency = (await searchParams).agencyId;
+  const scope = agencyScope(access, Array.isArray(rawAgency) ? rawAgency[0] : rawAgency);
+  if (!scope) redirect("/");
+
   await connectDB();
+  const [intel, series, agencies] = await Promise.all([
+    getIntelligence(scope.agencyId),
+    getDailySeries({ agencyId: scope.agencyId }, 30),
+    access.isAdmin ? Agency.find({}).select("name").sort({ name: 1 }).lean() : Promise.resolve(null),
+  ]);
 
-  const query = access.isAdmin ? {} : { agencyId: access.agencyId };
-  let propertiesQuery = Property.find(query)
-    .select("title slug status price stats publishedAt agencyId")
-    .sort({ updatedAt: -1 })
-    .limit(5);
-  if (access.isAdmin) {
-    propertiesQuery = propertiesQuery.populate({ path: "agencyId", select: "name" });
-  }
+  // Avisos de oportunidades importantes a la inmobiliaria, fuera del render.
+  if (!access.isAdmin && scope.agencyId) after(() => maybeSendOpportunityNotifications(scope.agencyId!));
 
-  if (access.isAdmin) {
-    const [properties, platformStats] = await Promise.all([
-      propertiesQuery.lean(),
-      getAgencyWeeklyStats(null),
-    ]);
+  const { w7, p7, d30 } = intel.totals;
+  const metric = (pick: (t: Totals) => number) => ({
+    current: pick(w7),
+    previous: pick(p7),
+    deltaPct: deltaPct(pick(w7), pick(p7)),
+  });
+  const last14 = series.slice(-14);
+  const trendOf = (pick: (p: (typeof series)[number]) => number) => last14.map(pick);
 
-    return (
-      <div className="flex flex-col gap-8">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="font-display text-2xl font-bold text-text">Resumen</h1>
-            <p className="text-sm text-text-muted">
-              Como admin ves y podés crear propiedades para cualquier inmobiliaria.{" "}
-              <Link href="/admin" className="inline-flex items-center gap-1 font-medium text-accent hover:underline">
-                Gestionar inmobiliarias <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-              </Link>
-            </p>
-          </div>
-          <Link
-            href="/dashboard/propiedades/nueva"
-            className={buttonClasses("primary", "md", "inline-flex items-center gap-1.5")}
-          >
+  const dwellNow = avgDwellSec(w7);
+  const dwellBefore = avgDwellSec(p7);
+  const dwellMetric = {
+    current: dwellNow ?? 0,
+    previous: dwellBefore ?? 0,
+    deltaPct: dwellNow != null && dwellBefore != null ? deltaPct(dwellNow, dwellBefore) : null,
+  };
+
+  const hasTraffic = d30.views > 0;
+  const attention = intel.opportunities.filter((o) => o.kind === "attention");
+  const positives = intel.opportunities.filter((o) => o.kind === "positive");
+  const topOpportunities = intel.opportunities.filter((o) => o.kind !== "positive").slice(0, 3);
+  const f = intel.funnels;
+
+  return (
+    <DashboardReveal className="flex flex-col gap-8">
+      <div data-reveal className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-bold text-text">Resumen</h1>
+          <p className="text-sm text-text-muted">
+            {access.isAdmin && !scope.agencyId
+              ? "Toda la plataforma. "
+              : ""}
+            Esta semana contra la anterior, con la tendencia de los últimos 30 días.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {access.isAdmin && agencies && (
+            <AgencyFilterSelect
+              agencies={agencies.map((a) => ({ id: String(a._id), name: a.name }))}
+              selected={scope.agencyId ?? ""}
+              basePath="/dashboard"
+            />
+          )}
+          <Link href="/dashboard/propiedades/nueva" className={buttonClasses("primary", "md", "inline-flex items-center gap-1.5")}>
             <Plus className="h-4 w-4" aria-hidden /> Nueva propiedad
           </Link>
         </div>
+      </div>
 
-        <section>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-text-muted">Últimos 7 días — toda la plataforma</h2>
-            <Link
-              href="/admin/estadisticas"
-              className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
-            >
-              Ver estadísticas completas <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-            </Link>
+      {intel.published === 0 && (
+        <div data-reveal className="rounded-card bg-surface p-8 text-center shadow-card">
+          <p className="font-medium text-text">Todavía no hay propiedades publicadas.</p>
+          <p className="mt-1 text-sm text-text-muted">Publicá la primera y acá vas a ver cómo le va.</p>
+          <Link href="/dashboard/propiedades/nueva" className={buttonClasses("primary", "md", "mt-4 inline-flex")}>
+            Cargar una propiedad
+          </Link>
+        </div>
+      )}
+
+      {intel.published > 0 && !hasTraffic && (
+        <p data-reveal className="rounded-card bg-accent-soft p-4 text-sm text-text">
+          Todavía no se registraron visitas en los últimos 30 días. Los números y los diagnósticos aparecen apenas
+          lleguen las primeras.
+        </p>
+      )}
+
+      <section data-reveal aria-label="Indicadores de la semana">
+        <div className="grid grid-cols-1 gap-4 min-[480px]:grid-cols-2 xl:grid-cols-3">
+          <StatTile
+            label="Propiedades publicadas"
+            metric={{ current: intel.published, previous: 0, deltaPct: null }}
+            hint="Visibles en el mapa y el listado"
+          />
+          <StatTile label="Visitas" metric={metric((t) => t.views)} trend={trendOf((p) => p.views)} />
+          <StatTile label="Visitas únicas" metric={metric((t) => t.uniqueViews)} trend={trendOf((p) => p.uniqueViews)} />
+          <StatTile label="Favoritos" metric={metric((t) => t.saves)} trend={trendOf((p) => p.saves)} />
+          <StatTile label="Me gusta" metric={metric((t) => t.likes)} trend={trendOf((p) => p.likes)} />
+          <StatTile label="Consultas" metric={metric(consultas)} trend={trendOf((p) => p.inquiries + p.contacts)} />
+          <StatTile label="Compartidas" metric={metric((t) => t.shares)} trend={trendOf((p) => p.shares)} />
+          <StatTile label="Visitas a recorridos 360°" metric={metric((t) => t.tourOpens)} trend={trendOf((p) => p.tourOpens)} />
+          <StatTile label="Tiempo promedio en la ficha" metric={dwellMetric} format="seconds" hint="Todavía sin lecturas medidas" />
+        </div>
+      </section>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <section data-reveal className="rounded-card bg-surface p-5 shadow-card lg:col-span-2">
+          <div className="mb-3 flex items-baseline justify-between gap-3">
+            <h2 className="font-display text-lg font-semibold text-text">Visitas de los últimos 30 días</h2>
+            <span className="text-sm text-text-muted">{nf.format(d30.views)} en total</span>
           </div>
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <StatTile label="Visualizaciones" metric={platformStats.views} />
-            <StatTile label="Me gusta" metric={platformStats.likes} />
-            <StatTile label="Guardados" metric={platformStats.saves} />
-            <StatTile label="Comentarios" metric={platformStats.comments} />
-          </div>
+          <TrendChart points={series} label="Visitas por día" />
         </section>
 
-        <section>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-text-muted">Propiedades recientes (todas las inmobiliarias)</h2>
-            <Link href="/dashboard/propiedades" className="text-sm font-medium text-accent hover:underline">
-              Ver todas
-            </Link>
+        <section data-reveal className="flex flex-col gap-5 rounded-card bg-surface p-5 shadow-card">
+          <div>
+            <h2 className="font-display text-lg font-semibold text-text">¿Se convierte el interés?</h2>
+            <p className="text-sm text-text-muted">Últimos 30 días, contra propiedades similares.</p>
           </div>
+          <Meter
+            label="Visitas → favoritos"
+            value={f.visitsToSaves}
+            reference={intel.benchmark.saveRate}
+            valueText={pctText(f.visitsToSaves)}
+            caption={`${nf.format(d30.saves)} de ${nf.format(d30.views)} visitas`}
+          />
+          <Meter
+            label="Visitas → consultas"
+            value={f.visitsToConsultas}
+            reference={intel.benchmark.inquiryRate}
+            valueText={pctText(f.visitsToConsultas)}
+            caption={`${nf.format(consultas(d30))} de ${nf.format(d30.views)} visitas`}
+          />
+          <Meter
+            label="Consultas → visitas presenciales"
+            value={f.consultasToVisits}
+            valueText={pctText(f.consultasToVisits)}
+            caption={`${nf.format(intel.leads.visitDone)} de ${nf.format(intel.leads.total)} clientes`}
+          />
+        </section>
+      </div>
 
-          {properties.length === 0 ? (
-            <p className="text-sm text-text-muted">Todavía no hay propiedades publicadas.</p>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <section data-reveal className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
+          <div>
+            <h2 className="font-display text-lg font-semibold text-text">¿Qué está funcionando?</h2>
+            <p className="text-sm text-text-muted">Las propiedades que más interés generan.</p>
+          </div>
+          <BarList
+            emptyText="Cuando lleguen las primeras visitas, acá vas a ver cuáles destacan."
+            items={intel.working.map((p) => ({
+              label: p.title,
+              value: p.score,
+              valueText: `${nf.format(p.score)} pts`,
+              sublabel: p.dominant ? `Sobre todo ${p.dominant}` : undefined,
+              href: `/dashboard/propiedades/${p.id}/estadisticas`,
+            }))}
+          />
+          {positives.slice(0, 2).map((d) => (
+            <DiagnosticCard key={d.id} diagnostic={d} compact />
+          ))}
+        </section>
+
+        <section data-reveal className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
+          <div>
+            <h2 className="font-display text-lg font-semibold text-text">¿Qué necesita atención?</h2>
+            <p className="text-sm text-text-muted">Lo que no está funcionando como debería.</p>
+          </div>
+          {attention.length === 0 ? (
+            <p className="rounded-media bg-success-soft p-4 text-sm text-text">
+              Todo en orden: no detectamos nada que requiera atención.
+            </p>
           ) : (
-            <div className="overflow-hidden rounded-card bg-surface shadow-card">
-              {properties.map((p, i) => {
-                const agency = p.agencyId as unknown as { name?: string } | null;
-                return (
-                  <Link
-                    key={String(p._id)}
-                    href={`/dashboard/propiedades/${p._id}/editar`}
-                    className={`flex items-center justify-between gap-4 px-5 py-3.5 hover:bg-surface-2 ${i > 0 ? "border-t border-border" : ""}`}
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate font-medium text-text">{p.title}</p>
-                      <p className="text-sm text-text-muted">
-                        {formatPrice(p.price!.amount, p.price!.currency)} · {agency?.name ?? "—"}
-                      </p>
-                    </div>
-                    <span className="shrink-0 rounded-pill bg-surface-2 px-2.5 py-1 text-xs font-medium text-text-muted">
-                      {PROPERTY_STATUS_LABELS[p.status as keyof typeof PROPERTY_STATUS_LABELS] ?? p.status}
-                    </span>
-                  </Link>
-                );
-              })}
-            </div>
+            <ul className="flex flex-col gap-3">
+              {attention.slice(0, 4).map((d) => (
+                <li key={d.id} className="rounded-media bg-surface-2 p-4">
+                  <p className="text-sm font-semibold text-text">{d.title}</p>
+                  {d.propertyTitle && <p className="text-xs text-text-muted">{d.propertyTitle}</p>}
+                  <p className="mt-1 text-sm text-text-muted">{d.explanation}</p>
+                  {d.propertyId && (
+                    <Link
+                      href={`/dashboard/propiedades/${d.propertyId}/estadisticas`}
+                      className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
+                    >
+                      Ver diagnóstico <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+                    </Link>
+                  )}
+                </li>
+              ))}
+            </ul>
           )}
         </section>
       </div>
-    );
-  }
 
-  const agencyId = access.agencyId!;
-  const [stats, properties] = await Promise.all([getAgencyWeeklyStats(agencyId), propertiesQuery.lean()]);
-  const recommendations = await getAgencyRecommendations(agencyId, stats);
-
-  return (
-    <div className="flex flex-col gap-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-display text-2xl font-bold text-text">Resumen</h1>
-        <Link
-          href="/dashboard/propiedades/nueva"
-          className={buttonClasses("primary", "md", "inline-flex items-center gap-1.5")}
-        >
-          <Plus className="h-4 w-4" aria-hidden /> Nueva propiedad
-        </Link>
-      </div>
-
-      <section>
-        <h2 className="mb-3 text-sm font-semibold text-text-muted">Últimos 7 días</h2>
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <StatTile label="Visualizaciones" metric={stats.views} />
-          <StatTile label="Me gusta" metric={stats.likes} />
-          <StatTile label="Guardados" metric={stats.saves} />
-          <StatTile label="Comentarios" metric={stats.comments} />
-        </div>
-      </section>
-
-      <section>
-        <h2 className="mb-3 text-sm font-semibold text-text-muted">Recomendaciones</h2>
-        <RecommendationsList recommendations={recommendations} />
-      </section>
-
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-text-muted">Propiedades recientes</h2>
-          <Link href="/dashboard/propiedades" className="text-sm font-medium text-accent hover:underline">
-            Ver todas
+      <section data-reveal className="flex flex-col gap-4">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <h2 className="font-display text-lg font-semibold text-text">Oportunidades</h2>
+            <p className="text-sm text-text-muted">Dónde hay margen para mejorar, ordenadas por prioridad.</p>
+          </div>
+          <Link href="/dashboard/oportunidades" className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline">
+            Ver todas ({intel.opportunities.filter((o) => o.kind !== "positive").length}) <ArrowRight className="h-3.5 w-3.5" aria-hidden />
           </Link>
         </div>
-
-        {properties.length === 0 ? (
-          <p className="text-sm text-text-muted">Todavía no publicaste ninguna propiedad.</p>
+        {topOpportunities.length === 0 ? (
+          <p className="rounded-card bg-surface p-5 text-sm text-text-muted shadow-card">No hay oportunidades pendientes por ahora.</p>
         ) : (
-          <div className="overflow-hidden rounded-card bg-surface shadow-card">
-            {properties.map((p, i) => (
-              <Link
-                key={String(p._id)}
-                href={`/dashboard/propiedades/${p._id}/editar`}
-                className={`flex items-center justify-between gap-4 px-5 py-3.5 hover:bg-surface-2 ${i > 0 ? "border-t border-border" : ""}`}
-              >
-                <div className="min-w-0">
-                  <p className="truncate font-medium text-text">{p.title}</p>
-                  <p className="text-sm text-text-muted">
-                    {formatPrice(p.price!.amount, p.price!.currency)} · {p.stats?.views ?? 0} vistas
-                  </p>
-                </div>
-                <span className="shrink-0 rounded-pill bg-surface-2 px-2.5 py-1 text-xs font-medium text-text-muted">
-                  {PROPERTY_STATUS_LABELS[p.status as keyof typeof PROPERTY_STATUS_LABELS] ?? p.status}
-                </span>
-              </Link>
+          <div className="grid gap-4 lg:grid-cols-1">
+            {topOpportunities.map((d) => (
+              <DiagnosticCard key={d.id} diagnostic={d} compact />
             ))}
           </div>
         )}
       </section>
-    </div>
+    </DashboardReveal>
   );
 }

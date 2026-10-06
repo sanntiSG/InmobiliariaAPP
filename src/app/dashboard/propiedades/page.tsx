@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Plus } from "lucide-react";
+import { BarChart3, Plus } from "lucide-react";
 import { requireDashboardAccess } from "@/lib/auth/require-dashboard-access";
 import { connectDB } from "@/lib/db/connect";
 import { Property } from "@/lib/db/models/Property";
@@ -94,6 +94,14 @@ export default async function DashboardPropertiesPage({
                 <span className="hidden shrink-0 rounded-pill bg-surface-2 px-2.5 py-1 text-xs font-medium text-text-muted sm:inline-block">
                   {PROPERTY_STATUS_LABELS[p.status as PropertyStatus] ?? p.status}
                 </span>
+                <Link
+                  href={`/dashboard/propiedades/${p._id}/estadisticas`}
+                  aria-label={`Estadísticas de ${p.title}`}
+                  title="Estadísticas y diagnóstico"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-surface-2 hover:text-accent"
+                >
+                  <BarChart3 className="h-[18px] w-[18px]" aria-hidden />
+                </Link>
                 <DeletePropertyButton propertyId={String(p._id)} title={p.title} />
               </div>
             );

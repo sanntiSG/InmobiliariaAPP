@@ -8,6 +8,7 @@ const BASE_LINKS = [
   { href: "/dashboard", label: "Resumen", exact: true },
   { href: "/dashboard/propiedades", label: "Propiedades" },
   { href: "/dashboard/clientes", label: "Clientes" },
+  { href: "/dashboard/oportunidades", label: "Oportunidades" },
 ];
 
 const ADMIN_LINK = { href: "/admin", label: "Inmobiliarias", exact: false };
