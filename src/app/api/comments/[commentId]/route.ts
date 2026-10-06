@@ -4,10 +4,14 @@ import { connectDB } from "@/lib/db/connect";
 import { Comment } from "@/lib/db/models/Comment";
 import { Property } from "@/lib/db/models/Property";
 import { requireUser } from "@/lib/auth/require-user";
+import { limitOr429 } from "@/lib/security/rate-limit";
 
-export async function DELETE(_req: Request, { params }: { params: Promise<{ commentId: string }> }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ commentId: string }> }) {
   const user = await requireUser();
   if (!user) return NextResponse.json({ error: "Necesitás iniciar sesión." }, { status: 401 });
+
+  const limited = await limitOr429(req, "comment-delete", 30, 60, { userId: user.id });
+  if (limited) return limited;
 
   const { commentId } = await params;
   if (!Types.ObjectId.isValid(commentId)) return NextResponse.json({ error: "Id inválido" }, { status: 400 });

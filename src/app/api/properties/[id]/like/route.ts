@@ -5,10 +5,15 @@ import { Property } from "@/lib/db/models/Property";
 import { Like } from "@/lib/db/models/Like";
 import { recordEvent } from "@/lib/tracking/record";
 import { requireUser } from "@/lib/auth/require-user";
+import { limitOr429 } from "@/lib/security/rate-limit";
 
-export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
   if (!user) return NextResponse.json({ error: "Necesitás iniciar sesión." }, { status: 401 });
+
+  // Un mismo usuario no puede disparar cientos de interacciones por minuto (inflar métricas / saturar la base).
+  const limited = await limitOr429(req, "social", 60, 60, { userId: user.id });
+  if (limited) return limited;
 
   const { id } = await params;
   if (!Types.ObjectId.isValid(id)) return NextResponse.json({ error: "Id inválido" }, { status: 400 });

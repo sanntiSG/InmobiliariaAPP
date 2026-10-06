@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { softLimitOr429 } from "@/lib/security/rate-limit";
 import type { z } from "zod";
 import { connectDB } from "@/lib/db/connect";
 import { Property } from "@/lib/db/models/Property";
@@ -10,6 +11,9 @@ import { toPropertyCardData } from "@/lib/db/property-card-mapper";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  const limited = softLimitOr429(req, "map-properties", 240, 60);
+  if (limited) return limited;
+
   const searchParams = Object.fromEntries(req.nextUrl.searchParams.entries());
   const parsed = mapFiltersSchema.safeParse(searchParams);
 

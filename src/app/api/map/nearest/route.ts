@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { softLimitOr429 } from "@/lib/security/rate-limit";
 import { z } from "zod";
 import { connectDB } from "@/lib/db/connect";
 import { Property } from "@/lib/db/models/Property";
@@ -30,6 +31,9 @@ type NearestResponse = {
  * 2dsphere de Property (ver models/Property.ts) vía $geoNear.
  */
 export async function GET(req: NextRequest) {
+  const limited = softLimitOr429(req, "map-nearest", 30, 60);
+  if (limited) return limited;
+
   const parsed = querySchema.safeParse(Object.fromEntries(req.nextUrl.searchParams.entries()));
   if (!parsed.success) {
     return NextResponse.json({ error: "Parámetros inválidos", issues: parsed.error.issues }, { status: 400 });

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { softLimitOr429 } from "@/lib/security/rate-limit";
 import type { z } from "zod";
 import { connectDB } from "@/lib/db/connect";
 import { Property } from "@/lib/db/models/Property";
@@ -15,6 +16,9 @@ const SORTS: Record<string, Record<string, 1 | -1>> = {
 };
 
 export async function GET(req: NextRequest) {
+  const limited = softLimitOr429(req, "properties-list", 240, 60);
+  if (limited) return limited;
+
   const searchParams = Object.fromEntries(req.nextUrl.searchParams.entries());
   const parsed = listFiltersSchema.safeParse(searchParams);
 

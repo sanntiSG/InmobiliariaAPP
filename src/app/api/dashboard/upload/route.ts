@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Types } from "mongoose";
 import { requireDashboardAccess } from "@/lib/auth/require-dashboard-access";
+import { limitOr429 } from "@/lib/security/rate-limit";
 import { getStorageProvider } from "@/lib/storage";
 import { connectDB } from "@/lib/db/connect";
 import { Agency } from "@/lib/db/models/Agency";
@@ -28,6 +29,10 @@ export async function POST(req: Request) {
   if (access.needsOnboarding) {
     return NextResponse.json({ error: "Primero creá tu inmobiliaria en /publicar." }, { status: 403 });
   }
+
+  // Una propiedad lleva decenas de fotos, pero no cientos por hora: protege la cuota de almacenamiento.
+  const limited = await limitOr429(req, "upload", 150, 60 * 60, { userId: access.userId });
+  if (limited) return limited;
 
   const formData = await req.formData().catch(() => null);
   const file = formData?.get("file");

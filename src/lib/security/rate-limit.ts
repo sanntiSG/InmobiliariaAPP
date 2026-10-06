@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db/connect";
 import { RateLimit } from "@/lib/db/models/RateLimit";
 
@@ -48,6 +49,56 @@ async function incrementBucket(key: string, expiresAt: Date) {
     if ((err as { code?: number }).code === 11000) return run();
     throw err;
   }
+}
+
+const TOO_MANY = {
+  error: "Demasiadas solicitudes. Probá de nuevo en un momento.",
+} as const;
+
+function tooManyResponse(windowSec: number) {
+  return NextResponse.json(TOO_MANY, { status: 429, headers: { "Retry-After": String(windowSec) } });
+}
+
+/**
+ * Atajo para rutas: devuelve la respuesta 429 si se superó el límite, o `null`
+ * para seguir. Cuenta por usuario (`userId`) o, si no hay, por IP. Respaldado
+ * por Mongo, así que vale entre instancias — usalo donde el abuso cuesta
+ * (APIs externas, almacenamiento, escrituras).
+ */
+export async function limitOr429(
+  req: Request,
+  scope: string,
+  limit: number,
+  windowSec: number,
+  opts: { userId?: string; failOpen?: boolean } = {}
+): Promise<NextResponse | null> {
+  const key = opts.userId ? `${scope}:u:${opts.userId}` : `${scope}:ip:${clientIp(req)}`;
+  const result = await rateLimit(key, limit, windowSec, { failOpen: opts.failOpen ?? true });
+  return result.ok ? null : tooManyResponse(windowSec);
+}
+
+const memoryBuckets = new Map<string, { count: number; resetAt: number }>();
+
+/**
+ * Límite en memoria, sin viaje a la base: para lecturas públicas muy frecuentes
+ * (mapa, listado) donde sumar una escritura por request costaría más que el
+ * abuso que evita. Es por instancia (no global), suficiente para frenar una
+ * ráfaga desde una misma IP.
+ */
+export function softLimitOr429(req: Request, scope: string, limit: number, windowSec: number): NextResponse | null {
+  const now = Date.now();
+  const key = `${scope}:${clientIp(req)}`;
+  const bucket = memoryBuckets.get(key);
+
+  if (!bucket || bucket.resetAt <= now) {
+    if (memoryBuckets.size > 5000) {
+      for (const [k, b] of memoryBuckets) if (b.resetAt <= now) memoryBuckets.delete(k);
+    }
+    memoryBuckets.set(key, { count: 1, resetAt: now + windowSec * 1000 });
+    return null;
+  }
+  bucket.count += 1;
+  return bucket.count > limit ? tooManyResponse(windowSec) : null;
 }
 
 /** IP del cliente desde los headers del proxy (Netlify/Render ponen x-forwarded-for). */

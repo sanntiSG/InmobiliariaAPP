@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { limitOr429 } from "@/lib/security/rate-limit";
 
 /**
  * Proxy a Nominatim (OpenStreetMap) — gratis, sin API key, sin límite de
@@ -16,6 +17,10 @@ type NominatimResult = {
 };
 
 export async function GET(req: NextRequest) {
+  // Nominatim limita ~1 req/s por IP de origen: sin tope, cualquiera podría hacer que baneen la IP del servidor.
+  const limited = await limitOr429(req, "geocode", 40, 60);
+  if (limited) return limited;
+
   const q = req.nextUrl.searchParams.get("q")?.trim();
   if (!q || q.length < 3) {
     return NextResponse.json({ results: [] });

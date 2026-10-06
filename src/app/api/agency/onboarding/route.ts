@@ -6,23 +6,24 @@ import { User } from "@/lib/db/models/User";
 import { AllowedEmail } from "@/lib/db/models/AllowedEmail";
 import { onboardingAgencySchema } from "@/lib/validation/agency";
 import { slugify } from "@/lib/utils/slugify";
+import { limitOr429 } from "@/lib/security/rate-limit";
 
 /**
  * Alta de inmobiliaria por el propio usuario ya habilitado por el admin
  * (AllowedEmail con `agencyId: null` — ver `resolveAccessForEmail`). Requiere
  * estar logueado con rol de agencia y sin inmobiliaria asignada todavía.
+ *
+ * El rol y la agencia se confirman contra la base, no contra el JWT: el token
+ * puede estar desactualizado hasta 5 minutos (ver `ROLE_REFRESH_INTERVAL_MS`),
+ * y con eso un doble envío —o un permiso recién revocado— pasaba el control.
  */
 export async function POST(req: Request) {
   const session = await auth().catch(() => null);
-  const user = session?.user;
-  if (!user?.id) return NextResponse.json({ error: "Necesitás iniciar sesión." }, { status: 401 });
+  const sessionUser = session?.user;
+  if (!sessionUser?.id) return NextResponse.json({ error: "Necesitás iniciar sesión." }, { status: 401 });
 
-  if (user.role !== "agency_owner" && user.role !== "agency_agent") {
-    return NextResponse.json({ error: "No tenés permiso para crear una inmobiliaria." }, { status: 403 });
-  }
-  if (user.agencyId) {
-    return NextResponse.json({ error: "Ya tenés una inmobiliaria asignada." }, { status: 409 });
-  }
+  const limited = await limitOr429(req, "onboarding", 5, 60 * 60, { userId: sessionUser.id, failOpen: false });
+  if (limited) return limited;
 
   const parsed = onboardingAgencySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
@@ -33,9 +34,19 @@ export async function POST(req: Request) {
   try {
     await connectDB();
 
+    const user = await User.findById(sessionUser.id).select("role agencyId email").lean();
+    if (!user || (user.role !== "agency_owner" && user.role !== "agency_agent")) {
+      return NextResponse.json({ error: "No tenés permiso para crear una inmobiliaria." }, { status: 403 });
+    }
+    if (user.agencyId) {
+      return NextResponse.json({ error: "Ya tenés una inmobiliaria asignada." }, { status: 409 });
+    }
+
     let slug = slugify(data.name);
     if (await Agency.exists({ slug })) slug = `${slug}-${Date.now().toString(36)}`;
 
+    // Reserva atómica: sólo gana quien pasa `agencyId` de null a la nueva agencia.
+    // Dos envíos simultáneos no pueden crear dos inmobiliarias para la misma persona.
     const agency = await Agency.create({
       slug,
       name: data.name,
@@ -43,10 +54,13 @@ export async function POST(req: Request) {
       contact: { whatsapp: data.whatsapp, phone: data.phone, email: data.email || undefined },
       address: { city: data.city, province: data.province, country: "Argentina" },
       status: "active",
-      owners: [user.id],
+      owners: [user._id],
     });
-
-    await User.updateOne({ _id: user.id }, { $set: { agencyId: agency._id } });
+    const claimed = await User.updateOne({ _id: user._id, agencyId: null }, { $set: { agencyId: agency._id } });
+    if (claimed.modifiedCount === 0) {
+      await Agency.deleteOne({ _id: agency._id });
+      return NextResponse.json({ error: "Ya tenés una inmobiliaria asignada." }, { status: 409 });
+    }
 
     if (user.email) {
       await AllowedEmail.updateOne(

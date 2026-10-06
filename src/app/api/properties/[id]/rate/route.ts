@@ -6,12 +6,17 @@ import { Property } from "@/lib/db/models/Property";
 import { Rating } from "@/lib/db/models/Rating";
 import { recordEvent } from "@/lib/tracking/record";
 import { requireUser } from "@/lib/auth/require-user";
+import { limitOr429 } from "@/lib/security/rate-limit";
 
 const bodySchema = z.object({ value: z.number().int().min(1).max(5) });
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
   if (!user) return NextResponse.json({ error: "Necesitás iniciar sesión." }, { status: 401 });
+
+  // Un mismo usuario no puede disparar cientos de interacciones por minuto (inflar métricas / saturar la base).
+  const limited = await limitOr429(req, "social", 60, 60, { userId: user.id });
+  if (limited) return limited;
 
   const { id } = await params;
   if (!Types.ObjectId.isValid(id)) return NextResponse.json({ error: "Id inválido" }, { status: 400 });
