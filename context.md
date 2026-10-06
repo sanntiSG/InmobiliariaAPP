@@ -28,7 +28,7 @@ Al entrar a la web, sin fricción, se elige uno de tres caminos:
 
 1. **Explorar sin cuenta** — ver propiedades, mapa, buscar y filtrar, pero **sin** recomendaciones, notificaciones, favoritos, likes ni comentarios (eso requiere cuenta).
 2. **Iniciar sesión / crear cuenta** — desbloquea toda la experiencia social y personalizada: favoritos, likes, comentarios, valoraciones, recomendaciones, notificaciones, actividad.
-3. **Publicar tu inmobiliaria** — deriva a contacto directo por WhatsApp con el proveedor (+54 9 11 3779-6683). **Solo el proveedor o un admin** pueden crear, editar o eliminar inmobiliarias (quien entre con el correo de la cuenta de google del admin ssantii200@gmail.com) el admin puede dar permiso a un mail y luego ese mail puede crear su inmobiliaria, crear publicaciones, subir fotos, comentar, dar like, lo mismo que puede hacer el admin, solo que la inmobiliaria solo puede gestionar, editar y ver metricas de su propia inmobiliaria.
+3. **Gestionar una inmobiliaria** — al crear la cuenta (`/crear-cuenta`) se elige con dos tarjetas: *Explorar propiedades* o *Gestionar una inmobiliaria*. La segunda lleva a `/solicitar-inmobiliaria` (requiere cuenta): el formulario guarda una `AgencyRequest`, **notifica dentro de la plataforma a todos los admins** y ofrece abrir WhatsApp con el proveedor (+54 9 11 3779-6683) — el WhatsApp se mantiene como canal de validación, la notificación web es el recordatorio y punto de gestión. El admin aprueba o rechaza en `/admin/solicitudes` (badge con pendientes); aprobar usa `grantAgencyAccess()` (el mismo flujo de `/admin/accesos`), el usuario recibe una notificación `agency_approved` ("¡Felicitaciones! Ya tenés permiso para crear tu inmobiliaria.") y un cartel que se muestra **una sola vez** (se marca leída al mostrarlo) y refresca su sesión. Después crea su inmobiliaria en `/publicar`. **Solo el proveedor o un admin** (quien entre con el correo de Google del admin ssantii200@gmail.com, `ADMIN_EMAILS`) pueden crear, editar o eliminar inmobiliarias y dar permisos; una inmobiliaria solo gestiona, edita y ve métricas de **su propia** inmobiliaria.
 
 Roles del sistema:
 - **Visitante anónimo** — solo explora.
@@ -65,21 +65,34 @@ Roles del sistema:
 
 ### Personalización y recomendaciones
 - Experiencia personalizada por usuario **sin IA de pago ni APIs de IA pagas**.
-- Recomendaciones por **lógica tradicional basada en datos**: ubicación, rango de precio, tipo de propiedad, ambientes, características buscadas, propiedades vistas, likes, guardados y otras interacciones.
+- Recomendaciones por **lógica tradicional basada en datos** (`lib/recommendations/engine.ts`): preferencias explícitas + **perfil de gustos** calculado de la actividad real (vistas, permanencia, comentarios, me gusta, compartidas, guardados, consultas, puntajes y seguir inmobiliarias; decaimiento con vida media de 30 días, ver `lib/intelligence/user-profile.ts`) + filtrado colaborativo simple ("quienes guardaron lo mismo también guardaron…") + calidad/frescura. Excluye lo ya guardado o consultado. Cada recomendación trae su **motivo** en lenguaje simple ("Encontramos una propiedad similar a las que guardaste.", "…coincide con tus preferencias de ubicación y precio.", "…está cerca de una zona que te interesa."), visible en la card. Arranque en frío: lo que más interés tiene en la plataforma esta semana. Mejora sola a medida que el usuario interactúa.
 - Arquitectura preparada para evolucionar a sistemas de recomendación más avanzados en el futuro, sin romper lo existente.
 
 ### Notificaciones
-- Primera versión: **internas**, visibles al ingresar a la plataforma (no push, no email todavía).
-- Casos de uso: nuevas propiedades que matchean preferencias, cambios de precio, propiedades recomendadas, actividad relacionada a interacciones propias, otros eventos relevantes.
+- Primera versión: **internas**, visibles al ingresar a la plataforma (campana + página `/notificaciones` con filtros por grupo; no push, no email todavía).
+- Tipos: `new_match`, `price_drop`, `recommendation`, `comment_reply`, `activity`, `system`, `agency_request`, `agency_approved`, `agency_rejected`, `lead`, `opportunity`, `follow_new_property`, `admin_alert`. Icono y grupo por tipo en `components/notifications/notification-meta.ts`.
+- `Notification.dedupeKey` (índice único parcial por usuario) evita repetir avisos (`reco:<propiedad>`, `opp:<hallazgo>:<semana>`, `follow:<propiedad>`…). `createNotification`/`createNotificationForMany`/`notifyAdmins` nunca lanzan.
+- Sin cron: las notificaciones "inteligentes" se generan **de forma lazy en `after()`** cuando alguien consulta sus notificaciones (recomendaciones, máx. 2/día), abre su panel (oportunidades, 1/hora por agencia) o abre `/admin` (alertas, cada 30 min). Ver `lib/intelligence/notify.ts`.
+- Al publicar una propiedad por primera vez (alta o publicar un borrador) se avisa a seguidores de la inmobiliaria y a quienes encajan por preferencias o gustos (`lib/notifications/new-property.ts`).
 - Preparado para evolucionar a push/email/otros canales más adelante.
 
 ### Dashboard de inmobiliaria (gestión)
-- ABM completo de propiedades: fotos, disponibilidad, precios, ubicación, características, publicación, y a futuro gestión de Digital Twins/recorridos 3D.
-- **Estadísticas propias por inmobiliaria** (no IA), pensadas para ser muy visuales y accionables:
-  - Usuarios interesados, likes, favoritos, comentarios, visualizaciones.
-  - Comparativas temporales ("creció la visualización 10% respecto a la semana pasada", "300 likes nuevos", "50 comentarios nuevos").
-  - Alertas de decaimiento ("decayeron las vistas") con **recomendaciones automáticas basadas en estadísticas**: subir más fotos, subir videos, subir el recorrido 3D, publicar nuevas propiedades, etc.
-- Panel de administración global (rol admin/proveedor): gestiona todas las inmobiliarias y puede publicar/reasignar propiedades entre ellas.
+Navegación: Resumen · Propiedades · Clientes · Oportunidades · Mi inmobiliaria (el admin agrega "Inmobiliarias" y elige la agencia con `?agencyId=`).
+- ABM completo de propiedades: fotos, fotos 360° y recorrido navegable, **videos de YouTube**, precios, ubicación, características, publicación.
+- **Resumen inteligente** (`/dashboard`): 9 indicadores con variación contra la semana anterior y miniatura (propiedades publicadas, visitas, visitas únicas, favoritos, me gusta, consultas, compartidas, visitas a recorridos 360°, tiempo promedio), tendencia de 30 días, embudo de conversión (visitas→favoritos, visitas→consultas, consultas→visitas presenciales) contra propiedades similares, y los bloques "¿Qué funciona? / ¿Qué necesita atención? / Oportunidades".
+- **Centro de oportunidades** (`/dashboard/oportunidades`): hallazgos por reglas sobre datos reales, con explicación, evidencia numérica y acción sugerida con link; filtros por tipo y prioridad.
+- **Estadísticas por propiedad** (`/dashboard/propiedades/[id]/estadisticas`): diagnóstico, conversión y ambientes del recorrido 360° más visitados.
+- **Clientes potenciales / leads** (`/dashboard/clientes`): consultas del formulario de la ficha, etapas nuevo → contactado → visita solicitada → visita realizada → oferta → cerrado, notas, último contacto y detección de "sin seguimiento" (nuevo > 24 h, o abierto > 7 días sin contacto). Sólo los ve la inmobiliaria dueña.
+- **Mi inmobiliaria** (`/dashboard/inmobiliaria`): edita su perfil público (logo y portada por upload propio, contacto, descripción) y vincula su canal de YouTube.
+- Panel de administración global (rol admin/proveedor): gestiona todas las inmobiliarias y puede publicar/reasignar propiedades entre ellas. `/admin/estadisticas`: actividad por inmobiliaria, propiedades con más interés, qué crece (comportamientos, zonas, tipos), crecimiento de usuarios y "requiere atención" (solicitudes +48 h, clientes sin seguimiento, inmobiliarias sin visitas o sin propiedades).
+
+### Perfil público de inmobiliaria y seguidores
+- `/inmobiliarias/[slug]` (sólo activas): portada, logo, descripción, contacto, propiedades por tipo, **Seguir** (idempotente, `AgencyFollow` + `Agency.stats.followers`) y **Ver en mapa** → `/mapa?agency=<id>` (mismo mapa general, filtrado y encuadrado, con chip removible).
+- La ficha de propiedad y el popup del mapa muestran la inmobiliaria (logo + nombre) enlazada a su perfil.
+
+### Videos de YouTube
+- Sin OAuth ni API key: el canal se vincula por link/@handle y se leen sus videos públicos con el **feed RSS** (`lib/media/youtube-server.ts`, últimos ~15 incluidos Shorts); un video suelto se valida con **oEmbed**. Hosts fijos y ids validados por regex (sin SSRF). Sólo se guarda el `videoId`; `url` y miniatura las deriva el servidor.
+- En la ficha viven **debajo de descripción y comodidades** (no junto a fotos/360°): carrusel con snap, Shorts 9:16 y videos 16:9, fachada con miniatura y reproductor `youtube-nocookie` que carga al tocar play. Hasta 8 por propiedad.
 
 ### Multi-tenant ("Shopify de las inmobiliarias")
 - Cada inmobiliaria tiene su propio perfil, catálogo de propiedades y dashboard aislado.
@@ -158,7 +171,13 @@ Complementarias, usar cuando el caso lo amerite (no obligatorias en cada tarea):
 ## 9. Seguridad
 
 - No se debe subir nada peligroso ni introducir vulnerabilidades típicas (inyección, XSS, exposición de datos, etc.).
-- Alta de inmobiliarias restringida exclusivamente a admin/proveedor — nunca autoservicio.
+- Alta de inmobiliarias restringida exclusivamente a admin/proveedor — nunca autoservicio: la persona **solicita**, el admin aprueba. `/api/agency/onboarding` confirma rol y agencia contra la base (no contra el JWT, que puede estar desactualizado 5 min) y reserva la agencia de forma atómica.
+- **Aislamiento entre inmobiliarias**: todo endpoint/página del panel pasa por `agencyScope(access, requested)` (`lib/auth/agency-scope.ts`): dueños/agentes siempre quedan en su propia `agencyId` (cualquier otra se ignora); sólo el admin puede elegir. El filtro va dentro de la query, así un recurso ajeno es indistinguible de uno inexistente (404).
+- **Rate limiting** (`lib/security/rate-limit.ts`): `rateLimit`/`limitOr429` respaldados por Mongo (ventana fija, `$inc` atómico, TTL — válido entre instancias serverless) y `softLimitOr429` en memoria para lecturas públicas muy frecuentes. Aplicado a tracking, consultas, solicitudes, registro, comentarios, like/favorito/rating, subidas, seguir, YouTube y geocodificación; los endpoints sensibles fallan cerrado.
+- Formularios públicos (consulta, solicitud): honeypot que responde 201 en silencio, validación con zod, nada de `dangerouslySetInnerHTML`; los textos de usuario se renderizan como texto.
+- Imágenes de logo/portada: sólo URLs de nuestro storage (Cloudinary o `/uploads/`), nunca externas. YouTube: hosts fijos + ids por regex; el cliente sólo manda `videoId`.
+- `callbackUrl` de login validado (`lib/auth/safe-redirect.ts`): sólo rutas internas, sin open redirect.
+- Datos personales: los leads los ve únicamente la inmobiliaria dueña (y el admin); las estadísticas son agregadas. La cookie de visitante `rid` es anónima, httpOnly y sólo sirve para contar visitantes únicos.
 - La contraseña de GitHub en texto plano que tenía `CLAUDE.md` ya se sacó del archivo (ver sesión de deploy). **Pendiente manual**: rotarla en github.com (Settings → Password and authentication) y activar 2FA, ya que estuvo un tiempo en un archivo versionado.
 
 ---
@@ -168,3 +187,22 @@ Complementarias, usar cuando el caso lo amerite (no obligatorias en cada tarea):
 - Al terminar una tarea, hacer commit de todo lo realizado antes de pasar a la siguiente, para poder ver cómo quedaron los cambios.
 - Cuando se esté por agotar el límite de la sesión, cerrar rápido la tarea en curso dejando la web funcional, commitear, y continuar en la siguiente sesión.
 - Verificar siempre `npm run typecheck` / `lint` / `build` en verde antes de cada commit (patrón ya establecido en las sesiones anteriores).
+
+---
+
+## 11. Datos e inteligencia (arquitectura)
+
+**Principio**: una sola inteligencia basada en datos (reglas, estadísticas, comparaciones), sin IA ni servicios pagos, que alimenta recomendaciones, panel, diagnósticos, oportunidades, admin y notificaciones.
+
+- **Captura de eventos**: `POST /api/track` (beacon, cookie anónima `rid`, descarta bots, dedupe de vistas a 30 min) registra vista, permanencia, compartir, contacto (WhatsApp/llamada/email), apertura del 360° y escena vista. `recordEvent()` (`lib/tracking/record.ts`) es el punto único de escritura: agrega al log `Interaction` e incrementa el rollup diario `PropertyDailyStat` (`$inc` + upsert por propiedad y día, día en hora Argentina). Las vistas del dueño/admin y de borradores no cuentan.
+- **Escalabilidad**: dashboards e inteligencia leen el rollup (O(propiedades × días)), nunca escanean `Interaction`. Cálculos pesados cacheados en memoria con TTL (`lib/intelligence/cache.ts`): benchmarks 10 min, inteligencia por agencia 60 s.
+- **Módulos** (`src/lib/intelligence/`): `metrics` (ventanas 7d / 7d previos / 30d, embudos, serie diaria, escenas), `benchmarks` (medianas de la plataforma y por tipo+operación), `diagnostics` (12 reglas puras con umbrales mínimos de datos en `THRESHOLDS`), `opportunities` (`getIntelligence(agencyId|null)`), `admin` (`getAdminIntelligence`), `user-profile` (perfil de gustos, cacheado en `UserTasteProfile`, se recalcula a las 6 h o con actividad nueva), `notify`.
+- **Modelos nuevos**: `RateLimit`, `PropertyDailyStat`, `AgencyRequest`, `Lead`, `AgencyFollow`, `UserTasteProfile`. `Interaction` suma `inquiry`/`dwell`/`tour_scene`/`follow`; `Agency` suma `stats.followers` y `youtube`; `Property.media.videos` guarda `videoId`/`title`/`orientation`.
+- **Honestidad con pocos datos**: no se diagnostican tasas con < 30 visitas, "pocas visitas" sólo si la plataforma ya tiene tráfico medido, y las alertas de "sin actividad" no se emiten si nadie recibió visitas.
+- **Datos de prueba**: para verificar reglas y pantallas se insertan filas sintéticas y se borran al terminar; nunca dejar datos de prueba en la base.
+
+### Pendiente / siguientes pasos
+- Probar visualmente en navegador real (esta etapa se verificó por API, HTML servido y scripts; los gráficos SVG se renderizan en el cliente).
+- Deploy a Netlify/Render con las variables de entorno (ver SETUP.md) y confirmar el límite real de payload en subidas.
+- Rotar la contraseña de GitHub que estuvo en `CLAUDE.md` y el secret de Google OAuth (ver sección 9 y memoria).
+- Ideas para vender (no implementadas): informe compartible para el propietario, precio por comparables, agenda de visitas, QR para carteles, exportación a portales, asignación de leads a agentes, micrositio propio.
