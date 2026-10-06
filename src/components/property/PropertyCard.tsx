@@ -2,7 +2,7 @@
 
 import { memo, useState } from "react";
 import Image from "next/image";
-import { Heart } from "lucide-react";
+import { Heart, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { IconButton } from "@/components/ui/IconButton";
 import { PriceTag } from "./PriceTag";
@@ -102,6 +102,12 @@ function PropertyCardImpl({
           {[property.neighborhood, property.city].filter(Boolean).join(", ")}
         </p>
         <PropertyFeatures bedrooms={property.bedrooms} bathrooms={property.bathrooms} area={property.area} />
+        {property.reason && (
+          <p className="mt-1 flex items-start gap-1.5 border-t border-border pt-2.5 text-xs text-text-muted">
+            <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" aria-hidden />
+            {property.reason}
+          </p>
+        )}
       </div>
     </article>
   );

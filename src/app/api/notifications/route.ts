@@ -1,14 +1,19 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { z } from "zod";
 import { connectDB } from "@/lib/db/connect";
 import { Notification } from "@/lib/db/models/Notification";
 import { requireUser } from "@/lib/auth/require-user";
+import { maybeSendRecommendationNotifications } from "@/lib/intelligence/notify";
 
 export async function GET(req: NextRequest) {
   const user = await requireUser();
   if (!user) return NextResponse.json({ error: "Necesitás iniciar sesión." }, { status: 401 });
 
   const limit = Math.min(50, Math.max(1, Number(req.nextUrl.searchParams.get("limit") ?? 20)));
+
+  // Recomendaciones nuevas, calculadas fuera de la respuesta (como mucho una
+  // vez por día y sólo para quien explora; ver intelligence/notify.ts).
+  if (user.role === "user") after(() => maybeSendRecommendationNotifications(user.id));
 
   try {
     await connectDB();

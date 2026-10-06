@@ -14,6 +14,8 @@ const likeSchema = new Schema(
 );
 
 likeSchema.index({ userId: 1, propertyId: 1 }, { unique: true });
+// "Quiénes dieron me gusta a esta propiedad" — filtrado colaborativo de recomendaciones.
+likeSchema.index({ propertyId: 1 });
 
 export type LikeDoc = InferSchemaType<typeof likeSchema>;
 

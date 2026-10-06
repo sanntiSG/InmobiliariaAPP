@@ -9,6 +9,8 @@ const favoriteSchema = new Schema(
 );
 
 favoriteSchema.index({ userId: 1, propertyId: 1 }, { unique: true });
+// "Quiénes guardaron esta propiedad" — base del filtrado colaborativo de recomendaciones.
+favoriteSchema.index({ propertyId: 1 });
 
 export type FavoriteDoc = InferSchemaType<typeof favoriteSchema>;
 

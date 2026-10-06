@@ -21,6 +21,8 @@ export type PropertyCardData = {
   agencyName?: string;
   lng: number;
   lat: number;
+  /** Sólo en recomendaciones: por qué se le sugiere esta propiedad a la persona. */
+  reason?: string;
 };
 
 /**

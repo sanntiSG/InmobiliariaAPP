@@ -1,9 +1,11 @@
 import { User } from "@/lib/db/models/User";
+import { UserTasteProfile } from "@/lib/db/models/UserTasteProfile";
+import { priceKey } from "@/lib/intelligence/user-profile";
 
 type PropertyLike = {
   operation: string;
   type: string;
-  price: { amount: number };
+  price: { amount: number; currency?: string };
   features?: { rooms?: number };
   address?: { neighborhood?: string };
 };
@@ -40,4 +42,41 @@ export async function findMatchingUsers(property: PropertyLike, limit = 200): Pr
       return opMatch && typeMatch && priceMatch && roomsMatch && locationMatch;
     })
     .map((u) => String(u._id));
+}
+
+/**
+ * Usuarios a los que les puede interesar por lo que HACEN (perfil de gustos):
+ * su zona y tipo habituales, y un precio dentro del rango que suelen mirar.
+ * Complementa a `findMatchingUsers`, que sólo mira preferencias declaradas.
+ */
+export async function findUsersByTaste(property: PropertyLike, limit = 200): Promise<string[]> {
+  const neighborhood = property.address?.neighborhood;
+  if (!neighborhood) return [];
+
+  const profiles = await UserTasteProfile.find({
+    topNeighborhoods: neighborhood,
+    topTypes: property.type,
+    topOperations: property.operation,
+    sampleSize: { $gte: 2 },
+  })
+    .select("userId prices")
+    .limit(limit)
+    .lean();
+
+  const key = priceKey(property.operation, property.price.currency ?? "USD");
+  const fits = profiles.filter((p) => {
+    const band = p.prices.find((b) => b.key === key);
+    return !band || (property.price.amount >= band.low! * 0.8 && property.price.amount <= band.high! * 1.2);
+  });
+  if (fits.length === 0) return [];
+
+  // Sólo explorador: las cuentas de inmobiliaria no reciben avisos de "para vos".
+  const users = await User.find({ _id: { $in: fits.map((p) => p.userId) }, role: "user" }).select("_id").lean();
+  return users.map((u) => String(u._id));
+}
+
+/** Unión (sin repetir) de quienes matchean por preferencias declaradas y por gustos reales. */
+export async function findInterestedUsers(property: PropertyLike): Promise<string[]> {
+  const [declared, taste] = await Promise.all([findMatchingUsers(property), findUsersByTaste(property)]);
+  return [...new Set([...declared, ...taste])];
 }

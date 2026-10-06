@@ -7,7 +7,7 @@ import { connectDB } from "@/lib/db/connect";
 import { Agency } from "@/lib/db/models/Agency";
 import { Property } from "@/lib/db/models/Property";
 import { slugify } from "@/lib/utils/slugify";
-import { findMatchingUsers } from "@/lib/notifications/match-users";
+import { findInterestedUsers } from "@/lib/notifications/match-users";
 import { createNotificationForMany } from "@/lib/notifications/create";
 
 const createSchema = propertyInputSchema.omit({ agencyId: true }).extend({
@@ -70,10 +70,10 @@ export async function POST(req: Request) {
 async function notifyMatchingUsers(property: InstanceType<typeof Property>) {
   try {
     await connectDB();
-    const userIds = await findMatchingUsers({
+    const userIds = await findInterestedUsers({
       operation: property.operation,
       type: property.type,
-      price: { amount: property.price!.amount },
+      price: { amount: property.price!.amount, currency: property.price!.currency ?? undefined },
       features: { rooms: property.features?.rooms ?? undefined },
       address: { neighborhood: property.address?.neighborhood ?? undefined },
     });
@@ -83,6 +83,7 @@ async function notifyMatchingUsers(property: InstanceType<typeof Property>) {
       body: property.title,
       href: `/propiedades/${property.slug}`,
       propertyId: String(property._id),
+      dedupeKey: `new_match:${property._id}`,
     });
   } catch (err) {
     console.error("notifyMatchingUsers failed:", err);

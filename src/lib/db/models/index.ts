@@ -11,6 +11,7 @@ export { SavedSearch } from "./SavedSearch";
 export { AllowedEmail } from "./AllowedEmail";
 export { AgencyRequest, AGENCY_REQUEST_STATUSES } from "./AgencyRequest";
 export { Lead } from "./Lead";
+export { UserTasteProfile } from "./UserTasteProfile";
 export { RateLimit } from "./RateLimit";
 export { PropertyDailyStat } from "./PropertyDailyStat";
 
@@ -27,5 +28,6 @@ export type { SavedSearchDoc } from "./SavedSearch";
 export type { AllowedEmailDoc } from "./AllowedEmail";
 export type { AgencyRequestDoc } from "./AgencyRequest";
 export type { LeadDoc } from "./Lead";
+export type { UserTasteProfileDoc } from "./UserTasteProfile";
 export type { RateLimitDoc } from "./RateLimit";
 export type { PropertyDailyStatDoc } from "./PropertyDailyStat";

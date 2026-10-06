@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { after } from "next/server";
+import { sendAdminAlerts } from "@/lib/intelligence/notify";
 import { requireAdminUser } from "@/lib/auth/require-admin";
 import { connectDB } from "@/lib/db/connect";
 import { AgencyRequest } from "@/lib/db/models/AgencyRequest";
@@ -14,6 +16,8 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
 
   await connectDB();
   const pendingRequests = await AgencyRequest.countDocuments({ status: "pending" }).catch(() => 0);
+  // Alertas para el admin (solicitudes demoradas, inmobiliarias sin actividad): fuera del render.
+  after(() => sendAdminAlerts());
 
   return (
     <div className="min-h-dvh bg-bg">

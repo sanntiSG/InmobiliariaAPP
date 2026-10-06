@@ -4,12 +4,12 @@ import { connectDB } from "@/lib/db/connect";
 import { Property } from "@/lib/db/models/Property";
 import { Agency } from "@/lib/db/models/Agency";
 import { Lead } from "@/lib/db/models/Lead";
-import { User } from "@/lib/db/models/User";
 import { auth } from "@/auth";
 import { inquirySchema } from "@/lib/validation/lead";
 import { clientIp, rateLimit } from "@/lib/security/rate-limit";
 import { recordEvent } from "@/lib/tracking/record";
 import { createNotificationForMany } from "@/lib/notifications/create";
+import { agencyMemberIds } from "@/lib/notifications/agency-members";
 import { buildWhatsappLink } from "@/config/site";
 import { brand } from "@/config/brand";
 
@@ -96,12 +96,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         anonId: visitorId,
       });
       if (!isNew) return;
-      const members = await User.find({ agencyId: property.agencyId }).select("_id").lean();
-      const recipients = new Set([
-        ...(agency?.owners ?? []).map(String),
-        ...members.map((m) => String(m._id)),
-      ]);
-      await createNotificationForMany([...recipients], {
+      await createNotificationForMany(await agencyMemberIds(property.agencyId), {
         type: "lead",
         title: "Nueva consulta",
         body: `${data.name} consultó por «${property.title}»`,
