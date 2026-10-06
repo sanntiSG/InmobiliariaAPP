@@ -7,6 +7,7 @@ const onRender = process.env.RENDER === "true";
 const nextConfig: NextConfig = {
   typescript: { ignoreBuildErrors: onRender },
   allowedDevOrigins: [
+    "192.168.0.80",
     "192.168.56.1",
     "192.168.0.21", // IP real de Wi-Fi
     "192.168.0.24", // IP actual de la PC en la red (la que se usa desde el celu)

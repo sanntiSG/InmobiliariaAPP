@@ -178,7 +178,8 @@ Complementarias, usar cuando el caso lo amerite (no obligatorias en cada tarea):
 - Imágenes de logo/portada: sólo URLs de nuestro storage (Cloudinary o `/uploads/`), nunca externas. YouTube: hosts fijos + ids por regex; el cliente sólo manda `videoId`.
 - `callbackUrl` de login validado (`lib/auth/safe-redirect.ts`): sólo rutas internas, sin open redirect.
 - Datos personales: los leads los ve únicamente la inmobiliaria dueña (y el admin); las estadísticas son agregadas. La cookie de visitante `rid` es anónima, httpOnly y sólo sirve para contar visitantes únicos.
-- La contraseña de GitHub en texto plano que tenía `CLAUDE.md` ya se sacó del archivo (ver sesión de deploy). **Pendiente manual**: rotarla en github.com (Settings → Password and authentication) y activar 2FA, ya que estuvo un tiempo en un archivo versionado.
+- ⚠️ **Credencial expuesta (acción del dueño de la cuenta, urgente)**: la contraseña de GitHub estuvo en texto plano en `CLAUDE.md` del **primer commit (`062f5b6`), que está en `origin/main` de un repositorio público**. Se quitó del archivo en `1f12f22`, pero eso no la borra del historial. La única forma de invalidarla es **cambiarla en github.com** (Settings → Password and authentication), **activar 2FA** y cambiarla en cualquier otro sitio donde se reutilice. Se decidió no reescribir el historial (no des-filtra la clave: puede haber forks, cachés o clones). No volver a escribir credenciales en `CLAUDE.md` ni en ningún archivo versionado: usar `gh auth login` o un token.
+- El secret de Google OAuth **nunca llegó al repositorio** (verificado: 0 coincidencias en el árbol y en todo el historial; `.env*` está en `.gitignore`). Rotarlo en Google Cloud es sólo una precaución, porque alguna vez estuvo en un archivo sin ignorar del working tree.
 
 ---
 
@@ -204,5 +205,29 @@ Complementarias, usar cuando el caso lo amerite (no obligatorias en cada tarea):
 ### Pendiente / siguientes pasos
 - Probar visualmente en navegador real (esta etapa se verificó por API, HTML servido y scripts; los gráficos SVG se renderizan en el cliente).
 - Deploy a Netlify/Render con las variables de entorno (ver SETUP.md) y confirmar el límite real de payload en subidas.
-- Rotar la contraseña de GitHub que estuvo en `CLAUDE.md` y el secret de Google OAuth (ver sección 9 y memoria).
+- **Cambiar ya la contraseña de GitHub** (quedó en el historial público; ver sección 9) y activar 2FA. Rotar el secret de Google OAuth es opcional.
 - Ideas para vender (no implementadas): informe compartible para el propietario, precio por comparables, agenda de visitas, QR para carteles, exportación a portales, asignación de leads a agentes, micrositio propio.
+
+---
+
+## 12. Propuesta de valor (qué vendemos)
+
+**En una línea**: una plataforma lista para usar donde cada inmobiliaria tiene su vitrina, su panel y sus recorridos 360° propios, y recibe —con datos reales— qué hacer para vender más, sin armar nada ni pagar IA.
+
+**Qué problema resuelve**
+
+| Problema de la inmobiliaria | Cómo lo resolvemos |
+|---|---|
+| No sabe si una publicación funciona | Panel con visitas únicas, conversiones y un diagnóstico en lenguaje simple por propiedad |
+| Las consultas se pierden o se enfrían en WhatsApp | Clientes con etapas (nuevo → cerrado), notas y alertas de "sin seguimiento" |
+| Fotos planas que no logran visitas | Recorridos 360° navegables propios, sin Matterport ni hardware especial |
+| Depende de portales ajenos donde es un aviso más | Perfil propio con seguidores, mapa filtrado y videos de su canal de YouTube |
+| No sabe qué mejorar | Centro de oportunidades con la acción sugerida y el link para hacerla |
+| Los compradores no encuentran ni vuelven | Recomendaciones con su motivo, favoritos, me gusta y notificaciones |
+
+**En qué se diferencia**
+- Los portales tradicionales son un catálogo anónimo con métricas básicas; acá hay **identidad propia + inteligencia accionable**.
+- **Costo marginal bajo**: mapa gratuito tipo Google Maps, y análisis y recomendaciones por reglas sobre datos propios (sin IA ni APIs pagas).
+- Modelo **multi-tenant** ("Shopify de las inmobiliarias"): alta controlada por el proveedor y datos de cada inmobiliaria aislados.
+
+**Para quién**: inmobiliarias chicas y medianas, empezando por AMBA.
