@@ -131,6 +131,9 @@ export function sendAdminAlerts(): Promise<void> {
           { $group: { _id: "$agencyId" } },
         ]),
       ]);
+      // Si nadie en toda la plataforma recibió una visita, todavía no hay tráfico medido:
+      // avisar que "todas" están inactivas sería ruido, no información.
+      if (active.length === 0) return;
       const withViews = new Set(active.map((a) => String(a._id)));
       const inactiveIds = published.filter((p) => !withViews.has(String(p._id))).map((p) => p._id);
       if (inactiveIds.length === 0) return;

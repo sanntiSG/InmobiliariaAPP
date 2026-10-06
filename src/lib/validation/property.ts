@@ -164,7 +164,7 @@ export const propertyInputSchema = z.object({
       }
     })
     // `hasTour3d` desnormalizado a partir de `tours.length` — así los
-    // filtros/queries (`property-query.ts`, `agency-stats.ts`) no necesitan
+    // filtros/queries (`property-query.ts`, `lib/intelligence`) no necesitan
     // inspeccionar el array. Se recalcula acá mismo en cada guardado, nunca
     // lo manda el cliente. El recorrido navegable sólo queda activo si hay
     // al menos un vínculo.

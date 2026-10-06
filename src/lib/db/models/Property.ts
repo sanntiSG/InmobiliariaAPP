@@ -140,7 +140,7 @@ const propertySchema = new Schema(
         enabled: { type: Boolean, default: false },
         startId: { type: String },
       },
-      /** Desnormalizado a partir de `tours.length > 0` — evita inspeccionar el array en cada query/filtro (ver `property-query.ts`, `agency-stats.ts`). */
+      /** Desnormalizado a partir de `tours.length > 0` — evita inspeccionar el array en cada query/filtro (ver `property-query.ts`, `lib/intelligence`). */
       hasTour3d: { type: Boolean, default: false, index: true },
     },
 
