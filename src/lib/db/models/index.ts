@@ -10,6 +10,7 @@ export { Notification, NOTIFICATION_TYPES } from "./Notification";
 export { SavedSearch } from "./SavedSearch";
 export { AllowedEmail } from "./AllowedEmail";
 export { AgencyRequest, AGENCY_REQUEST_STATUSES } from "./AgencyRequest";
+export { Lead } from "./Lead";
 export { RateLimit } from "./RateLimit";
 export { PropertyDailyStat } from "./PropertyDailyStat";
 
@@ -25,5 +26,6 @@ export type { NotificationDoc } from "./Notification";
 export type { SavedSearchDoc } from "./SavedSearch";
 export type { AllowedEmailDoc } from "./AllowedEmail";
 export type { AgencyRequestDoc } from "./AgencyRequest";
+export type { LeadDoc } from "./Lead";
 export type { RateLimitDoc } from "./RateLimit";
 export type { PropertyDailyStatDoc } from "./PropertyDailyStat";

@@ -6,9 +6,12 @@ import { useRouter } from "next/navigation";
 export function AgencyFilterSelect({
   agencies,
   selected,
+  basePath = "/dashboard/propiedades",
 }: {
   agencies: { id: string; name: string }[];
   selected: string;
+  /** Ruta a la que se navega con `?agencyId=` (por defecto, el listado de propiedades). */
+  basePath?: string;
 }) {
   const router = useRouter();
 
@@ -17,7 +20,7 @@ export function AgencyFilterSelect({
       value={selected}
       onChange={(e) => {
         const value = e.target.value;
-        router.push(value ? `/dashboard/propiedades?agencyId=${value}` : "/dashboard/propiedades");
+        router.push(value ? `${basePath}?agencyId=${value}` : basePath);
       }}
       className="h-10 rounded-pill border border-border bg-surface px-4 text-sm text-text focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
     >

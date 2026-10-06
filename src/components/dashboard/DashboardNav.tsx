@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils/cn";
 const BASE_LINKS = [
   { href: "/dashboard", label: "Resumen", exact: true },
   { href: "/dashboard/propiedades", label: "Propiedades" },
+  { href: "/dashboard/clientes", label: "Clientes" },
 ];
 
 const ADMIN_LINK = { href: "/admin", label: "Inmobiliarias", exact: false };

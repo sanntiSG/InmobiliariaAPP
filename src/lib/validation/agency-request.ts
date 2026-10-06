@@ -10,8 +10,8 @@ export const agencyRequestSchema = z.object({
     .regex(/^[0-9+()\-\s]+$/, "Sólo números, espacios, + y guiones"),
   zone: z.string().trim().min(2, "Contanos en qué zona trabajás").max(120),
   message: z.string().trim().max(500, "Máximo 500 caracteres").optional().or(z.literal("")),
-  /** Honeypot: un humano nunca lo completa (campo oculto). */
-  website: z.string().max(0).optional().or(z.literal("")),
+  /** Honeypot: un humano nunca lo completa (campo oculto). La ruta lo detecta y descarta en silencio. */
+  website: z.string().max(200).optional(),
 });
 
 export type AgencyRequestInput = z.infer<typeof agencyRequestSchema>;

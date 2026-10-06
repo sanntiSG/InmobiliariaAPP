@@ -20,6 +20,7 @@ import { AmenitiesList } from "@/components/property/AmenitiesList";
 import { AgencyContactCard } from "@/components/property/AgencyContactCard";
 import { SocialBar } from "@/components/property/SocialBar";
 import { ShareButton } from "@/components/property/ShareButton";
+import { InquiryForm } from "@/components/property/InquiryForm";
 import { PropertyTracker } from "@/components/property/PropertyTracker";
 import { CommentsSection, type CommentItem } from "@/components/property/CommentsSection";
 import { PropertyLocationMapLazy } from "@/components/map/PropertyLocationMapLazy";
@@ -255,6 +256,14 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
             </Card>
             {property.agency && (
               <AgencyContactCard agency={property.agency} propertyId={property.id} propertyTitle={property.title} />
+            )}
+            {isPublished && property.agency && (
+              <InquiryForm
+                propertyId={property.id}
+                propertyTitle={property.title}
+                defaultName={session?.user?.name ?? ""}
+                defaultEmail={session?.user?.email ?? ""}
+              />
             )}
           </aside>
         </div>
