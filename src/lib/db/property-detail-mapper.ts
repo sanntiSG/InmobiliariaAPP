@@ -56,10 +56,10 @@ export function toPropertyDetail(doc: any): PropertyDetail {
       .slice()
       .sort((a: { order?: number }, b: { order?: number }) => (a.order ?? 0) - (b.order ?? 0))
       .map((img: { url: string; alt?: string }) => ({ url: img.url, alt: img.alt || doc.title })),
-    videos: (doc.media?.videos ?? []).map((v: { url: string; thumbnail?: string }) => ({
-      url: v.url,
-      thumbnail: v.thumbnail,
-    })),
+    videos: (doc.media?.videos ?? []).flatMap(
+      (v: { videoId?: string; title?: string; orientation?: "vertical" | "horizontal" }) =>
+        v.videoId ? [{ videoId: v.videoId, title: v.title, orientation: v.orientation ?? "horizontal" }] : []
+    ),
     tours: (doc.media?.tours ?? []).map(
       (t: { id?: string; label?: string; photo360Url: string; links?: TourLink[] }, i: number) => ({
         id: t.id ?? `legacy-${i}`,

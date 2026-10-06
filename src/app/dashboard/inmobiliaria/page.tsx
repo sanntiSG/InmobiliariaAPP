@@ -7,6 +7,7 @@ import { connectDB } from "@/lib/db/connect";
 import { Agency } from "@/lib/db/models/Agency";
 import { AgencyFilterSelect } from "@/components/dashboard/AgencyFilterSelect";
 import { AgencyProfileForm } from "@/components/dashboard/AgencyProfileForm";
+import { YouTubeChannelCard } from "@/components/dashboard/YouTubeChannelCard";
 import { buttonClasses } from "@/components/ui/Button";
 
 export const metadata = { title: "Mi inmobiliaria" };
@@ -81,6 +82,12 @@ export default async function MyAgencyPage({ searchParams }: PageProps<"/dashboa
           logo: agency.logo ?? "",
           cover: agency.cover ?? "",
         }}
+      />
+
+      <YouTubeChannelCard
+        key={`yt-${String(agency._id)}`}
+        agencyId={access.isAdmin ? String(agency._id) : undefined}
+        initialChannelTitle={agency.youtube?.channelId ? (agency.youtube.channelTitle ?? "Canal vinculado") : null}
       />
     </div>
   );

@@ -29,6 +29,15 @@ const agencySchema = new Schema(
       accentColor: { type: String, default: "#2b7fff" },
     },
 
+    /**
+     * Canal de YouTube vinculado: permite elegir sus videos (feed RSS público,
+     * sin OAuth ni claves) para sumarlos a las publicaciones.
+     */
+    youtube: {
+      channelId: { type: String },
+      channelTitle: { type: String, maxlength: 120 },
+    },
+
     status: {
       type: String,
       enum: ["active", "suspended", "pending"],

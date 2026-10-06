@@ -73,7 +73,7 @@ export type PropertyDetail = {
   amenities: string[];
 
   images: { url: string; alt: string }[];
-  videos: { url: string; thumbnail?: string }[];
+  videos: { videoId: string; title?: string; orientation: "vertical" | "horizontal" }[];
   tours: Tour3DEntry[];
   virtualTour: VirtualTourConfig;
 

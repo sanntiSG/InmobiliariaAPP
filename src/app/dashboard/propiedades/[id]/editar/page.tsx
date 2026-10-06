@@ -63,6 +63,11 @@ export default async function EditPropertyPage({ params }: PageProps<"/dashboard
       order: img.order ?? i,
       providerId: img.providerId ?? undefined,
     })),
+    videos: (doc.media?.videos ?? []).flatMap((v) =>
+      v.videoId
+        ? [{ videoId: v.videoId, title: v.title ?? "", orientation: (v.orientation ?? "horizontal") as "vertical" | "horizontal" }]
+        : []
+    ),
     tours: (doc.media?.tours ?? []).map((t, i) => ({
       id: t.id ?? `legacy-${i}`,
       label: t.label ?? "",

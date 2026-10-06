@@ -6,6 +6,10 @@ import {
   AMENITIES,
   CURRENCIES,
 } from "@/config/filters";
+import { VIDEO_ID_RE, youtubeThumbnail, youtubeWatchUrl } from "@/lib/media/youtube";
+
+/** Tope de videos por publicación. */
+export const MAX_VIDEOS = 8;
 
 const lngLatSchema = z
   .tuple([z.number().min(-180).max(180), z.number().min(-90).max(90)])
@@ -123,14 +127,17 @@ export const propertyInputSchema = z.object({
   media: z
     .object({
       images: z.array(imageSchema).default([]),
+      // Sólo se acepta el id del video: URL y miniatura las arma el servidor (ver `.transform` más abajo).
       videos: z
         .array(
           z.object({
-            url: z.url(),
-            thumbnail: z.url().optional(),
-            provider: z.enum(["upload", "youtube", "vimeo"]).default("upload"),
+            videoId: z.string().regex(VIDEO_ID_RE, "Video de YouTube inválido"),
+            title: z.string().trim().max(120).optional(),
+            orientation: z.enum(["vertical", "horizontal"]).default("horizontal"),
           })
         )
+        .max(MAX_VIDEOS, `Máximo ${MAX_VIDEOS} videos`)
+        .refine((list) => new Set(list.map((v) => v.videoId)).size === list.length, "Hay un video repetido")
         .default([]),
       floorPlans: z.array(imageSchema).default([]),
       tours: toursSchema,
@@ -170,6 +177,14 @@ export const propertyInputSchema = z.object({
     // al menos un vínculo.
     .transform((v) => ({
       ...v,
+      videos: v.videos.map((video) => ({
+        provider: "youtube" as const,
+        videoId: video.videoId,
+        title: video.title || undefined,
+        orientation: video.orientation,
+        url: youtubeWatchUrl(video.videoId, video.orientation),
+        thumbnail: youtubeThumbnail(video.videoId),
+      })),
       hasTour3d: v.tours.length > 0,
       virtualTour: {
         ...v.virtualTour,

@@ -30,11 +30,20 @@ const imageSchema = new Schema(
   { _id: false }
 );
 
+/**
+ * Video de YouTube embebido en la publicación (Shorts, recorridos, etc.). Se
+ * guarda sólo el `videoId`: `url` y `thumbnail` los deriva el servidor al
+ * guardar (nunca se confía en una URL enviada por el cliente).
+ */
 const videoSchema = new Schema(
   {
     url: { type: String, required: true },
     thumbnail: { type: String },
-    provider: { type: String, enum: ["upload", "youtube", "vimeo"], default: "upload" },
+    provider: { type: String, enum: ["upload", "youtube", "vimeo"], default: "youtube" },
+    videoId: { type: String },
+    title: { type: String, maxlength: 120 },
+    /** Los Shorts son verticales (9:16); el resto, horizontales (16:9). */
+    orientation: { type: String, enum: ["vertical", "horizontal"], default: "horizontal" },
   },
   { _id: false }
 );

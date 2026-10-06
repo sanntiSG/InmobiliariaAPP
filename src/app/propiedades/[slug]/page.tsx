@@ -22,6 +22,7 @@ import { SocialBar } from "@/components/property/SocialBar";
 import { ShareButton } from "@/components/property/ShareButton";
 import { InquiryForm } from "@/components/property/InquiryForm";
 import { AgencyAvatar } from "@/components/property/AgencyAvatar";
+import { PropertyVideos } from "@/components/property/PropertyVideos";
 import { PropertyTracker } from "@/components/property/PropertyTracker";
 import { CommentsSection, type CommentItem } from "@/components/property/CommentsSection";
 import { PropertyLocationMapLazy } from "@/components/map/PropertyLocationMapLazy";
@@ -226,6 +227,9 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
                 </div>
               </section>
             )}
+
+            {/* Videos: información extra, a propósito más abajo que las fotos y el recorrido 360°. */}
+            <PropertyVideos videos={property.videos} />
 
             <section>
               <h2 className="font-display text-lg font-semibold text-text">Ubicación</h2>

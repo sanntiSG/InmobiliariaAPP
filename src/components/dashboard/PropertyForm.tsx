@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { FilterPill } from "@/components/ui/FilterPill";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ImageUploader, type UploadedImage } from "./ImageUploader";
+import { PropertyVideosField, type VideoFormRow } from "./PropertyVideosField";
 import { IconButton } from "@/components/ui/IconButton";
 import {
   OPERATIONS,
@@ -80,6 +81,8 @@ export type PropertyFormValues = {
   orientation: string;
   amenities: Amenity[];
   images: UploadedImage[];
+  /** Videos de YouTube de la publicación (se muestran en la ficha, debajo de la descripción). */
+  videos: VideoFormRow[];
   /** Una propiedad puede tener varios recorridos 360° — distintos ambientes, por ejemplo. */
   tours: TourFormRow[];
   /** Recorrido navegable entre las fotos 360° (hotspots). */
@@ -127,6 +130,7 @@ export const emptyPropertyForm: PropertyFormValues = {
   orientation: "",
   amenities: [],
   images: [],
+  videos: [],
   tours: [],
   virtualTour: { enabled: false },
 };
@@ -176,7 +180,11 @@ function toPayload(v: PropertyFormValues) {
         order: img.order,
         providerId: img.providerId,
       })),
-      videos: [],
+      videos: v.videos.map((video) => ({
+        videoId: video.videoId,
+        title: video.title || undefined,
+        orientation: video.orientation,
+      })),
       floorPlans: [],
       tours: buildToursPayload(v),
       virtualTour: v.virtualTour,
@@ -539,6 +547,15 @@ export function PropertyForm({
             {tourUploadError}
           </p>
         )}
+      </section>
+
+      <section className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
+        <h2 className="font-display text-lg font-semibold text-text">Videos</h2>
+        <PropertyVideosField
+          videos={values.videos}
+          onChange={(videos) => set("videos", videos)}
+          agencyId={agencies ? values.agencyId : undefined}
+        />
       </section>
 
       {editorOpen && (
