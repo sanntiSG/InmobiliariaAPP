@@ -1,4 +1,5 @@
 import { Types } from "mongoose";
+import { AgencyFollow } from "@/lib/db/models/AgencyFollow";
 import { Favorite } from "@/lib/db/models/Favorite";
 import { Interaction } from "@/lib/db/models/Interaction";
 import { Like } from "@/lib/db/models/Like";
@@ -25,6 +26,9 @@ export const SIGNAL_WEIGHT = {
   contact: 3,
   inquiry: 4,
 } as const;
+
+/** Peso de cada propiedad reciente de una inmobiliaria que el usuario sigue. */
+const FOLLOW_WEIGHT = 0.5;
 
 /** Un puntaje de 1 a 5 pesa (valor − 3) × RATING_FACTOR: un 5 suma, un 1 resta. */
 const RATING_FACTOR = 1.5;
@@ -190,6 +194,18 @@ async function collectWeights(userId: string, now: number) {
   for (const f of favorites) add(f.propertyId, SIGNAL_WEIGHT.save, f.createdAt);
   for (const l of likes) add(l.propertyId, SIGNAL_WEIGHT.like, l.createdAt);
   for (const r of ratings) add(r.propertyId, (r.value - 3) * RATING_FACTOR, (r as { updatedAt?: Date }).updatedAt);
+
+  // Seguir a una inmobiliaria es una señal suave: sus propiedades más recientes suman un poco.
+  const follows = await AgencyFollow.find({ userId: uid }).select("agencyId createdAt").limit(50).lean();
+  if (follows.length > 0) {
+    const followedAt = new Map(follows.map((f) => [String(f.agencyId), f.createdAt]));
+    const followedProps = await Property.find({ agencyId: { $in: follows.map((f) => f.agencyId) }, status: "published" })
+      .select("agencyId")
+      .sort({ publishedAt: -1 })
+      .limit(60)
+      .lean();
+    for (const p of followedProps) add(p._id, FOLLOW_WEIGHT, followedAt.get(String(p.agencyId)));
+  }
 
   return { weights, savedCount: favorites.length };
 }

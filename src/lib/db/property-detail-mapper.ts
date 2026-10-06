@@ -95,6 +95,7 @@ export function toPropertyDetail(doc: any): PropertyDetail {
           id: String(agency._id),
           slug: agency.slug,
           name: agency.name,
+          logo: agency.logo ?? undefined,
           whatsapp: agency.contact?.whatsapp,
           phone: agency.contact?.phone,
           email: agency.contact?.email,

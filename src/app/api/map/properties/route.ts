@@ -38,7 +38,7 @@ async function getProperties(filters: z.infer<typeof mapFiltersSchema>) {
 
   const docs = await Property.find(query)
     .select(PROPERTY_CARD_PROJECTION)
-    .populate({ path: "agencyId", select: "name" })
+    .populate({ path: "agencyId", select: "name slug logo" })
     .limit(filters.limit)
     .lean();
 

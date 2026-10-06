@@ -43,7 +43,7 @@ async function getListing(filters: z.infer<typeof listFiltersSchema>) {
   const [docs, total] = await Promise.all([
     Property.find(query)
       .select(PROPERTY_CARD_PROJECTION)
-      .populate({ path: "agencyId", select: "name" })
+      .populate({ path: "agencyId", select: "name slug logo" })
       .sort(SORTS[filters.sort])
       .skip(skip)
       .limit(filters.pageSize)

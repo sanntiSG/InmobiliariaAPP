@@ -11,6 +11,8 @@ import { Like } from "@/lib/db/models/Like";
 import { Comment } from "@/lib/db/models/Comment";
 import { Rating } from "@/lib/db/models/Rating";
 import { createNotificationForMany } from "@/lib/notifications/create";
+import { notifyNewPublication } from "@/lib/notifications/new-property";
+import { PropertyDailyStat } from "@/lib/db/models/PropertyDailyStat";
 
 const updateSchema = propertyInputSchema.omit({ agencyId: true }).extend({
   // Solo tiene efecto para un admin (reasignar la propiedad a otra
@@ -58,13 +60,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (priceChanged) {
       property.priceHistory?.push({ amount: data.price.amount, currency: data.price.currency, changedAt: new Date() });
     }
-    if (data.status === "published" && !property.publishedAt) {
+    // Primera vez que se publica (alta como borrador y publicación recién ahora, por ejemplo).
+    const firstPublish = data.status === "published" && !property.publishedAt;
+    if (firstPublish) {
       property.publishedAt = new Date();
     }
     await property.save();
 
     if (priceDropped) {
       after(() => notifyPriceDrop(property));
+    }
+    if (firstPublish) {
+      after(() => notifyNewPublication(property));
     }
 
     return NextResponse.json({ id: String(property._id), slug: property.slug });
@@ -114,6 +121,8 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
       Favorite.deleteMany({ propertyId: id }),
       Rating.deleteMany({ propertyId: id }),
       Comment.deleteMany({ propertyId: id }),
+      // Sus métricas diarias ya no tienen a quién pertenecer (los clientes potenciales se conservan).
+      PropertyDailyStat.deleteMany({ propertyId: id }),
     ]);
 
     return NextResponse.json({ ok: true });

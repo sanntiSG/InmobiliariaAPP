@@ -32,7 +32,10 @@ export async function POST(req: Request) {
   const formData = await req.formData().catch(() => null);
   const file = formData?.get("file");
   const requestedAgencyId = formData?.get("agencyId");
-  const isPhoto360 = formData?.get("kind") === "photo360";
+  const kind = formData?.get("kind");
+  const isPhoto360 = kind === "photo360";
+  // Logo y portada del perfil de la inmobiliaria van a su propia carpeta.
+  const isBranding = kind === "logo" || kind === "cover";
 
   if (!file || !(file instanceof File)) {
     return NextResponse.json({ error: "Falta el archivo." }, { status: 400 });
@@ -68,7 +71,7 @@ export async function POST(req: Request) {
     const result = await provider.upload({
       buffer,
       filename: file.name,
-      folder: `agencies/${agencyIdForFolder ?? "admin"}/properties`,
+      folder: `agencies/${agencyIdForFolder ?? "admin"}/${isBranding ? "branding" : "properties"}`,
       quality: isPhoto360 ? "best" : "auto",
     });
     return NextResponse.json(result, { status: 201 });

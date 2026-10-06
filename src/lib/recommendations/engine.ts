@@ -268,7 +268,7 @@ export async function getRecommendations(userId: string, limit = 12): Promise<Re
   const lean = (filter: Record<string, unknown>, max: number, sort: Record<string, 1 | -1> = { publishedAt: -1 }) =>
     Property.find(filter)
       .select(CANDIDATE_SELECT)
-      .populate({ path: "agencyId", select: "name" })
+      .populate({ path: "agencyId", select: "name slug logo" })
       .sort(sort)
       .limit(max)
       .lean();

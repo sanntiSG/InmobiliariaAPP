@@ -27,7 +27,7 @@ export function toPropertyCardData(doc: LeanPropertyDoc, now: number = Date.now(
   const [safeLng, safeLat] =
     doc.address?.showExact === false ? fuzzLocation([lng, lat], String(doc._id)) : [lng, lat];
 
-  const agency = doc.agencyId as unknown as { name?: string } | null;
+  const agency = doc.agencyId as unknown as { name?: string; slug?: string; logo?: string | null } | null;
 
   const coverImage = doc.media?.images?.length
     ? [...doc.media.images].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))[0]
@@ -51,6 +51,8 @@ export function toPropertyCardData(doc: LeanPropertyDoc, now: number = Date.now(
     tour3d: !!doc.media?.hasTour3d,
     isNew: doc.publishedAt ? now - new Date(doc.publishedAt).getTime() < NEW_WINDOW_DAYS * 86_400_000 : false,
     agencyName: agency?.name,
+    agencySlug: agency?.slug,
+    agencyLogo: agency?.logo ?? undefined,
     lng: safeLng,
     lat: safeLat,
   };

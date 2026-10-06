@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/Badge";
 import { PriceTag } from "@/components/property/PriceTag";
 import { PropertyFeatures } from "@/components/property/PropertyFeatures";
 import { TourBadge } from "@/components/property/TourBadge";
+import { AgencyAvatar } from "@/components/property/AgencyAvatar";
 import { OPERATION_LABELS } from "@/config/filters";
 import { cn } from "@/lib/utils/cn";
 import type { PropertyCardData } from "@/components/property/types";
@@ -102,7 +103,14 @@ export function PropertyPopupCard({
             className="mt-1 flex flex-wrap items-center gap-1.5"
           />
           {property.agencyName && (
-            <p className="mt-1 truncate text-[11px] font-medium text-text-muted">{property.agencyName}</p>
+            // <a> plano por la misma razón que el link de abajo (fuera del árbol de React de la app).
+            <a
+              href={property.agencySlug ? `/inmobiliarias/${property.agencySlug}` : undefined}
+              className="mt-1 flex items-center gap-2 text-[11px] font-medium text-text-muted hover:text-accent"
+            >
+              <AgencyAvatar name={property.agencyName} logo={property.agencyLogo} size={22} />
+              <span className="truncate">{property.agencyName}</span>
+            </a>
           )}
           {/*
             <a> plano a propósito, no next/link: este componente se monta con

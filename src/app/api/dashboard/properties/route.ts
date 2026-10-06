@@ -7,8 +7,7 @@ import { connectDB } from "@/lib/db/connect";
 import { Agency } from "@/lib/db/models/Agency";
 import { Property } from "@/lib/db/models/Property";
 import { slugify } from "@/lib/utils/slugify";
-import { findInterestedUsers } from "@/lib/notifications/match-users";
-import { createNotificationForMany } from "@/lib/notifications/create";
+import { notifyNewPublication } from "@/lib/notifications/new-property";
 
 const createSchema = propertyInputSchema.omit({ agencyId: true }).extend({
   // Solo se usa si quien publica es admin (sin inmobiliaria fija); para
@@ -57,35 +56,12 @@ export async function POST(req: Request) {
     });
 
     if (property.status === "published") {
-      after(() => notifyMatchingUsers(property));
+      after(() => notifyNewPublication(property));
     }
 
     return NextResponse.json({ id: String(property._id), slug: property.slug }, { status: 201 });
   } catch (err) {
     console.error("POST /api/dashboard/properties failed:", err);
     return NextResponse.json({ error: "No se pudo crear la propiedad." }, { status: 503 });
-  }
-}
-
-async function notifyMatchingUsers(property: InstanceType<typeof Property>) {
-  try {
-    await connectDB();
-    const userIds = await findInterestedUsers({
-      operation: property.operation,
-      type: property.type,
-      price: { amount: property.price!.amount, currency: property.price!.currency ?? undefined },
-      features: { rooms: property.features?.rooms ?? undefined },
-      address: { neighborhood: property.address?.neighborhood ?? undefined },
-    });
-    await createNotificationForMany(userIds, {
-      type: "new_match",
-      title: "Nueva propiedad para vos",
-      body: property.title,
-      href: `/propiedades/${property.slug}`,
-      propertyId: String(property._id),
-      dedupeKey: `new_match:${property._id}`,
-    });
-  } catch (err) {
-    console.error("notifyMatchingUsers failed:", err);
   }
 }

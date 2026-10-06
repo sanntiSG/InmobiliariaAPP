@@ -21,6 +21,7 @@ import { AgencyContactCard } from "@/components/property/AgencyContactCard";
 import { SocialBar } from "@/components/property/SocialBar";
 import { ShareButton } from "@/components/property/ShareButton";
 import { InquiryForm } from "@/components/property/InquiryForm";
+import { AgencyAvatar } from "@/components/property/AgencyAvatar";
 import { PropertyTracker } from "@/components/property/PropertyTracker";
 import { CommentsSection, type CommentItem } from "@/components/property/CommentsSection";
 import { PropertyLocationMapLazy } from "@/components/map/PropertyLocationMapLazy";
@@ -160,6 +161,18 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
                   </p>
                   <h1 className="mt-1 font-display text-2xl font-bold text-text sm:text-3xl">{property.title}</h1>
                   {addressLine && <p className="mt-1 text-text-muted">{addressLine}</p>}
+                  {property.agency && (
+                    <Link
+                      href={`/inmobiliarias/${property.agency.slug}`}
+                      className="group mt-3 inline-flex items-center gap-2 text-sm text-text-muted"
+                    >
+                      <AgencyAvatar name={property.agency.name} logo={property.agency.logo} size={28} />
+                      <span>
+                        Publicado por{" "}
+                        <span className="font-medium text-text group-hover:text-accent">{property.agency.name}</span>
+                      </span>
+                    </Link>
+                  )}
                 </div>
                 <PriceTag
                   amount={property.price.amount}

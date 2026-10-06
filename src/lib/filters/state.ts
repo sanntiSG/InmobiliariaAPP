@@ -8,6 +8,8 @@ export type PropertyFiltersState = {
   priceRange: [number, number];
   minRooms: number | null;
   tour3dOnly: boolean;
+  /** Sólo propiedades de esta inmobiliaria (id). Viene del botón "Ver en mapa" de su perfil. */
+  agencyId: string | null;
 };
 
 export const PRICE_BOUNDS: [number, number] = [0, 1_000_000];
@@ -19,6 +21,7 @@ export const DEFAULT_FILTERS: PropertyFiltersState = {
   priceRange: PRICE_BOUNDS,
   minRooms: null,
   tour3dOnly: false,
+  agencyId: null,
 };
 
 /** Cuenta filtros "avanzados" activos, para el badge del chip "Filtros". */
@@ -40,5 +43,6 @@ export function filtersToSearchParams(filters: PropertyFiltersState): URLSearchP
   if (filters.priceRange[1] !== PRICE_BOUNDS[1]) params.set("priceMax", String(filters.priceRange[1]));
   if (filters.minRooms) params.set("minRooms", String(filters.minRooms));
   if (filters.tour3dOnly) params.set("tour3d", "true");
+  if (filters.agencyId) params.set("agencyId", filters.agencyId);
   return params;
 }

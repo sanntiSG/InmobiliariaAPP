@@ -46,6 +46,8 @@ const agencySchema = new Schema(
       likesTotal: { type: Number, default: 0 },
       savesTotal: { type: Number, default: 0 },
       commentsTotal: { type: Number, default: 0 },
+      /** Personas que siguen a la inmobiliaria (se actualiza con $inc al seguir / dejar de seguir). */
+      followers: { type: Number, default: 0 },
     },
   },
   { timestamps: true }

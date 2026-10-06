@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { buildWhatsappLink } from "@/config/site";
+import { AgencyAvatar } from "./AgencyAvatar";
 import { Card } from "@/components/ui/Card";
 import { buttonClasses } from "@/components/ui/Button";
 import { brand } from "@/config/brand";
@@ -20,7 +22,15 @@ export function AgencyContactCard({
   return (
     <Card className="p-5">
       <p className="text-xs font-medium uppercase tracking-wide text-text-muted">Publica</p>
-      <p className="mt-1 font-display text-lg font-bold text-text">{agency.name}</p>
+      <Link href={`/inmobiliarias/${agency.slug}`} className="group mt-2 flex items-center gap-3">
+        <AgencyAvatar name={agency.name} logo={agency.logo} size={48} />
+        <span className="min-w-0">
+          <span className="block truncate font-display text-lg font-bold text-text group-hover:text-accent">
+            {agency.name}
+          </span>
+          <span className="text-xs font-medium text-accent">Ver perfil y propiedades</span>
+        </span>
+      </Link>
 
       <div className="mt-4 flex flex-col gap-2">
         {whatsappHref && (

@@ -19,6 +19,9 @@ export type PropertyCardData = {
   tour3d: boolean;
   isNew: boolean;
   agencyName?: string;
+  /** Para enlazar al perfil público de la inmobiliaria (`/inmobiliarias/[slug]`). */
+  agencySlug?: string;
+  agencyLogo?: string;
   lng: number;
   lat: number;
   /** Sólo en recomendaciones: por qué se le sugiere esta propiedad a la persona. */
@@ -76,7 +79,7 @@ export type PropertyDetail = {
 
   stats: { views: number; likes: number; saves: number; comments: number; ratingAvg: number; ratingCount: number };
 
-  agency: { id: string; slug: string; name: string; whatsapp?: string; phone?: string; email?: string } | null;
+  agency: { id: string; slug: string; name: string; logo?: string; whatsapp?: string; phone?: string; email?: string } | null;
 
   publishedAt: string | null;
 };
