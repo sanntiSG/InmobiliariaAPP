@@ -52,6 +52,16 @@ function supportsWebGL(): boolean {
   }
 }
 
+/**
+ * Desmonta un root de React fuera del ciclo de render. Llamar a
+ * `root.unmount()` dentro del cleanup de un efecto ocurre mientras React
+ * todavía está renderizando y dispara "Attempted to synchronously unmount
+ * a root while React was already rendering".
+ */
+function unmountRootSafely(root: Root) {
+  setTimeout(() => root.unmount(), 0);
+}
+
 export type MapCanvasProps = {
   features: PropertyFeature[];
   selectedId: string | null;
@@ -279,7 +289,7 @@ export function MapCanvas({
     if (!map) return;
 
     if (popupRef.current) {
-      popupRef.current.root.unmount();
+      unmountRootSafely(popupRef.current.root);
       popupRef.current.popup.remove();
       popupRef.current = null;
     }
@@ -310,7 +320,7 @@ export function MapCanvas({
     popupRef.current = { popup, root, container };
 
     return () => {
-      root.unmount();
+      unmountRootSafely(root);
       popup.remove();
       popupRef.current = null;
     };

@@ -3,6 +3,9 @@ import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { HeroCtas, type SecondaryCta } from "@/components/home/HeroCtas";
+import { HeroScene } from "@/components/home/HeroScene";
+import { HeroTypingText } from "@/components/home/HeroTypingText";
+import { HeroFeatures } from "@/components/home/HeroFeatures";
 import { brand } from "@/config/brand";
 import { buildWhatsappLink } from "@/config/site";
 import { auth } from "@/auth";
@@ -17,17 +20,12 @@ export default async function Home() {
   const secondaryCta = resolveSecondaryCta(session?.user);
 
   return (
-    <main className="relative flex min-h-dvh flex-col overflow-hidden">
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(60% 50% at 50% 0%, var(--accent-soft) 0%, transparent 70%)",
-        }}
-        aria-hidden
-      />
+    <main className="hero-main">
+      {/* Background 3D scene */}
+      <HeroScene />
 
-      <header className="relative flex items-center justify-between px-5 py-5 sm:px-8">
+      {/* Header — mismo estilo que antes, sobre la escena 3D */}
+      <header className="hero-header">
         <Logo href={null} />
         <div className="flex items-center gap-2 sm:gap-3">
           <NotificationBell />
@@ -36,20 +34,35 @@ export default async function Home() {
         </div>
       </header>
 
-      <div className="relative flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
-        <h1 className="max-w-3xl text-balance font-display text-[clamp(2.25rem,6vw,4rem)] font-bold leading-[1.05] text-text">
-          {brand.tagline}
-        </h1>
-        <p className="mt-5 max-w-xl text-balance text-lg text-text-muted">{brand.description}</p>
+      {/* Hero content — left-aligned, lower portion */}
+      <div className="hero-content">
+        <HeroTypingText
+          line1={brand.tagline}
+          line2Bold="nueva generación"
+          line2Suffix=" de propiedades."
+          subtitle="Más que un portal inmobiliario"
+        />
 
         <HeroCtas secondaryCta={secondaryCta} />
-        <p className="mt-4 max-w-md text-balance text-sm text-text-muted">
-          Explorar no necesita cuenta. Creá una para guardar propiedades, comentar y recibir
-          recomendaciones.
-        </p>
       </div>
 
-      <footer className="relative px-6 pb-8 text-center text-xs text-text-muted">
+      {/* Scroll-down indicator (flecha ↓ como en la referencia) */}
+      <div className="hero-scroll-indicator" aria-hidden>
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path
+            d="M10 3v14m0 0l-5-5m5 5l5-5"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </div>
+
+      {/* Features bar al fondo */}
+      <HeroFeatures />
+
+      <footer className="hero-footer">
         {brand.name} — {brand.domainLabel}
       </footer>
     </main>

@@ -19,6 +19,9 @@ export type SecondaryCta = {
  * inmobiliaria habilitada → su panel/onboarding, admin → panel de admin —
  * ver src/app/page.tsx). La entrada anima con GSAP, respetando
  * prefers-reduced-motion (mismo patrón que ResultsPanel).
+ *
+ * El contenedor no captura toques (pointer-events-none) para no tapar el
+ * header en mobile; solo los botones son interactivos.
  */
 export function HeroCtas({ secondaryCta }: { secondaryCta: SecondaryCta }) {
   const scope = useRef<HTMLDivElement>(null);
@@ -29,17 +32,35 @@ export function HeroCtas({ secondaryCta }: { secondaryCta: SecondaryCta }) {
       if (reduceMotion || !scope.current) return;
       gsap.fromTo(
         scope.current.children,
-        { opacity: 0, y: 10 },
-        { opacity: 1, y: 0, duration: 0.4, ease: "expo.out", stagger: 0.06, delay: 0.1 }
+        { opacity: 0, y: 16 },
+        {
+          opacity: 1,
+          y: 0,
+          duration: 0.6,
+          ease: "expo.out",
+          stagger: 0.08,
+          delay: 1.6,
+          clearProps: "transform,opacity",
+        }
       );
     },
     { scope }
   );
 
   return (
-    <div ref={scope} className="mt-10 flex flex-col items-center gap-3 sm:flex-row">
-      <Link href="/mapa" className={buttonClasses("primary", "lg", "sm:min-w-[200px]")}>
-        Explorar propiedades
+    <div
+      ref={scope}
+      className="hero-ctas-row pointer-events-none relative z-10 flex w-full flex-col gap-3 sm:w-auto sm:flex-row"
+    >
+      <Link
+        href="/mapa"
+        className={buttonClasses(
+          "primary",
+          "lg",
+          "pointer-events-auto w-full sm:w-auto sm:min-w-[200px]"
+        )}
+      >
+        Explorar
       </Link>
       {/* <a> en vez de <Link>: el href es dinámico (ruta interna o wa.me
           externo según el rol — ver src/app/page.tsx), no una ruta estática
@@ -48,7 +69,13 @@ export function HeroCtas({ secondaryCta }: { secondaryCta: SecondaryCta }) {
         href={secondaryCta.href}
         target={secondaryCta.external ? "_blank" : undefined}
         rel={secondaryCta.external ? "noopener noreferrer" : undefined}
-        className={cn(buttonClasses("secondary", "lg", "sm:min-w-[200px]"))}
+        className={cn(
+          buttonClasses(
+            "secondary",
+            "lg",
+            "pointer-events-auto w-full sm:w-auto sm:min-w-[200px]"
+          )
+        )}
       >
         {secondaryCta.label}
       </a>

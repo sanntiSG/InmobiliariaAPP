@@ -5,13 +5,13 @@
  * empieza y termina en este archivo.
  */
 export const brand = {
-  name: "Umbral",
+  name: "Recor",
   tagline: "Entrá antes de entrar.",
   description:
     "La plataforma donde las inmobiliarias publican sus propiedades y vos las recorrés antes de pisarlas.",
   shortDescription: "Portal inmobiliario con recorridos 3D.",
   domainLabel: "umbral.app",
-  accentColor: "#2b7fff",
+  accentColor: "#1853adff",
 } as const;
 
 export type Brand = typeof brand;

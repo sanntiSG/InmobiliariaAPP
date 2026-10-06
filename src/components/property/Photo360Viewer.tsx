@@ -130,6 +130,9 @@ export function Photo360Viewer({ src }: { src: string }) {
     // sigue montado si la propiedad tiene varias fotos 360 y se cambia de
     // una a otra con los chips — sólo cambia `src`.
     Promise.resolve().then(() => setStatus("loading"));
+    // Capturado acá: en el cleanup `wrapperRef.current` ya puede ser null
+    // (React suelta los refs antes de correr los cleanups al desmontar).
+    const wrapper = wrapperRef.current;
     const img = new Image();
     img.onload = () => setStatus("ready");
     img.onerror = () => setStatus("error");
@@ -138,7 +141,14 @@ export function Photo360Viewer({ src }: { src: string }) {
       img.onload = null;
       img.onerror = null;
       deactivate();
-      if (typeof document !== "undefined" && document.fullscreenElement === wrapperRef.current) {
+      // `exitFullscreen` no existe en Safari iPhone: chequeamos que la API
+      // exista y que ESTE elemento sea el que está en pantalla completa.
+      if (
+        wrapper &&
+        typeof document !== "undefined" &&
+        typeof document.exitFullscreen === "function" &&
+        document.fullscreenElement === wrapper
+      ) {
         void document.exitFullscreen().catch(() => { });
       }
       viewerRef.current?.destroy();
