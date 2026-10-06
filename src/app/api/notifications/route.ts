@@ -12,12 +12,22 @@ export async function GET(req: NextRequest) {
 
   try {
     await connectDB();
-    const [items, unreadCount] = await Promise.all([
+    const [items, unreadCount, celebration] = await Promise.all([
       Notification.find({ userId: user.id }).sort({ createdAt: -1 }).limit(limit).lean(),
       Notification.countDocuments({ userId: user.id, read: false }),
+      // Felicitación de "permiso concedido": la más reciente sin leer. El
+      // cliente la muestra como cartel y la marca leída al mostrarla, así
+      // aparece una sola vez.
+      Notification.findOne({ userId: user.id, type: "agency_approved", read: false })
+        .sort({ createdAt: -1 })
+        .select("title body href")
+        .lean(),
     ]);
 
     return NextResponse.json({
+      celebration: celebration
+        ? { id: String(celebration._id), title: celebration.title, body: celebration.body, href: celebration.href ?? "/" }
+        : null,
       items: items.map((n) => ({
         id: String(n._id),
         type: n.type,

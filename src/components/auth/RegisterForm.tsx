@@ -8,7 +8,7 @@ import { FormField } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
 import { GoogleSignInButton, AuthDivider } from "@/components/auth/GoogleSignInButton";
 
-export function RegisterForm() {
+export function RegisterForm({ callbackUrl = "/" }: { callbackUrl?: string }) {
   const router = useRouter();
   const [values, setValues] = useState({ name: "", email: "", password: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -51,16 +51,16 @@ export function RegisterForm() {
 
     if (!result || result.error) {
       // La cuenta se creó pero el login automático falló — mandamos a /ingresar.
-      router.push("/ingresar");
+      router.push(`/ingresar?callbackUrl=${encodeURIComponent(callbackUrl)}`);
       return;
     }
-    router.push("/");
+    router.push(callbackUrl);
     router.refresh();
   }
 
   return (
     <div className="flex flex-col gap-0">
-      <GoogleSignInButton label="Registrarse con Google" />
+      <GoogleSignInButton label="Registrarse con Google" callbackUrl={callbackUrl} />
       <AuthDivider />
       <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
         <FormField

@@ -8,7 +8,7 @@ import { FormField } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
 import { GoogleSignInButton, AuthDivider } from "@/components/auth/GoogleSignInButton";
 
-export function LoginForm() {
+export function LoginForm({ callbackUrl = "/" }: { callbackUrl?: string }) {
   const router = useRouter();
   const [values, setValues] = useState({ email: "", password: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -36,13 +36,13 @@ export function LoginForm() {
       setFormError("Email o contraseña incorrectos.");
       return;
     }
-    router.push("/");
+    router.push(callbackUrl);
     router.refresh();
   }
 
   return (
     <div className="flex flex-col gap-0">
-      <GoogleSignInButton label="Ingresar con Google" />
+      <GoogleSignInButton label="Ingresar con Google" callbackUrl={callbackUrl} />
       <AuthDivider />
       <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
         <FormField

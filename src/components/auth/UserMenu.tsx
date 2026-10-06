@@ -32,9 +32,18 @@ export function UserMenu({ compact = false }: { compact?: boolean }) {
   const isAgency = session.user.role === "agency_owner" || session.user.role === "agency_agent";
   const isAdmin = session.user.role === "admin";
   const needsOnboarding = isAgency && !session.user.agencyId;
+  const isExplorer = session.user.role === "user";
 
   return (
     <div className="flex items-center gap-2">
+      {isExplorer && (
+        <Link
+          href="/solicitar-inmobiliaria"
+          className="hidden text-sm font-medium text-accent hover:underline lg:inline"
+        >
+          Publicá tu inmobiliaria
+        </Link>
+      )}
       {isAgency && (
         <Link
           href={needsOnboarding ? "/publicar" : "/dashboard"}

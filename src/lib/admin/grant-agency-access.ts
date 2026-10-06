@@ -26,6 +26,22 @@ export type GrantAgencyAccessInput = {
   ownerPassword?: string;
 };
 
+/** Notificación de "permiso concedido" — también la usa el login con Google de un email autorizado antes de registrarse. */
+export function approvalNotification(userId: string, hasAgency: boolean, grantId: string) {
+  return {
+    userId,
+    type: "agency_approved" as const,
+    title: hasAgency
+      ? "¡Felicitaciones! Ya podés gestionar tu inmobiliaria."
+      : "¡Felicitaciones! Ya tenés permiso para crear tu inmobiliaria.",
+    body: hasAgency
+      ? "Entrá a tu panel para cargar propiedades, fotos y recorridos 360°."
+      : "Creá el perfil de tu inmobiliaria para empezar a publicar propiedades.",
+    href: hasAgency ? "/dashboard" : "/publicar",
+    dedupeKey: `agency_approved:${grantId}`,
+  };
+}
+
 /**
  * Autoriza un email a gestionar una inmobiliaria — única función que hace
  * esto en la app (antes duplicada, y desalineada, entre
@@ -90,15 +106,9 @@ export async function grantAgencyAccess(
     if (agencyId) {
       await Agency.updateOne({ _id: agencyId }, { $addToSet: { owners: user._id } });
     }
-    await createNotification({
-      userId: String(user._id),
-      type: "system",
-      title: agencyId ? "Ya podés gestionar tu inmobiliaria" : "Ya podés publicar tu inmobiliaria",
-      body: agencyId
-        ? "El admin te dio acceso para administrar una inmobiliaria en la plataforma."
-        : "El admin te habilitó — creá tu inmobiliaria para empezar a publicar propiedades.",
-      href: agencyId ? "/dashboard" : "/publicar",
-    });
+    // Tipo `agency_approved`: la UI lo muestra una sola vez como felicitación
+    // (ver AgencyApprovalCelebration) y después queda en el historial.
+    await createNotification(approvalNotification(String(user._id), Boolean(agencyId), String(record._id)));
   }
 
   return { createdUser, allowedEmailId: String(record._id) };

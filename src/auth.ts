@@ -106,10 +106,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // "awaiting_agency" (permiso concedido, falta crear la inmobiliaria).
       if (access.role === "agency_owner" || access.role === "agency_agent") {
         const { AllowedEmail } = await import("@/lib/db/models/AllowedEmail");
-        await AllowedEmail.updateOne(
+        const before = await AllowedEmail.findOneAndUpdate(
           { email },
           { $set: { status: access.needsOnboarding ? "awaiting_agency" : "active" } }
         );
+        // Permiso concedido ANTES de que la persona tuviera cuenta: es su primer
+        // ingreso desde la aprobación, así que recién ahora puede recibir el aviso.
+        if (before?.status === "pending") {
+          const { createNotification } = await import("@/lib/notifications/create");
+          const { approvalNotification } = await import("@/lib/admin/grant-agency-access");
+          await createNotification(approvalNotification(String(dbUser._id), !access.needsOnboarding, String(before._id)));
+        }
       }
 
       return true;

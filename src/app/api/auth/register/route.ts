@@ -5,6 +5,7 @@ import { User } from "@/lib/db/models/User";
 import { registerSchema } from "@/lib/validation/auth";
 import { createNotification } from "@/lib/notifications/create";
 import { brand } from "@/config/brand";
+import { clientIp, rateLimit } from "@/lib/security/rate-limit";
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
@@ -14,6 +15,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Datos inválidos", issues: parsed.error.issues }, { status: 400 });
   }
   const { name, email, password } = parsed.data;
+
+  // Freno a la creación masiva de cuentas desde una misma IP.
+  const limit = await rateLimit(`register:${clientIp(req)}`, 10, 60 * 60);
+  if (!limit.ok) {
+    return NextResponse.json({ error: "Demasiados registros desde tu red. Probá más tarde." }, { status: 429 });
+  }
 
   try {
     await connectDB();

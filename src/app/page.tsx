@@ -7,7 +7,6 @@ import { HeroScene } from "@/components/home/HeroScene";
 import { HeroTypingText } from "@/components/home/HeroTypingText";
 import { HeroFeatures } from "@/components/home/HeroFeatures";
 import { brand } from "@/config/brand";
-import { buildWhatsappLink } from "@/config/site";
 import { auth } from "@/auth";
 
 /**
@@ -75,7 +74,7 @@ export default async function Home() {
  * - inmobiliaria ya con agencia → a su dashboard.
  * - habilitada pero sin agencia todavía → a /publicar (crear la suya).
  * - cualquier otro caso (sin sesión, o usuario sin permiso de agencia) →
- *   comportamiento original: WhatsApp al proveedor.
+ *   solicitud para gestionar una inmobiliaria (ver /solicitar-inmobiliaria).
  */
 function resolveSecondaryCta(
   user: { role?: string; agencyId?: string | null } | undefined
@@ -88,9 +87,11 @@ function resolveSecondaryCta(
       ? { label: "Ir a mi panel", href: "/dashboard" }
       : { label: "Creá tu inmobiliaria", href: "/publicar" };
   }
+  // Sin cuenta: se elige "Gestionar una inmobiliaria" al registrarse. Con cuenta
+  // de explorador: directo a la solicitud. En ambos casos el formulario termina
+  // ofreciendo el contacto por WhatsApp con el proveedor.
   return {
     label: "Publicá tu inmobiliaria",
-    href: buildWhatsappLink(`Hola! Quiero publicar mi inmobiliaria en ${brand.name}.`),
-    external: true,
+    href: user ? "/solicitar-inmobiliaria" : "/crear-cuenta?tipo=gestionar",
   };
 }

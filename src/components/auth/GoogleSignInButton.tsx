@@ -7,12 +7,19 @@ import { useState } from "react";
  * Botón premium de "Continuar con Google" con ícono SVG inline.
  * Funciona tanto en /ingresar como en /crear-cuenta.
  */
-export function GoogleSignInButton({ label = "Continuar con Google" }: { label?: string }) {
+export function GoogleSignInButton({
+  label = "Continuar con Google",
+  callbackUrl = "/",
+}: {
+  label?: string;
+  /** Ruta interna a la que vuelve después de autenticarse (ya validada por el server). */
+  callbackUrl?: string;
+}) {
   const [loading, setLoading] = useState(false);
 
   function handleClick() {
     setLoading(true);
-    signIn("google", { callbackUrl: "/" });
+    signIn("google", { callbackUrl });
   }
 
   return (
