@@ -5,6 +5,7 @@ import dynamicImport from "next/dynamic";
 import { Orbit, Route } from "lucide-react";
 import { Gallery } from "./Gallery";
 import { cn } from "@/lib/utils/cn";
+import { track } from "@/lib/tracking/client";
 import type { PropertyDetail } from "./types";
 
 // Photo Sphere Viewer toca `document` al inicializar (WebGL/Three.js) —
@@ -41,14 +42,39 @@ type Tab = "fotos" | "vista360" | "recorrido360";
  * cargarlos).
  */
 export function PropertyMedia({
+  propertyId,
+  trackingEnabled = true,
   images,
   tours,
   virtualTour,
   title,
-}: Pick<PropertyDetail, "images" | "tours" | "virtualTour" | "title">) {
+}: Pick<PropertyDetail, "images" | "tours" | "virtualTour" | "title"> & {
+  propertyId: string;
+  /** false en vistas previas de borradores y del dueño: no cuentan como interés real. */
+  trackingEnabled?: boolean;
+}) {
   const hasTours = tours.length > 0;
-  const [tab, setTab] = useState<Tab>("fotos");
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [tab, setTabState] = useState<Tab>("fotos");
+  const [selectedIndex, setSelectedIndexState] = useState(0);
+
+  // `tour_open` = la persona eligió ver el 360° (no es la vista inicial de fotos).
+  function setTab(next: Tab) {
+    if (trackingEnabled && next !== "fotos" && tab === "fotos") {
+      track({ propertyId, event: "tour_open" });
+      const first = next === "vista360" ? tours[selectedIndex] : tours.find((t) => t.id === virtualTour.startId) ?? tours[0];
+      if (first?.id) track({ propertyId, event: "tour_scene", sceneId: first.id });
+    }
+    setTabState(next);
+  }
+
+  function setSelectedIndex(i: number) {
+    if (trackingEnabled && tours[i]?.id) track({ propertyId, event: "tour_scene", sceneId: tours[i].id });
+    setSelectedIndexState(i);
+  }
+
+  function onVirtualSceneChange(sceneId: string) {
+    if (trackingEnabled) track({ propertyId, event: "tour_scene", sceneId });
+  }
 
   const active = tours[selectedIndex];
   const hasVirtualTour = virtualTour.enabled && tours.length > 1 && tours.some((t) => t.links.length > 0);
@@ -99,7 +125,7 @@ export function PropertyMedia({
       {tab === "recorrido360" && hasVirtualTour ? (
         <div className="overflow-hidden rounded-card bg-surface-2 shadow-card">
           <div className="aspect-[16/10] w-full">
-            <VirtualTourViewer scenes={tours} startId={virtualTour.startId} />
+            <VirtualTourViewer scenes={tours} startId={virtualTour.startId} onSceneChange={onVirtualSceneChange} />
           </div>
         </div>
       ) : tab === "vista360" ? (

@@ -3,7 +3,7 @@ import { Types } from "mongoose";
 import { connectDB } from "@/lib/db/connect";
 import { Property } from "@/lib/db/models/Property";
 import { Like } from "@/lib/db/models/Like";
-import { Interaction } from "@/lib/db/models/Interaction";
+import { recordEvent } from "@/lib/tracking/record";
 import { requireUser } from "@/lib/auth/require-user";
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -38,7 +38,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       { new: true }
     ).select("stats.likes");
 
-    await Interaction.create({
+    await recordEvent({
       type: liked ? "like" : "unlike",
       userId: user.id,
       propertyId: id,

@@ -4,7 +4,7 @@ import { Types } from "mongoose";
 import { connectDB } from "@/lib/db/connect";
 import { Property } from "@/lib/db/models/Property";
 import { Rating } from "@/lib/db/models/Rating";
-import { Interaction } from "@/lib/db/models/Interaction";
+import { recordEvent } from "@/lib/tracking/record";
 import { requireUser } from "@/lib/auth/require-user";
 
 const bodySchema = z.object({ value: z.number().int().min(1).max(5) });
@@ -44,7 +44,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       { $set: { "stats.ratingAvg": ratingAvg, "stats.ratingCount": ratingCount } }
     );
 
-    await Interaction.create({
+    await recordEvent({
       type: "rate",
       userId: user.id,
       propertyId: id,

@@ -4,7 +4,8 @@ import { Types } from "mongoose";
 import { connectDB } from "@/lib/db/connect";
 import { Property } from "@/lib/db/models/Property";
 import { Comment } from "@/lib/db/models/Comment";
-import { Interaction } from "@/lib/db/models/Interaction";
+import { recordEvent } from "@/lib/tracking/record";
+import { rateLimit } from "@/lib/security/rate-limit";
 import { Like } from "@/lib/db/models/Like";
 import { Favorite } from "@/lib/db/models/Favorite";
 import { requireUser } from "@/lib/auth/require-user";
@@ -69,6 +70,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Datos inválidos" }, { status: 400 });
   }
 
+  const limit = await rateLimit(`comment:${user.id}`, 10, 60);
+  if (!limit.ok) {
+    return NextResponse.json({ error: "Estás comentando muy rápido. Probá de nuevo en un minuto." }, { status: 429 });
+  }
+
   try {
     await connectDB();
     const property = await Property.findById(id).select("agencyId title slug status");
@@ -83,7 +89,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       parentId: parsed.data.parentId ?? null,
     });
     await Property.updateOne({ _id: id }, { $inc: { "stats.comments": 1 } });
-    await Interaction.create({ type: "comment", userId: user.id, propertyId: id, agencyId: property.agencyId });
+    await recordEvent({ type: "comment", userId: user.id, propertyId: id, agencyId: property.agencyId });
 
     after(() => notifyInterestedUsers(id, user.id, property.title, property.slug));
 

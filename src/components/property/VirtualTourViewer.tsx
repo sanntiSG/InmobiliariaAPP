@@ -21,9 +21,29 @@ const btn = cn(
  * visitada queda exactamente como el visitante la dejó (si estaba mirando la
  * cocina, sigue mirando la cocina). Se carga con `next/dynamic({ ssr: false })`.
  */
-export function VirtualTourViewer({ scenes, startId }: { scenes: TourScene[]; startId?: string }) {
+export function VirtualTourViewer({
+  scenes,
+  startId,
+  onSceneChange,
+}: {
+  scenes: TourScene[];
+  startId?: string;
+  /** Se llama cada vez que el visitante llega a una foto distinta (no con la inicial). */
+  onSceneChange?: (sceneId: string) => void;
+}) {
   const firstId = scenes.find((s) => s.id === startId)?.id ?? scenes[0]?.id ?? "";
   const [sceneId, setSceneId] = useState(firstId);
+
+  const onSceneChangeRef = useRef(onSceneChange);
+  useEffect(() => {
+    onSceneChangeRef.current = onSceneChange;
+  }, [onSceneChange]);
+  const lastReportedRef = useRef(firstId);
+  useEffect(() => {
+    if (sceneId === lastReportedRef.current) return;
+    lastReportedRef.current = sceneId;
+    onSceneChangeRef.current?.(sceneId);
+  }, [sceneId]);
   const [entry, setEntry] = useState<SpherePosition | undefined>(undefined);
   const [history, setHistory] = useState<string[]>([]);
   // Última vista del visitante en cada foto — vive sólo mientras el visor está abierto.

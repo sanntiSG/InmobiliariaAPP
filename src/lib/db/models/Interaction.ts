@@ -11,6 +11,10 @@ export const INTERACTION_TYPES = [
   "share",
   "contact",
   "tour_open",
+  "tour_scene",
+  "dwell", // permanencia en la ficha (sólo se guarda si superó el umbral — ver tracking/record.ts)
+  "inquiry", // consulta enviada por el formulario de la ficha
+  "follow", // seguir a una inmobiliaria
 ] as const;
 
 /**
@@ -41,6 +45,8 @@ const interactionSchema = new Schema(
 interactionSchema.index({ propertyId: 1, type: 1, createdAt: -1 });
 interactionSchema.index({ agencyId: 1, createdAt: -1 });
 interactionSchema.index({ userId: 1, createdAt: -1 });
+// Deduplicado de vistas por visitante (ver /api/track).
+interactionSchema.index({ anonId: 1, propertyId: 1, createdAt: -1 });
 
 export type InteractionDoc = InferSchemaType<typeof interactionSchema>;
 

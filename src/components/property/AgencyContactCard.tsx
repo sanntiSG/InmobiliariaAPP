@@ -1,16 +1,20 @@
 import { buildWhatsappLink } from "@/config/site";
 import { Card } from "@/components/ui/Card";
 import { buttonClasses } from "@/components/ui/Button";
+import { brand } from "@/config/brand";
+import { TrackedContactLink } from "./TrackedContactLink";
 import type { PropertyDetail } from "./types";
 
 export function AgencyContactCard({
   agency,
+  propertyId,
   propertyTitle,
 }: {
   agency: NonNullable<PropertyDetail["agency"]>;
+  propertyId: string;
   propertyTitle: string;
 }) {
-  const message = `Hola! Te escribo por "${propertyTitle}" que vi en Umbral.`;
+  const message = `Hola! Te escribo por "${propertyTitle}" que vi en ${brand.name}.`;
   const whatsappHref = agency.whatsapp ? buildWhatsappLink(message, agency.whatsapp) : null;
 
   return (
@@ -20,20 +24,37 @@ export function AgencyContactCard({
 
       <div className="mt-4 flex flex-col gap-2">
         {whatsappHref && (
-          <a href={whatsappHref} target="_blank" rel="noopener noreferrer" className={buttonClasses("primary", "md", "w-full")}>
+          <TrackedContactLink
+            propertyId={propertyId}
+            channel="whatsapp"
+            href={whatsappHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={buttonClasses("primary", "md", "w-full")}
+          >
             <WhatsappIcon />
             Contactar por WhatsApp
-          </a>
+          </TrackedContactLink>
         )}
         {agency.phone && (
-          <a href={`tel:${agency.phone}`} className={buttonClasses("secondary", "md", "w-full")}>
+          <TrackedContactLink
+            propertyId={propertyId}
+            channel="phone"
+            href={`tel:${agency.phone}`}
+            className={buttonClasses("secondary", "md", "w-full")}
+          >
             Llamar
-          </a>
+          </TrackedContactLink>
         )}
         {agency.email && (
-          <a href={`mailto:${agency.email}`} className={buttonClasses("ghost", "md", "w-full")}>
+          <TrackedContactLink
+            propertyId={propertyId}
+            channel="email"
+            href={`mailto:${agency.email}`}
+            className={buttonClasses("ghost", "md", "w-full")}
+          >
             Enviar email
-          </a>
+          </TrackedContactLink>
         )}
       </div>
     </Card>

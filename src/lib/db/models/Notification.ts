@@ -12,6 +12,13 @@ export const NOTIFICATION_TYPES = [
   "comment_reply",
   "activity", // le gustó/comentó algo que el usuario también sigue
   "system",
+  "agency_request", // (admin) alguien solicitó gestionar una inmobiliaria
+  "agency_approved", // (usuario) su solicitud fue aprobada
+  "agency_rejected",
+  "lead", // (inmobiliaria) nueva consulta sobre una propiedad
+  "opportunity", // (inmobiliaria) hallazgo del centro de oportunidades
+  "follow_new_property", // nueva propiedad de una inmobiliaria que el usuario sigue
+  "admin_alert", // (admin) situación que requiere atención
 ] as const;
 
 const notificationSchema = new Schema(
@@ -24,11 +31,20 @@ const notificationSchema = new Schema(
     href: { type: String },
     propertyId: { type: Schema.Types.ObjectId, ref: "Property", default: null },
     read: { type: Boolean, default: false, index: true },
+    /**
+     * Clave opcional para no repetir un aviso (ej: `reco:<propertyId>`,
+     * `opp:<propertyId>:2026-W41`). Único por usuario sólo cuando existe.
+     */
+    dedupeKey: { type: String },
   },
   { timestamps: true }
 );
 
 notificationSchema.index({ userId: 1, read: 1, createdAt: -1 });
+notificationSchema.index(
+  { userId: 1, dedupeKey: 1 },
+  { unique: true, partialFilterExpression: { dedupeKey: { $type: "string" } } }
+);
 
 export type NotificationDoc = InferSchemaType<typeof notificationSchema>;
 

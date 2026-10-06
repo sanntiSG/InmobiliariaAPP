@@ -1,12 +1,10 @@
 import { cache } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { after } from "next/server";
 import type { Metadata } from "next";
 import { ArrowLeft, ArrowRight, Star } from "lucide-react";
 import { connectDB } from "@/lib/db/connect";
 import { Property } from "@/lib/db/models/Property";
-import { Interaction } from "@/lib/db/models/Interaction";
 import { Like } from "@/lib/db/models/Like";
 import { Favorite } from "@/lib/db/models/Favorite";
 import { Rating } from "@/lib/db/models/Rating";
@@ -21,6 +19,8 @@ import { PropertyFeaturesGrid } from "@/components/property/PropertyFeaturesGrid
 import { AmenitiesList } from "@/components/property/AmenitiesList";
 import { AgencyContactCard } from "@/components/property/AgencyContactCard";
 import { SocialBar } from "@/components/property/SocialBar";
+import { ShareButton } from "@/components/property/ShareButton";
+import { PropertyTracker } from "@/components/property/PropertyTracker";
 import { CommentsSection, type CommentItem } from "@/components/property/CommentsSection";
 import { PropertyLocationMapLazy } from "@/components/map/PropertyLocationMapLazy";
 import {
@@ -81,11 +81,11 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
   // como si no existiera (mismo 404 que antes para cualquier visitante).
   if (!isPublished && !canPreview) notFound();
 
-  // Sólo se cuenta como visualización real si está publicada — evitar que
-  // el propio dueño infle sus stats mirando su borrador.
-  if (isPublished) {
-    after(() => trackView(property.id, property.agency?.id, userId).catch(() => {}));
-  }
+  // Sólo cuenta como interés real si está publicada y quien mira no es su
+  // dueño/admin: ni un borrador ni la propia inmobiliaria inflan sus stats.
+  // La vista y la permanencia las registra el cliente (PropertyTracker →
+  // /api/track), que además deduplica y descarta bots.
+  const trackingEnabled = isPublished && !canPreview;
 
   const [likeDoc, favoriteDoc, ratingDoc, commentDocs, commentsTotal] = await connectDB().then(() =>
     Promise.all([
@@ -147,7 +147,8 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
 
         <div className="mt-4 grid grid-cols-1 gap-8 lg:grid-cols-3">
           <div className="flex flex-col gap-8 lg:col-span-2">
-            <PropertyMedia images={property.images} tours={property.tours} virtualTour={property.virtualTour} title={property.title} />
+            <PropertyTracker propertyId={property.id} enabled={trackingEnabled} />
+            <PropertyMedia propertyId={property.id} trackingEnabled={trackingEnabled} images={property.images} tours={property.tours} virtualTour={property.virtualTour} title={property.title} />
 
             <div>
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -178,7 +179,7 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
                 {property.publishedAt && <span>Publicado {formatRelativeTime(property.publishedAt)}</span>}
               </div>
 
-              <div className="mt-4">
+              <div className="mt-4 flex flex-wrap items-center gap-3">
                 <SocialBar
                   propertyId={property.id}
                   isAuthenticated={!!userId}
@@ -190,6 +191,7 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
                   initialRatingCount={property.stats.ratingCount}
                   initialMyRating={ratingDoc?.value ?? null}
                 />
+                {isPublished && <ShareButton propertyId={property.id} title={property.title} />}
               </div>
             </div>
 
@@ -251,19 +253,12 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
                 </p>
               )}
             </Card>
-            {property.agency && <AgencyContactCard agency={property.agency} propertyTitle={property.title} />}
+            {property.agency && (
+              <AgencyContactCard agency={property.agency} propertyId={property.id} propertyTitle={property.title} />
+            )}
           </aside>
         </div>
       </div>
     </div>
   );
-}
-
-async function trackView(propertyId: string, agencyId: string | undefined, userId: string | null) {
-  if (!agencyId) return;
-  await connectDB();
-  await Promise.all([
-    Property.updateOne({ _id: propertyId }, { $inc: { "stats.views": 1 } }),
-    Interaction.create({ type: "view", propertyId, agencyId, userId }),
-  ]);
 }

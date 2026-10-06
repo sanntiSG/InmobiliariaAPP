@@ -9,6 +9,8 @@ export { Like } from "./Like";
 export { Notification, NOTIFICATION_TYPES } from "./Notification";
 export { SavedSearch } from "./SavedSearch";
 export { AllowedEmail } from "./AllowedEmail";
+export { RateLimit } from "./RateLimit";
+export { PropertyDailyStat } from "./PropertyDailyStat";
 
 export type { AgencyDoc } from "./Agency";
 export type { UserDoc } from "./User";
@@ -21,3 +23,5 @@ export type { LikeDoc } from "./Like";
 export type { NotificationDoc } from "./Notification";
 export type { SavedSearchDoc } from "./SavedSearch";
 export type { AllowedEmailDoc } from "./AllowedEmail";
+export type { RateLimitDoc } from "./RateLimit";
+export type { PropertyDailyStatDoc } from "./PropertyDailyStat";
