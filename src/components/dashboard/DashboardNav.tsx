@@ -9,6 +9,7 @@ const BASE_LINKS = [
   { href: "/dashboard/propiedades", label: "Propiedades" },
   { href: "/dashboard/clientes", label: "Clientes" },
   { href: "/dashboard/oportunidades", label: "Oportunidades" },
+  { href: "/dashboard/contenido", label: "Contenido para redes" },
   { href: "/dashboard/inmobiliaria", label: "Mi inmobiliaria" },
 ];
 

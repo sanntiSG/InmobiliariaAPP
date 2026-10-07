@@ -12,6 +12,7 @@ import { Like } from "@/lib/db/models/Like";
 import { Notification } from "@/lib/db/models/Notification";
 import { Property } from "@/lib/db/models/Property";
 import { PropertyDailyStat } from "@/lib/db/models/PropertyDailyStat";
+import { SocialContent } from "@/lib/db/models/SocialContent";
 import { Rating } from "@/lib/db/models/Rating";
 import { User } from "@/lib/db/models/User";
 import { getStorageProvider } from "@/lib/storage";
@@ -79,6 +80,7 @@ export async function deleteAgencyCascade(agencyId: string): Promise<DeleteAgenc
     Interaction.deleteMany({ $or: [{ agencyId: agencyOid }, { propertyId: { $in: propertyIds } }] }),
     AgencyFollow.deleteMany({ agencyId: agencyOid }),
     PropertyDailyStat.deleteMany({ agencyId: agencyOid }),
+    SocialContent.deleteMany({ agencyId: agencyOid }),
   ]);
 
   // — Archivos subidos (mejor esfuerzo: un fallo del storage no frena la limpieza de la base) —

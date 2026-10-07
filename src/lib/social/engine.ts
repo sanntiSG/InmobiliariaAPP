@@ -304,3 +304,26 @@ export async function getState(agencyId: string, isAdmin: boolean): Promise<Soci
     properties: elig.map((e) => ({ id: e.id, title: e.title, photo: e.photos[0]! })),
   };
 }
+
+const lastAdvance = new Map<string, number>();
+const ADVANCE_EVERY_MS = 10 * 60_000;
+
+/**
+ * Avance perezoso del día (sin cron): se llama en `after()` cuando alguien de la
+ * inmobiliaria entra al panel o consulta sus notificaciones. Freno de 10 min por
+ * inmobiliaria y sólo si ya eligió modo; nunca lanza.
+ */
+export async function maybeAdvanceSocial(agencyId: string): Promise<void> {
+  const now = Date.now();
+  if (now - (lastAdvance.get(agencyId) ?? 0) < ADVANCE_EVERY_MS) return;
+  lastAdvance.set(agencyId, now);
+  try {
+    await connectDB();
+    // No crear documentos para inmobiliarias borradas (el JWT puede estar desactualizado).
+    const existing = await SocialContent.exists({ agencyId });
+    if (!existing) return;
+    await ensureToday(agencyId);
+  } catch (err) {
+    console.error("maybeAdvanceSocial failed:", err);
+  }
+}

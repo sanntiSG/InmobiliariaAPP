@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { auth } from "@/auth";
 import { requireDashboardAccess } from "@/lib/auth/require-dashboard-access";
 import { connectDB } from "@/lib/db/connect";
@@ -8,6 +9,7 @@ import { Logo } from "@/components/layout/Logo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { maybeAdvanceSocial } from "@/lib/social/engine";
 
 export default async function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
   const access = await requireDashboardAccess();
@@ -25,6 +27,8 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
     const agency = await Agency.findById(access.agencyId).select("name").lean();
     if (!agency) redirect("/");
     scopeLabel = agency.name;
+    // Publicación de redes del día (sin cron): se prepara fuera del render.
+    after(() => maybeAdvanceSocial(access.agencyId!));
   }
 
   return (

@@ -5,6 +5,7 @@ import { AgencyDeletionNotice } from "@/lib/db/models/AgencyDeletionNotice";
 import { Notification } from "@/lib/db/models/Notification";
 import { requireUser } from "@/lib/auth/require-user";
 import { maybeSendRecommendationNotifications } from "@/lib/intelligence/notify";
+import { maybeAdvanceSocial } from "@/lib/social/engine";
 
 export async function GET(req: NextRequest) {
   const user = await requireUser();
@@ -15,6 +16,8 @@ export async function GET(req: NextRequest) {
   // Recomendaciones nuevas, calculadas fuera de la respuesta (como mucho una
   // vez por día y sólo para quien explora; ver intelligence/notify.ts).
   if (user.role === "user") after(() => maybeSendRecommendationNotifications(user.id));
+  // Quien gestiona una inmobiliaria: deja lista la publicación de redes del día.
+  else if (user.agencyId) after(() => maybeAdvanceSocial(String(user.agencyId)));
 
   try {
     await connectDB();
