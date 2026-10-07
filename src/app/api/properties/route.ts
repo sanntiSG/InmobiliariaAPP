@@ -60,6 +60,8 @@ async function getListing(filters: z.infer<typeof listFiltersSchema>) {
 
   return NextResponse.json(
     { items, total, page: filters.page, pageSize: filters.pageSize },
-    { headers: { "Cache-Control": "public, max-age=30, stale-while-revalidate=60" } }
+    // El navegador siempre revalida: antes (max-age=30 + stale-while-revalidate=60) una propiedad recién
+    // publicada tardaba hasta ~90 s en aparecer. Sólo un CDN, si lo hay, amortigua unos segundos.
+    { headers: { "Cache-Control": "public, max-age=0, s-maxage=10, stale-while-revalidate=20" } }
   );
 }

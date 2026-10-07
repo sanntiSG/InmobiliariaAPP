@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { CircleCheck, Clapperboard, Unlink } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, CircleCheck, Clapperboard, Unlink } from "lucide-react";
 import { FormField } from "@/components/ui/FormField";
-import { Button } from "@/components/ui/Button";
+import { Button, buttonClasses } from "@/components/ui/Button";
 
 /**
  * Vincula el canal de YouTube de la inmobiliaria. No pide permisos ni acceso a
@@ -37,7 +38,7 @@ export function YouTubeChannelCard({
       if (data.linked) {
         setChannelTitle(data.channelTitle || "Canal vinculado");
         setValue("");
-        setMessage({ kind: "ok", text: `Listo: encontramos ${data.videos} videos recientes para elegir.` });
+        setMessage({ kind: "ok", text: "¡Canal vinculado! Ahora elegí qué videos mostrar en cada propiedad (paso de abajo)." });
       } else {
         setChannelTitle(null);
         setMessage({ kind: "ok", text: "Canal desvinculado." });
@@ -74,6 +75,18 @@ export function YouTubeChannelCard({
           <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => save("")}>
             <Unlink className="h-4 w-4" aria-hidden /> Desvincular
           </Button>
+        </div>
+      )}
+
+      {channelTitle && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-media bg-accent-soft p-4">
+          <p className="text-sm text-text">
+            <strong className="font-semibold">Para usar tus videos:</strong> Propiedades → editar una publicación → sección
+            Videos.
+          </p>
+          <Link href="/dashboard/propiedades" className={buttonClasses("primary", "sm", "inline-flex items-center gap-1.5")}>
+            Ir a Propiedades <ArrowRight className="h-4 w-4" aria-hidden />
+          </Link>
         </div>
       )}
 
