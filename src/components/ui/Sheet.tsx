@@ -22,28 +22,31 @@ const EXIT_MS = 200;
  * la salida (más rápida que la entrada — ver .impeccable.md / emil-design-eng).
  */
 export function Sheet({ open, onClose, children, title, side = "bottom" }: SheetProps) {
-  const [mounted, setMounted] = useState(open);
   const [shown, setShown] = useState(false);
-  const [prevOpen, setPrevOpen] = useState(open);
+  const [lingering, setLingering] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Patrón "ajustar estado durante el render" (react.dev/learn/you-might-not-need-an-effect):
-  // solo useState, sin refs — monta/oculta en la misma pasada en la que
-  // cambia `open`, para que el efecto de abajo solo dispare callbacks
-  // (rAF/timeout), nunca setState síncrono en su cuerpo.
-  if (open !== prevOpen) {
-    setPrevOpen(open);
-    if (open) setMounted(true);
-    else setShown(false);
-  }
+  // `mounted` se deriva (no es estado): abierto, o cerrándose mientras corre la
+  // animación de salida. Todos los setState ocurren dentro de callbacks
+  // (rAF/timeout), nunca en el cuerpo del efecto ni durante el render — el
+  // patrón anterior de "ajustar estado durante el render" perdía el montaje
+  // cuando llegaba el siguiente setState y el cartel se abría y cerraba solo.
+  const mounted = open || lingering;
 
   useEffect(() => {
     if (open) {
-      const raf = requestAnimationFrame(() => setShown(true));
+      const raf = requestAnimationFrame(() => {
+        setLingering(true);
+        setShown(true);
+      });
       return () => cancelAnimationFrame(raf);
     }
-    const t = setTimeout(() => setMounted(false), EXIT_MS);
-    return () => clearTimeout(t);
+    const raf = requestAnimationFrame(() => setShown(false));
+    const t = setTimeout(() => setLingering(false), EXIT_MS);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+    };
   }, [open]);
 
   useEffect(() => {
