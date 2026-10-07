@@ -18,6 +18,9 @@ const nextConfig: NextConfig = {
     "/api/dashboard/social/image": ["./src/lib/social/fonts/**/*"],
   },
   images: {
+    // Fotos reducidas por el CDN de cada origen (ver src/lib/images/loader.ts), no por el optimizador de Next.
+    loader: "custom",
+    loaderFile: "./src/lib/images/loader.ts",
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "res.cloudinary.com" },

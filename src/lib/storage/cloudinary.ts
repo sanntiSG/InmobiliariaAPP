@@ -17,7 +17,15 @@ async function upload({ buffer, folder, quality = "auto" }: UploadInput): Promis
         // Cloudinary optimiza formato/calidad automáticamente (free tier).
         // "best" pide bastante menos compresión — para foto 360°, donde se
         // hace zoom dentro de la esfera y la pérdida se nota mucho más.
-        transformation: [{ fetch_format: "auto", quality: quality === "best" ? "auto:best" : "auto" }],
+        // Las fotos comunes además se limitan a 2560 px: un original de 12 MP no aporta nada en
+        // pantalla y hacía pesadísima cada tarjeta. La foto 360° conserva su resolución completa.
+        transformation: [
+          {
+            fetch_format: "auto",
+            quality: quality === "best" ? "auto:best" : "auto",
+            ...(quality === "best" ? {} : { width: 2560, height: 2560, crop: "limit" }),
+          },
+        ],
       },
       (error, result) => {
         if (error || !result) return reject(error ?? new Error("Upload sin resultado"));

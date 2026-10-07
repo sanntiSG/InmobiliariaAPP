@@ -23,8 +23,12 @@ import {
   createPropertyPinElement,
   updatePropertyPinElement,
   setPinHighlighted,
+  setPinDetail,
 } from "@/lib/map/markers";
 import { PropertyPopupCard } from "./PropertyPopupCard";
+
+/** Desde este zoom un pin suelto muestra el logo de la inmobiliaria; antes es sólo un punto. */
+const PIN_DETAIL_ZOOM = 12;
 
 type EffectiveTheme = "light" | "dark";
 
@@ -252,6 +256,7 @@ export function MapCanvas({
         let marker = current.get(id);
         const el = marker ? (marker.getElement() as HTMLDivElement) : createPropertyPinElement(property);
         if (marker) updatePropertyPinElement(el, property);
+        setPinDetail(el, map.getZoom() >= PIN_DETAIL_ZOOM);
         if (!marker) {
           el.addEventListener("click", (e) => {
             e.stopPropagation();
@@ -275,6 +280,24 @@ export function MapCanvas({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, rendered]);
+
+  // ── Punto ↔ logo al cruzar el zoom de detalle (sin esperar al fin del movimiento) ──
+  useEffect(() => {
+    if (!map) return;
+    let detail = map.getZoom() >= PIN_DETAIL_ZOOM;
+    const onZoom = () => {
+      const next = map.getZoom() >= PIN_DETAIL_ZOOM;
+      if (next === detail) return;
+      detail = next;
+      for (const [id, marker] of markersRef.current) {
+        if (id.startsWith("point-")) setPinDetail(marker.getElement(), next);
+      }
+    };
+    map.on("zoom", onZoom);
+    return () => {
+      map.off("zoom", onZoom);
+    };
+  }, [map]);
 
   // ── Highlight de hover (sincronizado con el panel de resultados) ──
   useEffect(() => {

@@ -1,4 +1,5 @@
-import { formatCompactNumber, formatPriceCompact } from "@/lib/utils/format";
+import { formatCompactNumber } from "@/lib/utils/format";
+import { thumbUrl } from "@/lib/images/loader";
 import type { PropertyCardData } from "@/components/property/types";
 
 /**
@@ -68,29 +69,51 @@ export function getClusterTarget(root: HTMLDivElement): { clusterId: number; lng
 }
 
 /**
- * Pill con el precio (estilo Redfin/Zillow/Google Maps) en vez de un
- * teardrop genérico: es lo que hace que un mapa "se lea" como un mapa de
- * propiedades — ver UIreference 1 y 3. `anchor: "bottom"` en MapCanvas hace
- * que la punta de la cola (abajo del todo) sea el punto exacto de la
- * propiedad, así que el pin crece hacia arriba sin correr las coordenadas.
+ * Pin de propiedad = logo de la inmobiliaria en un círculo (con la inicial si no tiene logo) y una
+ * cola chica que marca el punto exacto — `anchor: "bottom"` en MapCanvas hace que la punta sea la
+ * ubicación real. Con poco zoom se ve sólo un punto de acento para no llenar el mapa de logos
+ * (`setPinDetail`, controlado desde MapCanvas por el nivel de zoom). El precio ya no va en el pin:
+ * se ve en el popup al tocarlo y en las tarjetas del panel.
  */
-const PILL_NEUTRAL =
-  "pin-pill flex items-center gap-1 whitespace-nowrap rounded-pill border border-border bg-surface px-2.5 py-1 text-xs font-display font-semibold text-text shadow-float transition-colors duration-150 [transition-timing-function:var(--ease-out)]";
-const PILL_ACCENT =
-  "pin-pill flex items-center gap-1 whitespace-nowrap rounded-pill border border-accent bg-accent px-2.5 py-1 text-xs font-display font-semibold text-accent-contrast shadow-float transition-colors duration-150 [transition-timing-function:var(--ease-out)]";
-const TAIL_NEUTRAL =
-  "pin-tail -mt-[3px] h-2 w-2 rotate-45 rounded-[1px] border-b border-r border-border bg-surface transition-colors duration-150 [transition-timing-function:var(--ease-out)]";
-const TAIL_ACCENT =
-  "pin-tail -mt-[3px] h-2 w-2 rotate-45 rounded-[1px] border-b border-r border-accent bg-accent transition-colors duration-150 [transition-timing-function:var(--ease-out)]";
+const BADGE_BASE =
+  "pin-badge relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border-[3px] bg-surface shadow-float font-display text-base font-bold text-accent transition-[border-color] duration-150 [transition-timing-function:var(--ease-out)]";
+const BADGE_NEUTRAL = `${BADGE_BASE} border-white`;
+const BADGE_ACCENT = `${BADGE_BASE} border-accent`;
+const TAIL_BASE =
+  "pin-tail -mt-[5px] h-2.5 w-2.5 rotate-45 rounded-[2px] shadow-float transition-colors duration-150 [transition-timing-function:var(--ease-out)]";
+const TAIL_NEUTRAL = `${TAIL_BASE} bg-white`;
+const TAIL_ACCENT = `${TAIL_BASE} bg-accent`;
+const DOT_CLASS =
+  "pin-dot h-3.5 w-3.5 rounded-full border-2 border-white bg-accent shadow-float";
 
 /** Ícono de órbita 360° — mismo lenguaje visual que TourBadge, a escala de pin. */
-const TOUR_GLYPH = `
-  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" aria-hidden="true">
-    <ellipse cx="12" cy="12" rx="9" ry="4" stroke="currentColor" stroke-width="2" />
-    <ellipse cx="12" cy="12" rx="9" ry="4" stroke="currentColor" stroke-width="2" transform="rotate(60 12 12)" />
-    <circle cx="12" cy="12" r="2" fill="currentColor" />
-  </svg>
-`;
+const SVG_NS = "http://www.w3.org/2000/svg";
+function createTourGlyph(): SVGSVGElement {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("width", "10");
+  svg.setAttribute("height", "10");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("aria-hidden", "true");
+  for (const rotate of [null, "rotate(60 12 12)"]) {
+    const e = document.createElementNS(SVG_NS, "ellipse");
+    e.setAttribute("cx", "12");
+    e.setAttribute("cy", "12");
+    e.setAttribute("rx", "9");
+    e.setAttribute("ry", "4");
+    e.setAttribute("stroke", "currentColor");
+    e.setAttribute("stroke-width", "2");
+    if (rotate) e.setAttribute("transform", rotate);
+    svg.appendChild(e);
+  }
+  const c = document.createElementNS(SVG_NS, "circle");
+  c.setAttribute("cx", "12");
+  c.setAttribute("cy", "12");
+  c.setAttribute("r", "2");
+  c.setAttribute("fill", "currentColor");
+  svg.appendChild(c);
+  return svg;
+}
 
 export function createPropertyPinElement(property: PropertyCardData): HTMLDivElement {
   const root = document.createElement("div");
@@ -107,28 +130,74 @@ export function createPropertyPinElement(property: PropertyCardData): HTMLDivEle
   return root;
 }
 
-/** Refresca el contenido del pin (precio, recorrido 3D) si la propiedad cambió desde la última vez. */
+function pinSignature(property: PropertyCardData): string {
+  return [property.agencyLogo ?? "", property.agencyName ?? "", property.tour3d, property.price, property.currency].join("|");
+}
+
+/** Refresca el contenido del pin si la propiedad o su inmobiliaria cambiaron desde la última vez. */
 export function updatePropertyPinElement(root: HTMLDivElement, property: PropertyCardData) {
-  const signature = `${property.price}|${property.currency}|${property.tour3d}`;
-  if (root.dataset.signature === signature) return;
+  if (root.dataset.signature === pinSignature(property)) return;
   const visual = root.querySelector<HTMLDivElement>(".pin-visual");
   if (visual) applyPropertyPinVisual(root, visual, property);
 }
 
 function applyPropertyPinVisual(root: HTMLDivElement, visual: HTMLDivElement, property: PropertyCardData) {
-  root.dataset.signature = `${property.price}|${property.currency}|${property.tour3d}`;
+  root.dataset.signature = pinSignature(property);
+  root.dataset.logo = property.agencyLogo ? thumbUrl(property.agencyLogo, 96) : "";
   root.setAttribute(
     "aria-label",
-    `${property.title}, ${new Intl.NumberFormat("es-AR").format(property.price)} ${property.currency}`
+    `${property.title}${property.agencyName ? `, ${property.agencyName}` : ""}, ${new Intl.NumberFormat("es-AR").format(property.price)} ${property.currency}`
   );
 
-  visual.innerHTML = `
-    <div class="${PILL_NEUTRAL}">
-      ${property.tour3d ? TOUR_GLYPH : ""}
-      <span>${formatPriceCompact(property.price, property.currency)}</span>
-    </div>
-    <div class="${TAIL_NEUTRAL}"></div>
-  `;
+  const dot = document.createElement("div");
+  dot.className = DOT_CLASS;
+
+  const detail = document.createElement("div");
+  detail.className = "pin-detail flex flex-col items-center";
+  const badge = document.createElement("div");
+  badge.className = BADGE_NEUTRAL;
+  const initial = document.createElement("span");
+  initial.className = "pin-initial";
+  initial.textContent = (property.agencyName?.trim()[0] ?? "•").toUpperCase();
+  badge.appendChild(initial);
+  if (property.tour3d) {
+    const tour = document.createElement("span");
+    tour.className =
+      "pointer-events-none absolute right-0 top-0 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-accent-contrast";
+    tour.appendChild(createTourGlyph());
+    badge.appendChild(tour);
+  }
+  const tail = document.createElement("div");
+  tail.className = TAIL_NEUTRAL;
+  detail.append(badge, tail);
+
+  visual.replaceChildren(dot, detail);
+  setPinDetail(root, root.dataset.detail === "1");
+}
+
+/**
+ * Alterna entre punto (zoom lejano) y pin con logo (zoom cercano). El logo se pide recién la primera
+ * vez que hace falta, para no bajar decenas de imágenes con el mapa alejado.
+ */
+export function setPinDetail(markerRoot: HTMLElement, detail: boolean) {
+  markerRoot.dataset.detail = detail ? "1" : "0";
+  const dot = markerRoot.querySelector<HTMLElement>(".pin-dot");
+  const box = markerRoot.querySelector<HTMLElement>(".pin-detail");
+  if (!dot || !box) return;
+  dot.style.display = detail ? "none" : "";
+  box.style.display = detail ? "" : "none";
+  const logo = markerRoot.dataset.logo;
+  if (detail && logo && !box.querySelector("img")) {
+    const img = document.createElement("img");
+    img.alt = "";
+    img.decoding = "async";
+    img.draggable = false;
+    img.className = "absolute inset-0 h-full w-full bg-surface object-cover";
+    // Si el logo no carga queda la inicial que está debajo.
+    img.addEventListener("error", () => img.remove());
+    img.src = logo;
+    box.querySelector(".pin-badge")?.prepend(img);
+  }
 }
 
 /**
@@ -139,11 +208,13 @@ function applyPropertyPinVisual(root: HTMLDivElement, visual: HTMLDivElement, pr
 export function setPinHighlighted(markerRoot: HTMLElement, highlighted: boolean) {
   const visual = markerRoot.querySelector<HTMLElement>(".pin-visual");
   if (!visual) return;
-  visual.style.transform = highlighted ? "scale(1.06) translateY(-2px)" : "";
+  visual.style.transform = highlighted ? "scale(1.12) translateY(-2px)" : "";
   markerRoot.style.zIndex = highlighted ? "10" : "";
 
-  const pill = visual.querySelector<HTMLElement>(".pin-pill");
-  if (pill) pill.className = highlighted ? PILL_ACCENT : PILL_NEUTRAL;
+  const badge = visual.querySelector<HTMLElement>(".pin-badge");
+  if (badge) badge.className = highlighted ? BADGE_ACCENT : BADGE_NEUTRAL;
   const tail = visual.querySelector<HTMLElement>(".pin-tail");
   if (tail) tail.className = highlighted ? TAIL_ACCENT : TAIL_NEUTRAL;
+  const dot = visual.querySelector<HTMLElement>(".pin-dot");
+  if (dot) dot.style.transform = highlighted ? "scale(1.4)" : "";
 }

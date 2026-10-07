@@ -47,6 +47,34 @@ async function fetchProperties(bbox: BBox, filters: MapFiltersState, signal: Abo
   return data.features as PropertyFeature[];
 }
 
+/**
+ * Caché de la vista inicial (sólo sin filtros ni inmobiliaria): al volver a /mapa se dibujan al
+ * instante los pines de la visita anterior y la respuesta nueva los reemplaza apenas llega.
+ * Vive en sessionStorage (se borra al cerrar la pestaña) y vence a los 5 minutos.
+ */
+const INITIAL_CACHE_KEY = "mapa:inicial:v1";
+const INITIAL_CACHE_TTL_MS = 5 * 60_000;
+
+function readInitialCache(): PropertyFeature[] | null {
+  try {
+    const raw = sessionStorage.getItem(INITIAL_CACHE_KEY);
+    if (!raw) return null;
+    const { t, features } = JSON.parse(raw) as { t: number; features: PropertyFeature[] };
+    if (!Array.isArray(features) || Date.now() - t > INITIAL_CACHE_TTL_MS) return null;
+    return features;
+  } catch {
+    return null;
+  }
+}
+
+function writeInitialCache(features: PropertyFeature[]) {
+  try {
+    sessionStorage.setItem(INITIAL_CACHE_KEY, JSON.stringify({ t: Date.now(), features }));
+  } catch {
+    // Sin almacenamiento (modo privado, cuota): simplemente no se cachea.
+  }
+}
+
 /** Inmobiliaria por la que se filtra el mapa (viene de "Ver en mapa" en su perfil). */
 export type MapAgencyFilter = { id: string; name: string; bbox: BBox | null };
 
@@ -102,6 +130,7 @@ export default function MapaClient({ agency, panelLink = null }: { agency: MapAg
     window.history.replaceState(null, "", "/mapa");
   }, []);
 
+  const hasAgencyFilter = !!agency;
   const abortRef = useRef<AbortController | null>(null);
   const isFirstFetchRef = useRef(true);
   // bbox (ya con padding) del último fetch que efectivamente completó. Mientras
@@ -119,8 +148,23 @@ export default function MapaClient({ agency, panelLink = null }: { agency: MapAg
     // El fetch inicial no espera los 300ms de debounce (no hay nada que
     // debouncear todavía); solo los cambios posteriores (arrastrar el mapa,
     // tocar filtros) lo hacen.
-    const delay = isFirstFetchRef.current ? 0 : 300;
+    let cachedFrame = 0;
+    const isFirst = isFirstFetchRef.current;
+    const delay = isFirst ? 0 : 300;
     isFirstFetchRef.current = false;
+
+    // Vista inicial sin filtros: se puede cachear (ver INITIAL_CACHE_KEY).
+    const cacheable =
+      !hasAgencyFilter && bounds.bbox === MAP_DEFAULTS.bounds && JSON.stringify(filters) === JSON.stringify(DEFAULT_FILTERS);
+    if (isFirst && cacheable) {
+      // En un frame aparte: leer el storage no puede disparar un setState dentro del cuerpo del efecto.
+      cachedFrame = requestAnimationFrame(() => {
+        const cached = readInitialCache();
+        if (!cached) return;
+        setFeatures((cur) => (cur.length === 0 ? cached : cur));
+        setLoading(false);
+      });
+    }
 
     const timeout = setTimeout(() => {
       abortRef.current?.abort();
@@ -130,6 +174,7 @@ export default function MapaClient({ agency, panelLink = null }: { agency: MapAg
       fetchProperties(bounds.bbox, filters, controller.signal)
         .then((next) => {
           setFeatures(next);
+          if (cacheable) writeInitialCache(next);
           setLoadError(false);
           setLoading(false);
           fetchedBBoxRef.current = bounds.bbox;
@@ -144,8 +189,11 @@ export default function MapaClient({ agency, panelLink = null }: { agency: MapAg
           setLoading(false);
         });
     }, delay);
-    return () => clearTimeout(timeout);
-  }, [bounds, filters]);
+    return () => {
+      clearTimeout(timeout);
+      cancelAnimationFrame(cachedFrame);
+    };
+  }, [bounds, filters, hasAgencyFilter]);
 
   // Filtra al viewport visible real (no al bbox con padding que se pidió al
   // servidor) — así el contador y la lista nunca muestran algo que en

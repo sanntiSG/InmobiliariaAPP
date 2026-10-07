@@ -57,7 +57,8 @@ Roles del sistema:
 - Visualización de todas las propiedades disponibles de la inmobiliaria/plataforma, geolocalizadas.
 - Estilo "Google Maps" pero enteramente gratuito, sin APIs pagas ni límites de uso , usando mapa de la region de Argentina por ahora, que tenga buen filtro de ubicaciones para mejor precision.
 - Click en un pin/cluster → card flotante con info clave (foto, precio, datos) y salida a la ficha completa de la propiedad. (deben verse sobre el mapa los pines, como en google maps,) debes apoyarte en las referencias visuales de la carpeta llamada UIreferences
-- Clustering numerado cuando hay muchas propiedades cercanas.
+- Clustering numerado cuando hay muchas propiedades cercanas. Un pin suelto es un **punto de acento** con zoom < 12 y el **logo de la inmobiliaria** (círculo con su inicial si no tiene logo; insignia si tiene recorrido 360°) desde zoom 12; el precio ya no va en el pin sino en el popup y las tarjetas (`lib/map/markers.ts`, `PIN_DETAIL_ZOOM` en `MapCanvas.tsx`).
+- **Rendimiento de imágenes**: `next/image` usa un loader global (`lib/images/loader.ts`, `images.loaderFile`) que pide a Cloudinary/Unsplash la foto ya reducida (`w_…,q_auto,f_auto`) en vez de pasar por el optimizador de Next (que bajaba el original; medido 4,6 s la primera vez). Las fotos comunes se limitan a 2560 px al subirlas; la 360° no. La vista inicial del mapa (sin filtros) se cachea 5 min en `sessionStorage` y se refresca en segundo plano.
 - Buscador de direcciones/zonas integrado.
 
 ### Capa social (google OAuth)
