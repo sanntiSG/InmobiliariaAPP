@@ -33,6 +33,8 @@ const MapCanvas = dynamic(() => import("@/components/map/MapCanvas").then((m) =>
 /** Cuánto se expande el bbox pedido más allá del viewport visible — mientras
  * el usuario se mueva dentro de ese margen no hace falta un fetch nuevo. */
 const FETCH_PAD_RATIO = 0.3;
+/** Zona que se pide en la primera carga: todo AMBA con margen (el mapa abre encuadrado ahí). */
+const INITIAL_FETCH_BBOX = padBBox(MAP_DEFAULTS.bounds, FETCH_PAD_RATIO);
 /** Tope de cards renderizadas en el panel de resultados a la vez. */
 const MAX_LIST_ITEMS = 50;
 
@@ -88,7 +90,7 @@ export default function MapaClient({ agency, panelLink = null }: { agency: MapAg
   // Con filtro de inmobiliaria arranca sobre SUS propiedades (que pueden
   // estar fuera de AMBA), y el mapa se encuadra ahí apenas está listo.
   const [bounds, setBounds] = useState<{ bbox: BBox; zoom: number }>({
-    bbox: agency?.bbox ? padBBox(agency.bbox, FETCH_PAD_RATIO) : MAP_DEFAULTS.bounds,
+    bbox: agency?.bbox ? padBBox(agency.bbox, FETCH_PAD_RATIO) : INITIAL_FETCH_BBOX,
     zoom: MAP_DEFAULTS.zoom,
   });
   // Viewport real (sin padding) — se usa solo para filtrar qué mostrar, no
@@ -155,7 +157,7 @@ export default function MapaClient({ agency, panelLink = null }: { agency: MapAg
 
     // Vista inicial sin filtros: se puede cachear (ver INITIAL_CACHE_KEY).
     const cacheable =
-      !hasAgencyFilter && bounds.bbox === MAP_DEFAULTS.bounds && JSON.stringify(filters) === JSON.stringify(DEFAULT_FILTERS);
+      !hasAgencyFilter && bounds.bbox === INITIAL_FETCH_BBOX && JSON.stringify(filters) === JSON.stringify(DEFAULT_FILTERS);
     if (isFirst && cacheable) {
       // En un frame aparte: leer el storage no puede disparar un setState dentro del cuerpo del efecto.
       cachedFrame = requestAnimationFrame(() => {

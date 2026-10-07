@@ -143,7 +143,7 @@ export function updatePropertyPinElement(root: HTMLDivElement, property: Propert
 
 function applyPropertyPinVisual(root: HTMLDivElement, visual: HTMLDivElement, property: PropertyCardData) {
   root.dataset.signature = pinSignature(property);
-  root.dataset.logo = property.agencyLogo ? thumbUrl(property.agencyLogo, 96) : "";
+  root.dataset.logo = property.agencyLogo ? thumbUrl(property.agencyLogo, 128) : "";
   root.setAttribute(
     "aria-label",
     `${property.title}${property.agencyName ? `, ${property.agencyName}` : ""}, ${new Intl.NumberFormat("es-AR").format(property.price)} ${property.currency}`

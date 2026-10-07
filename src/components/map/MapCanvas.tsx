@@ -105,8 +105,18 @@ export function MapCanvas({
     const instance = new MapLibreMap({
       container: containerRef.current,
       style: getEffectiveTheme() === "dark" ? DARK_STYLE_URL : LIGHT_STYLE_URL,
-      center: MAP_DEFAULTS.center,
-      zoom: MAP_DEFAULTS.zoom,
+      // Encuadra todo AMBA (no sólo la ciudad): con centro + zoom fijos, propiedades del conurbano
+      // como Ezeiza quedaban fuera de la pantalla inicial y parecía que no estaban publicadas.
+      bounds: [
+        [MAP_DEFAULTS.bounds.west, MAP_DEFAULTS.bounds.south],
+        [MAP_DEFAULTS.bounds.east, MAP_DEFAULTS.bounds.north],
+      ],
+      fitBoundsOptions: {
+        // Deja libre el panel de resultados (izquierda en escritorio, abajo en celular).
+        padding: window.innerWidth >= 640
+          ? { top: 90, right: 24, bottom: 24, left: 390 }
+          : { top: 150, right: 16, bottom: 150, left: 16 },
+      },
       minZoom: MAP_DEFAULTS.minZoom,
       maxZoom: MAP_DEFAULTS.maxZoom,
       attributionControl: false,

@@ -33,6 +33,16 @@ export function thumbUrl(src: string, width: number, quality = 75): string {
   return src;
 }
 
+/**
+ * Anchos fijos: Next pide ~16 anchos distintos y cada uno cuenta como una transformación en Cloudinary.
+ * Redondeando hacia arriba a estos 4, cada foto genera como máximo 4 versiones (casi siempre 1 o 2).
+ */
+const WIDTH_STEPS = [128, 640, 1080, 1920];
+
+export function snapWidth(width: number): number {
+  return WIDTH_STEPS.find((w) => width <= w) ?? WIDTH_STEPS[WIDTH_STEPS.length - 1]!;
+}
+
 export default function imageLoader({ src, width, quality }: { src: string; width: number; quality?: number }): string {
-  return thumbUrl(src, width, quality ?? 75);
+  return thumbUrl(src, snapWidth(width), quality ?? 75);
 }
