@@ -13,6 +13,10 @@ const nextConfig: NextConfig = {
     "192.168.0.24", // IP actual de la PC en la red (la que se usa desde el celu)
     "localhost:3000"
   ],
+  // Tipografías del render de publicaciones (se leen con fs): que viajen en el deploy.
+  outputFileTracingIncludes: {
+    "/api/dashboard/social/image": ["./src/lib/social/fonts/**/*"],
+  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },

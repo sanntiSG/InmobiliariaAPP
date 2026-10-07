@@ -19,6 +19,7 @@ export const NOTIFICATION_TYPES = [
   "opportunity", // (inmobiliaria) hallazgo del centro de oportunidades
   "follow_new_property", // nueva propiedad de una inmobiliaria que el usuario sigue
   "admin_alert", // (admin) situación que requiere atención
+  "social_post", // (inmobiliaria) publicación para redes lista
 ] as const;
 
 const notificationSchema = new Schema(
