@@ -4,6 +4,8 @@ import { Logo } from "@/components/layout/Logo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { OnboardingAgencyForm } from "@/components/agency/OnboardingAgencyForm";
+import { connectDB } from "@/lib/db/connect";
+import { AgencyRequest } from "@/lib/db/models/AgencyRequest";
 import { brand } from "@/config/brand";
 
 export const metadata = { title: "Creá tu inmobiliaria" };
@@ -20,6 +22,10 @@ export default async function PublicarPage() {
     // Sin permiso de agencia — no tiene nada que hacer acá.
     redirect("/");
   }
+
+  // Si la persona pasó por la solicitud, el formulario arranca con lo que ya completó.
+  await connectDB();
+  const request = await AgencyRequest.findOne({ userId: user.id }).sort({ createdAt: -1 }).lean();
 
   return (
     <div className="min-h-dvh bg-bg">
@@ -43,7 +49,18 @@ export default async function PublicarPage() {
           </p>
         </div>
 
-        <OnboardingAgencyForm />
+        <OnboardingAgencyForm
+          prefill={
+            request
+              ? {
+                  name: request.agencyName,
+                  whatsapp: request.phone.replace(/\D/g, ""),
+                  phone: request.phone,
+                  city: request.zone,
+                }
+              : undefined
+          }
+        />
       </div>
     </div>
   );

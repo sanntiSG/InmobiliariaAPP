@@ -26,10 +26,13 @@ const emptyValues: Values = {
   province: "",
 };
 
-export function OnboardingAgencyForm() {
+/** Datos de la solicitud previa, para no pedirle de nuevo lo que ya completó. */
+export type OnboardingPrefill = Partial<Pick<Values, "name" | "whatsapp" | "phone" | "city">>;
+
+export function OnboardingAgencyForm({ prefill }: { prefill?: OnboardingPrefill }) {
   const router = useRouter();
   const { update } = useSession();
-  const [values, setValues] = useState<Values>(emptyValues);
+  const [values, setValues] = useState<Values>({ ...emptyValues, ...prefill });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,6 +70,7 @@ export function OnboardingAgencyForm() {
     <form onSubmit={handleSubmit} className="flex flex-col gap-6">
       <section className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
         <FormField label="Nombre de la inmobiliaria" required value={values.name} onChange={(e) => set("name", e.target.value)} />
+        <p className="-mt-2 text-xs text-text-muted">Después lo podés cambiar cuando quieras desde &quot;Mi inmobiliaria&quot;.</p>
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-text">Descripción</label>
           <textarea

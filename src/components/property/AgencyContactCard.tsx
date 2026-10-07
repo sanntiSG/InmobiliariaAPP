@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { buildWhatsappLink } from "@/config/site";
+import { propertyQuickMessage, whatsappUrl } from "@/lib/whatsapp/messages";
 import { AgencyAvatar } from "./AgencyAvatar";
 import { Card } from "@/components/ui/Card";
 import { buttonClasses } from "@/components/ui/Button";
-import { brand } from "@/config/brand";
 import { TrackedContactLink } from "./TrackedContactLink";
 import type { PropertyDetail } from "./types";
 
@@ -11,13 +10,18 @@ export function AgencyContactCard({
   agency,
   propertyId,
   propertyTitle,
+  propertyUrl,
 }: {
   agency: NonNullable<PropertyDetail["agency"]>;
   propertyId: string;
   propertyTitle: string;
+  /** Link absoluto de la propiedad, para incluirlo en el mensaje. */
+  propertyUrl: string;
 }) {
-  const message = `Hola! Te escribo por "${propertyTitle}" que vi en ${brand.name}.`;
-  const whatsappHref = agency.whatsapp ? buildWhatsappLink(message, agency.whatsapp) : null;
+  // El botón manda un mensaje corto; la tarjeta de consulta de abajo manda uno detallado con los datos de quien consulta.
+  const whatsappHref = agency.whatsapp
+    ? whatsappUrl(propertyQuickMessage({ title: propertyTitle, url: propertyUrl }), agency.whatsapp)
+    : null;
 
   return (
     <Card className="p-5">

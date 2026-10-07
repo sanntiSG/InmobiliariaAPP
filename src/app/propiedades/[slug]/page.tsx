@@ -36,6 +36,7 @@ import {
 } from "@/config/filters";
 import { formatCompactNumber, formatRelativeTime } from "@/lib/utils/format";
 import { brand } from "@/config/brand";
+import { getSiteOrigin } from "@/lib/site-url";
 
 /**
  * Sin filtro de `status` acá a propósito: el dueño (o el admin) puede
@@ -116,6 +117,8 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
       },
     };
   });
+
+  const siteOrigin = await getSiteOrigin();
 
   const addressLine = [property.address.neighborhood, property.address.city]
     .filter(Boolean)
@@ -272,7 +275,12 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
               )}
             </Card>
             {property.agency && (
-              <AgencyContactCard agency={property.agency} propertyId={property.id} propertyTitle={property.title} />
+              <AgencyContactCard
+                agency={property.agency}
+                propertyId={property.id}
+                propertyTitle={property.title}
+                propertyUrl={`${siteOrigin}/propiedades/${property.slug}`}
+              />
             )}
             {isPublished && property.agency && (
               <InquiryForm

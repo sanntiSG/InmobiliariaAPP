@@ -10,8 +10,8 @@ import { clientIp, rateLimit } from "@/lib/security/rate-limit";
 import { recordEvent } from "@/lib/tracking/record";
 import { createNotificationForMany } from "@/lib/notifications/create";
 import { agencyMemberIds } from "@/lib/notifications/agency-members";
-import { buildWhatsappLink } from "@/config/site";
-import { brand } from "@/config/brand";
+import { inquiryMessage, whatsappUrl } from "@/lib/whatsapp/messages";
+import { getSiteOrigin } from "@/lib/site-url";
 
 const DUPLICATE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -110,8 +110,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json(
       {
         ok: true,
+        // Mensaje detallado (propiedad + link + datos de contacto) para abrir WhatsApp de la inmobiliaria.
         whatsappHref: whatsapp
-          ? buildWhatsappLink(`Hola! Soy ${data.name}. Te escribo por "${property.title}" que vi en ${brand.name}: ${data.message}`, whatsapp)
+          ? whatsappUrl(
+              inquiryMessage({
+                propertyTitle: property.title,
+                propertyUrl: `${await getSiteOrigin()}/propiedades/${property.slug}`,
+                name: data.name,
+                email,
+                phone,
+                message: data.message,
+              }),
+              whatsapp
+            )
           : null,
       },
       { status: 201 }

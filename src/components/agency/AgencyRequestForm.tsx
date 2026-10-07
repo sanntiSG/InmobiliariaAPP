@@ -1,37 +1,40 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, MessageCircle } from "lucide-react";
 import { FormField } from "@/components/ui/FormField";
 import { Button, buttonClasses } from "@/components/ui/Button";
 import { agencyRequestSchema } from "@/lib/validation/agency-request";
-import { buildWhatsappLink } from "@/config/site";
+import { providerRequestMessage, whatsappUrl } from "@/lib/whatsapp/messages";
+import { useWhatsappLauncher } from "@/lib/whatsapp/useWhatsappLauncher";
 import { brand } from "@/config/brand";
 
 type Values = { agencyName: string; phone: string; zone: string; message: string; website: string };
 
 const emptyValues: Values = { agencyName: "", phone: "", zone: "", message: "", website: "" };
 
-export function requestWhatsappHref(userName: string, agencyName: string, zone?: string) {
-  return buildWhatsappLink(
-    `Hola! Soy ${userName} y pedí acceso para gestionar "${agencyName}"${zone ? ` (${zone})` : ""} en ${brand.name}.`
-  );
-}
-
 /**
  * Solicitud para gestionar una inmobiliaria. Se guarda en la plataforma (el
- * admin la ve en /admin/solicitudes y recibe una notificación) y, además, se
- * ofrece el contacto por WhatsApp: el admin valida hablando con la persona
- * antes de aprobar.
+ * admin la ve en /admin/solicitudes y recibe una notificación) y, al terminar,
+ * se abre WhatsApp con el proveedor con un mensaje ya armado con los datos del
+ * formulario: la persona decide si lo envía (conviene, así el equipo lo ve y
+ * le da el permiso).
  */
-export function AgencyRequestForm({ userName, resubmit = false }: { userName: string; resubmit?: boolean }) {
-  const router = useRouter();
+export function AgencyRequestForm({
+  userName,
+  email,
+  resubmit = false,
+}: {
+  userName: string;
+  email?: string;
+  resubmit?: boolean;
+}) {
   const [values, setValues] = useState<Values>(emptyValues);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [sent, setSent] = useState<{ agencyName: string; zone: string } | null>(null);
+  const [sent, setSent] = useState<{ whatsappUrl: string; opened: boolean } | null>(null);
+  const whatsapp = useWhatsappLauncher();
 
   function set<K extends keyof Values>(key: K, value: Values[K]) {
     setValues((v) => ({ ...v, [key]: value }));
@@ -50,6 +53,9 @@ export function AgencyRequestForm({ userName, resubmit = false }: { userName: st
     }
     setErrors({});
     setSaving(true);
+    // Se reserva la pestaña de WhatsApp acá, dentro del clic: si se esperara al
+    // guardado para abrirla, el navegador la bloquearía como popup.
+    whatsapp.reserve();
 
     try {
       const res = await fetch("/api/agency-requests", {
@@ -59,9 +65,20 @@ export function AgencyRequestForm({ userName, resubmit = false }: { userName: st
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error ?? "No se pudo enviar la solicitud.");
-      setSent({ agencyName: parsed.data.agencyName, zone: parsed.data.zone });
-      router.refresh();
+
+      const url = whatsappUrl(
+        providerRequestMessage({
+          userName,
+          email,
+          agencyName: parsed.data.agencyName,
+          zone: parsed.data.zone,
+          phone: parsed.data.phone,
+          message: parsed.data.message,
+        })
+      );
+      setSent({ whatsappUrl: url, opened: whatsapp.launch(url) });
     } catch (err) {
+      whatsapp.cancel();
       setFormError(err instanceof Error ? err.message : "No se pudo enviar la solicitud.");
     } finally {
       setSaving(false);
@@ -75,17 +92,22 @@ export function AgencyRequestForm({ userName, resubmit = false }: { userName: st
         <div>
           <h2 className="font-display text-xl font-bold text-text">¡Solicitud enviada!</h2>
           <p className="mt-1.5 text-sm text-text-muted">
-            El equipo de {brand.name} la va a revisar. Escribinos por WhatsApp para conversarlo y validar los
-            datos — cuando la aprobemos te avisamos acá, dentro de la plataforma.
+            {sent.opened
+              ? "Te abrimos WhatsApp con tus datos ya escritos: enviá el mensaje para que el equipo lo vea y te dé el permiso."
+              : "Tocá el botón para abrir WhatsApp con tus datos ya escritos y enviá el mensaje: así el equipo lo ve y te da el permiso."}
+          </p>
+          <p className="mt-1.5 text-sm text-text-muted">
+            Cuando la aprobemos te avisamos acá, dentro de {brand.name}.
           </p>
         </div>
         <a
-          href={requestWhatsappHref(userName, sent.agencyName, sent.zone)}
+          href={sent.whatsappUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className={buttonClasses("primary", "md")}
+          className={buttonClasses(sent.opened ? "secondary" : "primary", "md", "inline-flex items-center gap-2")}
         >
-          Hablar por WhatsApp
+          <MessageCircle className="h-4 w-4" aria-hidden />
+          {sent.opened ? "Abrir WhatsApp de nuevo" : "Abrir WhatsApp"}
         </a>
       </div>
     );
@@ -101,6 +123,9 @@ export function AgencyRequestForm({ userName, resubmit = false }: { userName: st
           onChange={(e) => set("agencyName", e.target.value)}
           error={errors.agencyName}
         />
+        <p className="-mt-2 text-xs text-text-muted">
+          Lo podés cambiar cuando quieras desde &quot;Mi inmobiliaria&quot;.
+        </p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField
             label="Teléfono o WhatsApp"
@@ -158,10 +183,11 @@ export function AgencyRequestForm({ userName, resubmit = false }: { userName: st
         </p>
       )}
 
-      <div className="flex justify-end">
+      <div className="flex flex-col items-end gap-2">
         <Button type="submit" disabled={saving}>
           {saving ? "Enviando…" : resubmit ? "Enviar una nueva solicitud" : "Enviar solicitud"}
         </Button>
+        <p className="text-xs text-text-muted">Al enviar se abre WhatsApp con tus datos para que el equipo te dé el permiso.</p>
       </div>
     </form>
   );

@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/db/connect";
 import { AllowedEmail } from "@/lib/db/models/AllowedEmail";
+import { AgencyRequest } from "@/lib/db/models/AgencyRequest";
 import { Agency } from "@/lib/db/models/Agency";
 import { User } from "@/lib/db/models/User";
 import { createNotification } from "@/lib/notifications/create";
@@ -98,6 +99,14 @@ export async function grantAgencyAccess(
   const status = !user ? "pending" : agencyId ? "active" : "awaiting_agency";
 
   const record = await AllowedEmail.create({ email, agencyId, role, grantedBy: grantedByUserId, status });
+
+  // Si esa persona había pedido el acceso desde la plataforma, la solicitud queda aprobada sea cual
+  // sea el camino (Solicitudes o Accesos): antes quedaba "pendiente" para siempre y la pantalla de
+  // /solicitar-inmobiliaria seguía mostrando "en revisión".
+  await AgencyRequest.updateMany(
+    { email, status: "pending" },
+    { $set: { status: "approved", reviewedBy: grantedByUserId, reviewedAt: new Date() } }
+  );
 
   if (user) {
     if (!createdUser) {

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Clock, PartyPopper, XCircle } from "lucide-react";
+import { Clock, MessageCircle, PartyPopper, XCircle } from "lucide-react";
 import { auth } from "@/auth";
 import { connectDB } from "@/lib/db/connect";
 import { AgencyRequest } from "@/lib/db/models/AgencyRequest";
@@ -7,7 +7,8 @@ import { Logo } from "@/components/layout/Logo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { buttonClasses } from "@/components/ui/Button";
-import { AgencyRequestForm, requestWhatsappHref } from "@/components/agency/AgencyRequestForm";
+import { AgencyRequestForm } from "@/components/agency/AgencyRequestForm";
+import { providerQuickMessage, providerRequestMessage, whatsappUrl } from "@/lib/whatsapp/messages";
 import { ContinueAfterApproval } from "@/components/agency/ContinueAfterApproval";
 import { brand } from "@/config/brand";
 import { formatRelativeTime } from "@/lib/utils/format";
@@ -28,6 +29,7 @@ export default async function SolicitarInmobiliariaPage() {
   const latest = await AgencyRequest.findOne({ userId: user.id }).sort({ createdAt: -1 }).lean();
 
   const userName = user.name ?? "";
+  const userEmail = user.email ?? "";
 
   return (
     <div className="min-h-dvh bg-bg">
@@ -50,6 +52,17 @@ export default async function SolicitarInmobiliariaPage() {
           </p>
         </div>
 
+        {latest?.status !== "approved" && (
+          <a
+            href={whatsappUrl(providerQuickMessage())}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={buttonClasses("secondary", "md", "inline-flex w-fit items-center gap-2")}
+          >
+            <MessageCircle className="h-4 w-4" aria-hidden /> Hablar por WhatsApp
+          </a>
+        )}
+
         {latest?.status === "pending" && (
           <StatusCard
             icon={<Clock className="h-6 w-6" aria-hidden />}
@@ -57,12 +70,21 @@ export default async function SolicitarInmobiliariaPage() {
             description={`Enviada ${formatRelativeTime(latest.createdAt.toISOString())} para "${latest.agencyName}". Te avisamos acá apenas la resolvamos. Si todavía no hablaron con vos, escribinos por WhatsApp.`}
           >
             <a
-              href={requestWhatsappHref(userName, latest.agencyName, latest.zone)}
+              href={whatsappUrl(
+                providerRequestMessage({
+                  userName,
+                  email: userEmail,
+                  agencyName: latest.agencyName,
+                  zone: latest.zone,
+                  phone: latest.phone,
+                  message: latest.message,
+                })
+              )}
               target="_blank"
               rel="noopener noreferrer"
               className={buttonClasses("primary", "md")}
             >
-              Hablar por WhatsApp
+              Enviar mis datos por WhatsApp
             </a>
           </StatusCard>
         )}
@@ -84,11 +106,11 @@ export default async function SolicitarInmobiliariaPage() {
               title="Tu última solicitud no fue aprobada"
               description={latest.reviewNote || "Podés escribirnos por WhatsApp para conversarlo o enviar una nueva solicitud."}
             />
-            <AgencyRequestForm userName={userName} resubmit />
+            <AgencyRequestForm userName={userName} email={userEmail} resubmit />
           </>
         )}
 
-        {!latest && <AgencyRequestForm userName={userName} />}
+        {!latest && <AgencyRequestForm userName={userName} email={userEmail} />}
       </div>
     </div>
   );
