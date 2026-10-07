@@ -9,6 +9,8 @@ import { X, ArrowRight } from "lucide-react";
 import { Logo } from "@/components/layout/Logo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { UserMenu } from "@/components/auth/UserMenu";
+import { PanelLinkButton } from "@/components/auth/PanelLinkButton";
+import type { PanelLink } from "@/lib/auth/panel-link";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Button } from "@/components/ui/Button";
@@ -48,7 +50,7 @@ async function fetchProperties(bbox: BBox, filters: MapFiltersState, signal: Abo
 /** Inmobiliaria por la que se filtra el mapa (viene de "Ver en mapa" en su perfil). */
 export type MapAgencyFilter = { id: string; name: string; bbox: BBox | null };
 
-export default function MapaClient({ agency }: { agency: MapAgencyFilter | null }) {
+export default function MapaClient({ agency, panelLink = null }: { agency: MapAgencyFilter | null; panelLink?: PanelLink | null }) {
   const [filters, setFilters] = useState<MapFiltersState>({ ...DEFAULT_FILTERS, agencyId: agency?.id ?? null });
   // Arranca con el bbox por defecto (AMBA) en vez de null: así el primer
   // fetch de propiedades sale en paralelo con la descarga del bundle del
@@ -178,8 +180,18 @@ export default function MapaClient({ agency }: { agency: MapAgencyFilter | null 
 
       <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col gap-2 p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="pointer-events-auto flex shrink-0 items-center gap-2 rounded-pill bg-surface/90 px-3.5 py-2.5 shadow-pop backdrop-blur-md">
-            <Logo href="/" />
+          {/* En mobile el logo y el atajo al panel comparten fila; desde `sm` el wrapper desaparece (contents). */}
+          <div className="flex items-center justify-between gap-2 sm:contents">
+            <div className="pointer-events-auto flex shrink-0 items-center gap-2 rounded-pill bg-surface/90 px-3.5 py-2.5 shadow-pop backdrop-blur-md">
+              <Logo href="/" />
+            </div>
+            {panelLink && (
+              <PanelLinkButton
+                link={panelLink}
+                iconOnly
+                className="pointer-events-auto bg-surface/90 shadow-pop backdrop-blur-md sm:hidden"
+              />
+            )}
           </div>
           <div className="pointer-events-auto flex-1 sm:max-w-2xl">
             <MapFilters
@@ -192,8 +204,9 @@ export default function MapaClient({ agency }: { agency: MapAgencyFilter | null 
             />
           </div>
           <div className="pointer-events-auto hidden shrink-0 items-center gap-2 rounded-pill bg-surface/90 p-1 shadow-pop backdrop-blur-md sm:flex">
+            {panelLink && <PanelLinkButton link={panelLink} />}
             <div className="pl-1.5">
-              <UserMenu compact />
+              <UserMenu compact hidePanel />
             </div>
             <NotificationBell />
             <ThemeToggle />

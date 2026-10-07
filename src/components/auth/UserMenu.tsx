@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 import { Button, buttonClasses } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { PanelLinkButton } from "@/components/auth/PanelLinkButton";
+import { resolvePanelLink } from "@/lib/auth/panel-link";
 
 /** Sesión actual: enlaces de ingreso/registro, o saludo + cerrar sesión. */
-export function UserMenu({ compact = false }: { compact?: boolean }) {
+export function UserMenu({ compact = false, hidePanel = false }: { compact?: boolean; hidePanel?: boolean }) {
   const { data: session, status } = useSession();
 
   if (status === "loading") {
@@ -29,10 +31,8 @@ export function UserMenu({ compact = false }: { compact?: boolean }) {
   }
 
   const firstName = session.user.name?.split(" ")[0] ?? "Vos";
-  const isAgency = session.user.role === "agency_owner" || session.user.role === "agency_agent";
-  const isAdmin = session.user.role === "admin";
-  const needsOnboarding = isAgency && !session.user.agencyId;
   const isExplorer = session.user.role === "user";
+  const panel = hidePanel ? null : resolvePanelLink({ role: session.user.role ?? "user", agencyId: session.user.agencyId ?? null });
 
   return (
     <div className="flex items-center gap-2">
@@ -44,18 +44,11 @@ export function UserMenu({ compact = false }: { compact?: boolean }) {
           Publicá tu inmobiliaria
         </Link>
       )}
-      {isAgency && (
-        <Link
-          href={needsOnboarding ? "/publicar" : "/dashboard"}
-          className="hidden text-sm font-medium text-accent hover:underline sm:inline"
-        >
-          {needsOnboarding ? "Creá tu inmobiliaria" : "Panel"}
-        </Link>
-      )}
-      {isAdmin && (
-        <Link href="/admin" className="hidden text-sm font-medium text-accent hover:underline sm:inline">
-          Admin
-        </Link>
+      {panel && (
+        <>
+          <PanelLinkButton link={panel} className="hidden sm:inline-flex" />
+          <PanelLinkButton link={panel} iconOnly className="sm:hidden" />
+        </>
       )}
       <Link
         href="/perfil"

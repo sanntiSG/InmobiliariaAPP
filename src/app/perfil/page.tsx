@@ -57,6 +57,11 @@ export default async function PerfilPage() {
           <div>
             <h1 className="font-display text-xl font-bold text-text">{session.user.name}</h1>
             <p className="text-sm text-text-muted">{session.user.email}</p>
+            {session.user.role === "user" && (
+              <Link href="/espacio" className="mt-1 inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline">
+                Ir a Mi espacio <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+              </Link>
+            )}
           </div>
         </div>
 

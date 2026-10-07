@@ -46,7 +46,7 @@ export default async function Home() {
           subtitle="Más que un portal inmobiliario"
         />
 
-        <HeroCtas secondaryCta={secondaryCta} />
+        <HeroCtas secondaryCta={secondaryCta} exploreMenu={account?.role === "user"} />
       </div>
 
       {/* Scroll-down indicator (flecha ↓ como en la referencia) */}

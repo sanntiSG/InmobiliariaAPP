@@ -2,6 +2,9 @@ import { Types } from "mongoose";
 import { connectDB } from "@/lib/db/connect";
 import { Agency } from "@/lib/db/models/Agency";
 import { Property } from "@/lib/db/models/Property";
+import { auth } from "@/auth";
+import { getFreshAccount } from "@/lib/auth/fresh-account";
+import { resolvePanelLink } from "@/lib/auth/panel-link";
 import MapaClient, { type MapAgencyFilter } from "@/components/map/MapaClient";
 
 export const metadata = { title: "Mapa" };
@@ -46,5 +49,9 @@ export default async function MapaPage({ searchParams }: PageProps<"/mapa">) {
     }
   }
 
-  return <MapaClient agency={agency} />;
+  // Atajo al panel: sale de la BASE (no de la cookie), igual que el hero.
+  const session = await auth().catch(() => null);
+  const account = session?.user?.id ? await getFreshAccount(session.user.id) : null;
+
+  return <MapaClient agency={agency} panelLink={resolvePanelLink(account)} />;
 }
