@@ -8,6 +8,7 @@ import { Bell } from "lucide-react";
 import { IconButton } from "@/components/ui/IconButton";
 import { Sheet } from "@/components/ui/Sheet";
 import { AgencyApprovalCelebration, type Celebration } from "./AgencyApprovalCelebration";
+import { AgencyDeletedNotice, type DeletionNotice } from "./AgencyDeletedNotice";
 import { notificationMeta } from "./notification-meta";
 import { formatRelativeTime } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
@@ -35,6 +36,8 @@ export function NotificationBell() {
   // Cartel ya mostrado en esta pestaña: un poll que llegue antes de que el
   // servidor registre la lectura no debe volver a abrirlo.
   const shownCelebrations = useRef(new Set<string>());
+  const [deletionNotice, setDeletionNotice] = useState<DeletionNotice | null>(null);
+  const shownDeletions = useRef(new Set<string>());
 
   async function fetchNotifications() {
     const res = await fetch("/api/notifications");
@@ -46,6 +49,11 @@ export function NotificationBell() {
     if (next && !shownCelebrations.current.has(next.id)) {
       shownCelebrations.current.add(next.id);
       setCelebration(next);
+    }
+    const deleted: DeletionNotice | null = data.deletionNotice ?? null;
+    if (deleted && !shownDeletions.current.has(deleted.id)) {
+      shownDeletions.current.add(deleted.id);
+      setDeletionNotice(deleted);
     }
   }
 
@@ -157,6 +165,7 @@ export function NotificationBell() {
       </Sheet>
 
       {celebration && <AgencyApprovalCelebration celebration={celebration} onClose={() => setCelebration(null)} />}
+      {deletionNotice && <AgencyDeletedNotice notice={deletionNotice} onClose={() => setDeletionNotice(null)} />}
     </>
   );
 }

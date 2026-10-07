@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { z } from "zod";
 import { connectDB } from "@/lib/db/connect";
+import { AgencyDeletionNotice } from "@/lib/db/models/AgencyDeletionNotice";
 import { Notification } from "@/lib/db/models/Notification";
 import { requireUser } from "@/lib/auth/require-user";
 import { maybeSendRecommendationNotifications } from "@/lib/intelligence/notify";
@@ -17,7 +18,8 @@ export async function GET(req: NextRequest) {
 
   try {
     await connectDB();
-    const [items, unreadCount, celebration] = await Promise.all([
+    const email = (user.email ?? "").toLowerCase();
+    const [items, unreadCount, celebration, deletion] = await Promise.all([
       Notification.find({ userId: user.id }).sort({ createdAt: -1 }).limit(limit).lean(),
       Notification.countDocuments({ userId: user.id, read: false }),
       // Felicitación de "permiso concedido": la más reciente sin leer. El
@@ -27,12 +29,18 @@ export async function GET(req: NextRequest) {
         .sort({ createdAt: -1 })
         .select("title body href")
         .lean(),
+      // Aviso "se eliminó tu inmobiliaria": atado al email porque la cuenta se
+      // borró con la inmobiliaria. Se marca visto al mostrarlo (PATCH).
+      email
+        ? AgencyDeletionNotice.findOne({ email, seenAt: null }).sort({ deletedAt: -1 }).select("agencyName").lean()
+        : null,
     ]);
 
     return NextResponse.json({
       celebration: celebration
         ? { id: String(celebration._id), title: celebration.title, body: celebration.body, href: celebration.href ?? "/" }
         : null,
+      deletionNotice: deletion ? { id: String(deletion._id), agencyName: deletion.agencyName } : null,
       items: items.map((n) => ({
         id: String(n._id),
         type: n.type,
@@ -53,6 +61,7 @@ export async function GET(req: NextRequest) {
 const patchSchema = z.object({
   ids: z.array(z.string().length(24)).optional(),
   all: z.boolean().optional(),
+  deletionNoticeId: z.string().length(24).optional(),
 });
 
 export async function PATCH(req: NextRequest) {
@@ -64,6 +73,14 @@ export async function PATCH(req: NextRequest) {
 
   try {
     await connectDB();
+    if (parsed.data.deletionNoticeId) {
+      // Sólo el aviso de ESTE email: nadie marca los de otras personas.
+      await AgencyDeletionNotice.updateMany(
+        { _id: parsed.data.deletionNoticeId, email: (user.email ?? "").toLowerCase() },
+        { $set: { seenAt: new Date() } }
+      );
+      return NextResponse.json({ ok: true });
+    }
     const filter = parsed.data.all
       ? { userId: user.id, read: false }
       : { userId: user.id, _id: { $in: parsed.data.ids ?? [] } };

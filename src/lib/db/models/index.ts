@@ -15,6 +15,7 @@ export { Lead } from "./Lead";
 export { UserTasteProfile } from "./UserTasteProfile";
 export { RateLimit } from "./RateLimit";
 export { PropertyDailyStat } from "./PropertyDailyStat";
+export { AgencyDeletionNotice } from "./AgencyDeletionNotice";
 
 export type { AgencyDoc } from "./Agency";
 export type { UserDoc } from "./User";

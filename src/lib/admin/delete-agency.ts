@@ -1,5 +1,6 @@
 import { Types } from "mongoose";
 import { Agency } from "@/lib/db/models/Agency";
+import { AgencyDeletionNotice } from "@/lib/db/models/AgencyDeletionNotice";
 import { AgencyFollow } from "@/lib/db/models/AgencyFollow";
 import { AgencyRequest } from "@/lib/db/models/AgencyRequest";
 import { AllowedEmail } from "@/lib/db/models/AllowedEmail";
@@ -36,7 +37,7 @@ export type DeleteAgencySummary = {
  * al equipo y las propiedades que quedaron. Devuelve `null` si no existe.
  */
 export async function deleteAgencyCascade(agencyId: string): Promise<DeleteAgencySummary | null> {
-  const agency = await Agency.findById(agencyId).select("owners").lean();
+  const agency = await Agency.findById(agencyId).select("owners name").lean();
   if (!agency) return null;
   const agencyOid = new Types.ObjectId(agencyId);
 
@@ -47,8 +48,19 @@ export async function deleteAgencyCascade(agencyId: string): Promise<DeleteAgenc
     role: { $ne: "admin" },
     $or: [{ agencyId: agencyOid }, { _id: { $in: agency.owners ?? [] } }, { email: { $in: allowedEmails } }],
   })
-    .select("_id")
+    .select("_id email")
     .lean();
+
+  // — Aviso para quienes vuelvan a entrar: se crea ANTES de purgar las cuentas
+  // (después ya no habría a quién avisar). Una vez por email, aunque se reintente. —
+  const noticeEmails = [...new Set([...members.map((m) => m.email), ...allowedEmails])].filter(Boolean);
+  for (const email of noticeEmails) {
+    await AgencyDeletionNotice.updateOne(
+      { email, agencyName: agency.name, seenAt: null },
+      { $setOnInsert: { deletedAt: new Date() } },
+      { upsert: true }
+    );
+  }
 
   // — Propiedades y todo lo que cuelga de ellas —
   const propertyIds = await Property.find({ agencyId: agencyOid }).distinct("_id");

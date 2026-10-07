@@ -49,6 +49,11 @@ export function providerRequestMessage(d: {
   ].join("\n");
 }
 
+/** Aviso de inmobiliaria eliminada — "Contactar con el admin". */
+export function providerDeletedMessage(agencyName: string): string {
+  return `Hola! Vi que se eliminó mi inmobiliaria "${clean(agencyName)}" en ${brand.name}. Quisiera saber qué pasó.`;
+}
+
 /** Botón "Contactar por WhatsApp" de la ficha — mensaje corto con el link de la propiedad. */
 export function propertyQuickMessage(d: { title: string; url: string }): string {
   return `Hola! Te escribo por "${d.title}" que vi en ${brand.name}: ${d.url}`;
