@@ -4,12 +4,14 @@ import { connectDB } from "@/lib/db/connect";
 import { AllowedEmail } from "@/lib/db/models/AllowedEmail";
 import { User } from "@/lib/db/models/User";
 import { Agency } from "@/lib/db/models/Agency";
+import { AgencyRequest } from "@/lib/db/models/AgencyRequest";
 import { requireAdminUser } from "@/lib/auth/require-admin";
 
 /**
  * DELETE — Revoca el permiso de un email. Si el usuario ya se registró con
  * rol de agencia (owner o agente), revierte su rol a "user", lo saca de
- * `Agency.owners[]` y limpia su `agencyId`.
+ * `Agency.owners[]`, limpia su `agencyId` y borra sus solicitudes aprobadas
+ * (para que, si quiere volver a gestionar una inmobiliaria, pida permiso otra vez).
  */
 export async function DELETE(
   _req: Request,
@@ -37,6 +39,10 @@ export async function DELETE(
     if (user && record.agencyId) {
       await Agency.updateOne({ _id: record.agencyId }, { $pull: { owners: user._id } });
     }
+
+    // Sin permiso, una solicitud "aprobada" quedaría vieja y la pantalla seguiría diciendo que fue
+    // aceptada: se borra para que tenga que pedir el permiso de nuevo.
+    await AgencyRequest.deleteMany({ email: record.email, status: "approved" });
 
     return NextResponse.json({ ok: true });
   } catch (err) {

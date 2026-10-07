@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { getFreshAccount, isAgencyRole } from "@/lib/auth/fresh-account";
 import { connectDB } from "@/lib/db/connect";
 import { AgencyRequest } from "@/lib/db/models/AgencyRequest";
+import { AllowedEmail } from "@/lib/db/models/AllowedEmail";
 import { Logo } from "@/components/layout/Logo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { UserMenu } from "@/components/auth/UserMenu";
@@ -30,7 +31,13 @@ export default async function SolicitarInmobiliariaPage() {
   }
 
   await connectDB();
-  const latest = await AgencyRequest.findOne({ userId: user.id }).sort({ createdAt: -1 }).lean();
+  const latestRequest = await AgencyRequest.findOne({ userId: user.id }).sort({ createdAt: -1 }).lean();
+
+  // "Aprobada" sólo vale mientras el permiso siga vigente. Si el permiso ya no existe (se eliminó su
+  // inmobiliaria o se lo revocaron) esa solicitud quedó vieja: se ignora y puede pedirlo de nuevo.
+  const hasPermission = user.email ? !!(await AllowedEmail.exists({ email: user.email.toLowerCase() })) : false;
+  const permissionLost = latestRequest?.status === "approved" && !hasPermission;
+  const latest = permissionLost ? null : latestRequest;
 
   const userName = user.name ?? "";
   const userEmail = user.email ?? "";
@@ -55,6 +62,12 @@ export default async function SolicitarInmobiliariaPage() {
             360° y ver cómo le va. Para activarlo, el equipo valida la solicitud hablando con vos.
           </p>
         </div>
+
+        {permissionLost && (
+          <p className="rounded-card bg-accent-soft p-4 text-sm text-text">
+            Tu permiso anterior ya no está vigente. Podés pedirlo de nuevo completando el formulario.
+          </p>
+        )}
 
         {latest?.status !== "approved" && (
           <a
