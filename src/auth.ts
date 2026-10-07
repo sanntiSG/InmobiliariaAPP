@@ -4,12 +4,20 @@ import Google from "next-auth/providers/google";
 import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/db/connect";
 import { User } from "@/lib/db/models/User";
+import { AgencyRequest } from "@/lib/db/models/AgencyRequest";
 import { loginSchema } from "@/lib/validation/auth";
 import { resolveAccessForEmail } from "@/lib/auth/resolve-access";
 import { authConfig } from "@/auth.config";
 
 /** Cada cuánto (ms) se relee el rol desde la DB en un JWT ya emitido. */
-const ROLE_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+const ROLE_REFRESH_INTERVAL_MS = 60 * 1000;
+/**
+ * Mientras la persona está "en transición" (pidió permiso y espera la
+ * aprobación, o tiene permiso pero todavía no creó su inmobiliaria) el rol se
+ * relee mucho más seguido: así el menú y los accesos se actualizan casi al
+ * instante. El resto de las personas sigue en el intervalo largo, sin costo extra.
+ */
+const TRANSITION_REFRESH_INTERVAL_MS = 10 * 1000;
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -132,19 +140,32 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return token;
       }
 
-      // Refresco periódico (cada ROLE_REFRESH_INTERVAL_MS) o manual (trigger
-      // "update", vía useSession().update()): releer desde la DB para que
-      // conceder o revocar un permiso tenga efecto sin cerrar sesión.
-      const isStale = Date.now() - (token.roleCheckedAt ?? 0) > ROLE_REFRESH_INTERVAL_MS;
+      // Refresco periódico o manual (trigger "update", vía useSession().update()):
+      // releer desde la DB para que conceder o revocar un permiso tenga efecto
+      // sin cerrar sesión. Más seguido si la persona está en transición.
+      const inTransition =
+        token.watch === true || ((token.role === "agency_owner" || token.role === "agency_agent") && !token.agencyId);
+      const interval = inTransition ? TRANSITION_REFRESH_INTERVAL_MS : ROLE_REFRESH_INTERVAL_MS;
+      const isStale = Date.now() - (token.roleCheckedAt ?? 0) > interval;
 
       if (trigger === "update" || isStale) {
-        await connectDB();
-        const dbUser = await User.findById(token.id).lean();
-        if (dbUser) {
+        try {
+          await connectDB();
+          const dbUser = await User.findById(token.id).lean();
+          // La cuenta ya no existe (ej: se eliminó su inmobiliaria): devolver null hace que
+          // Auth.js borre la cookie y la sesión se cierre sola.
+          if (!dbUser) return null;
+
           token.role = dbUser.role ?? "user";
           token.agencyId = dbUser.agencyId ? String(dbUser.agencyId) : null;
           token.picture = dbUser.image ?? null;
           token.name = dbUser.name;
+          token.watch =
+            token.role === "user" && !!(await AgencyRequest.exists({ userId: dbUser._id, status: "pending" }));
+        } catch (err) {
+          // Un id corrupto cierra la sesión; un corte de la base no debe tirar abajo a nadie logueado.
+          if ((err as { name?: string }).name === "CastError") return null;
+          console.error("jwt refresh failed:", err);
         }
         token.roleCheckedAt = Date.now();
       }

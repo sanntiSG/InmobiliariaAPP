@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Clock, MessageCircle, PartyPopper, XCircle } from "lucide-react";
 import { auth } from "@/auth";
+import { getFreshAccount, isAgencyRole } from "@/lib/auth/fresh-account";
 import { connectDB } from "@/lib/db/connect";
 import { AgencyRequest } from "@/lib/db/models/AgencyRequest";
 import { Logo } from "@/components/layout/Logo";
@@ -20,9 +21,12 @@ export default async function SolicitarInmobiliariaPage() {
   const user = session?.user;
 
   if (!user?.id) redirect("/ingresar?callbackUrl=%2Fsolicitar-inmobiliaria");
-  if (user.role === "admin") redirect("/admin");
-  if (user.role === "agency_owner" || user.role === "agency_agent") {
-    redirect(user.agencyId ? "/dashboard" : "/publicar");
+  // Rol y agencia de la base (no del JWT, que puede estar desactualizado).
+  const account = await getFreshAccount(user.id);
+  if (!account) redirect("/ingresar");
+  if (account.role === "admin") redirect("/admin");
+  if (isAgencyRole(account.role)) {
+    redirect(account.agencyId ? "/dashboard" : "/publicar");
   }
 
   await connectDB();

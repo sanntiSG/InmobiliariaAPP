@@ -6,6 +6,7 @@ import "./globals.css";
 import { brand } from "@/config/brand";
 import { THEME_COOKIE_NAME } from "@/config/site";
 import { auth } from "@/auth";
+import { getFreshAccount } from "@/lib/auth/fresh-account";
 import { SessionProvider } from "@/components/providers/SessionProvider";
 
 // Bricolage Grotesque: títulos y precios — con carácter propio, no genérica.
@@ -68,7 +69,15 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   // o el popup del mapa — `PropertyPopupCard.tsx` navega con un `<a>` plano
   // a propósito, fuera del router de Next) donde antes había una carrera
   // entre el primer pintado (que caía al tema del SO) y ese script.
-  const [session, cookieStore] = await Promise.all([auth().catch(() => null), cookies()]);
+  const [jwtSession, cookieStore] = await Promise.all([auth().catch(() => null), cookies()]);
+  // El rol y la agencia que ve el menú salen de la base, no del JWT: justo después de recibir el
+  // permiso o de crear la inmobiliaria la cookie todavía trae el estado anterior. Si la cuenta ya no
+  // existe (se eliminó su inmobiliaria) se muestra como sin sesión.
+  const fresh = jwtSession?.user?.id ? await getFreshAccount(jwtSession.user.id) : null;
+  const session =
+    jwtSession && fresh
+      ? { ...jwtSession, user: { ...jwtSession.user, role: fresh.role as typeof jwtSession.user.role, agencyId: fresh.agencyId } }
+      : null;
   const themeCookie = cookieStore.get(THEME_COOKIE_NAME)?.value;
   const theme = themeCookie === "light" || themeCookie === "dark" ? themeCookie : undefined;
 

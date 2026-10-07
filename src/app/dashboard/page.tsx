@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
-import { ArrowRight, Plus } from "lucide-react";
+import { ArrowRight, Clapperboard, ImagePlus, Plus, Store } from "lucide-react";
 import { requireDashboardAccess } from "@/lib/auth/require-dashboard-access";
 import { agencyScope } from "@/lib/auth/agency-scope";
 import { connectDB } from "@/lib/db/connect";
@@ -90,10 +90,44 @@ export default async function DashboardOverviewPage({ searchParams }: PageProps<
         </div>
       </div>
 
-      {intel.published === 0 && (
+      {intel.published === 0 && !access.isAdmin && (
+        <section data-reveal className="flex flex-col gap-4 rounded-card bg-surface p-6 shadow-card">
+          <div>
+            <h2 className="font-display text-lg font-semibold text-text">Primeros pasos</h2>
+            <p className="text-sm text-text-muted">
+              Desde acá manejás todo lo de tu inmobiliaria. Empezá por estos tres pasos; en cuanto publiques la primera
+              propiedad, este panel te muestra cómo le va.
+            </p>
+          </div>
+          <ol className="grid gap-3 md:grid-cols-3">
+            {[
+              { href: "/dashboard/inmobiliaria", icon: Store, title: "Completá tu perfil", text: "Logo, portada y datos de contacto." },
+              { href: "/dashboard/propiedades/nueva", icon: ImagePlus, title: "Cargá tu primera propiedad", text: "Casa, departamento… con fotos y recorrido 360°." },
+              { href: "/dashboard/inmobiliaria", icon: Clapperboard, title: "Vinculá tu YouTube", text: "Sumá videos a tus publicaciones." },
+            ].map(({ href, icon: Icon, title, text }, i) => (
+              <li key={title}>
+                <Link
+                  href={href}
+                  className="group flex h-full flex-col gap-2 rounded-media bg-surface-2 p-4 transition-[transform,box-shadow] duration-150 [transition-timing-function:var(--ease-out)] hover:-translate-y-0.5 hover:shadow-card active:scale-[0.99]"
+                >
+                  <span className="flex items-center gap-2 text-xs font-semibold text-accent">
+                    <Icon className="h-4 w-4" aria-hidden /> Paso {i + 1}
+                  </span>
+                  <span className="font-display text-base font-semibold text-text">{title}</span>
+                  <span className="text-sm text-text-muted">{text}</span>
+                  <span className="mt-auto inline-flex items-center gap-1 pt-1 text-sm font-medium text-accent">
+                    Ir <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden />
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
+
+      {intel.published === 0 && access.isAdmin && (
         <div data-reveal className="rounded-card bg-surface p-8 text-center shadow-card">
           <p className="font-medium text-text">Todavía no hay propiedades publicadas.</p>
-          <p className="mt-1 text-sm text-text-muted">Publicá la primera y acá vas a ver cómo le va.</p>
           <Link href="/dashboard/propiedades/nueva" className={buttonClasses("primary", "md", "mt-4 inline-flex")}>
             Cargar una propiedad
           </Link>

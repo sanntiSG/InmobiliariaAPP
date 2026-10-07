@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { CheckCircle2, MessageCircle } from "lucide-react";
 import { FormField } from "@/components/ui/FormField";
 import { Button, buttonClasses } from "@/components/ui/Button";
@@ -35,6 +36,7 @@ export function AgencyRequestForm({
   const [saving, setSaving] = useState(false);
   const [sent, setSent] = useState<{ whatsappUrl: string; opened: boolean } | null>(null);
   const whatsapp = useWhatsappLauncher();
+  const { update } = useSession();
 
   function set<K extends keyof Values>(key: K, value: Values[K]) {
     setValues((v) => ({ ...v, [key]: value }));
@@ -65,6 +67,8 @@ export function AgencyRequestForm({
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error ?? "No se pudo enviar la solicitud.");
+      // Activa el seguimiento rápido de la sesión: apenas el admin apruebe, el menú y los accesos se actualizan.
+      void update().catch(() => {});
 
       const url = whatsappUrl(
         providerRequestMessage({

@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
-import { connectDB } from "@/lib/db/connect";
 import { Agency } from "@/lib/db/models/Agency";
+import { getFreshAccount, isAgencyRole } from "./fresh-account";
 
 /**
  * Acceso al dashboard de propiedades: dueños/agentes de una inmobiliaria
@@ -19,32 +19,34 @@ export type DashboardAccess = {
   needsOnboarding: boolean;
 };
 
+/**
+ * El rol y la agencia se leen de la base (`getFreshAccount`), no del JWT: el
+ * token puede estar desactualizado y bloqueaba a quien acababa de recibir el
+ * permiso o de crear su inmobiliaria, o dejaba entrar a quien acababa de
+ * perderlo. La sesión sólo se usa para saber QUIÉN es.
+ */
 export async function requireDashboardAccess(): Promise<DashboardAccess | null> {
   const session = await auth().catch(() => null);
-  const user = session?.user;
-  if (!user?.id) return null;
+  const userId = session?.user?.id;
+  if (!userId) return null;
 
-  if (user.role === "agency_owner" || user.role === "agency_agent") {
-    if (!user.agencyId) {
-      return { userId: user.id, role: user.role, isAdmin: false, agencyId: null, needsOnboarding: true };
+  const account = await getFreshAccount(userId);
+  if (!account) return null;
+
+  if (isAgencyRole(account.role)) {
+    if (!account.agencyId) {
+      return { userId, role: account.role, isAdmin: false, agencyId: null, needsOnboarding: true };
     }
 
-    await connectDB();
-    const agency = await Agency.findById(user.agencyId).select("status").lean();
+    const agency = await Agency.findById(account.agencyId).select("status").lean();
     // Inmobiliaria borrada o suspendida: sin acceso al dashboard.
     if (!agency || agency.status === "suspended") return null;
 
-    return {
-      userId: user.id,
-      role: user.role,
-      isAdmin: false,
-      agencyId: user.agencyId,
-      needsOnboarding: false,
-    };
+    return { userId, role: account.role, isAdmin: false, agencyId: account.agencyId, needsOnboarding: false };
   }
 
-  if (user.role === "admin") {
-    return { userId: user.id, role: "admin", isAdmin: true, agencyId: null, needsOnboarding: false };
+  if (account.role === "admin") {
+    return { userId, role: "admin", isAdmin: true, agencyId: null, needsOnboarding: false };
   }
 
   return null;

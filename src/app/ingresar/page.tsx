@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { safeCallbackUrl } from "@/lib/auth/safe-redirect";
+import { getFreshAccount } from "@/lib/auth/fresh-account";
 
 export const metadata = { title: "Ingresar" };
 
@@ -13,7 +14,8 @@ export default async function IngresarPage({ searchParams }: PageProps<"/ingresa
   const callbackUrl = safeCallbackUrl((await searchParams).callbackUrl, { host });
 
   const session = await auth().catch(() => null);
-  if (session?.user) redirect(callbackUrl);
+  // Sólo se redirige si la cuenta sigue existiendo: una cookie de una cuenta borrada tiene que poder volver a ingresar.
+  if (session?.user?.id && (await getFreshAccount(session.user.id))) redirect(callbackUrl);
 
   return (
     <AuthShell

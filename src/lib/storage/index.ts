@@ -23,6 +23,12 @@ export type UploadResult = {
 export interface StorageProvider {
   upload(input: UploadInput): Promise<UploadResult>;
   delete(providerId: string): Promise<void>;
+  /**
+   * Borra TODO lo que subió una inmobiliaria (fotos, fotos 360°, logo y
+   * portada). Devuelve cuántos archivos eliminó. Mejor esfuerzo: nunca lanza,
+   * porque un fallo del storage no debe impedir limpiar la base de datos.
+   */
+  deleteAgencyAssets(agencyId: string): Promise<number>;
 }
 
 let cached: StorageProvider | null = null;

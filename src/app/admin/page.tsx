@@ -5,6 +5,7 @@ import { requireAdminUser } from "@/lib/auth/require-admin";
 import { connectDB } from "@/lib/db/connect";
 import { Agency } from "@/lib/db/models/Agency";
 import { Property } from "@/lib/db/models/Property";
+import { User } from "@/lib/db/models/User";
 import { buttonClasses } from "@/components/ui/Button";
 import { DeleteAgencyButton } from "@/components/admin/DeleteAgencyButton";
 import { AGENCY_STATUS_LABELS } from "@/lib/validation/agency";
@@ -20,6 +21,12 @@ export default async function AdminPage() {
   const agencies = await Agency.find({}).sort({ createdAt: -1 }).lean();
   const counts = await Property.aggregate([{ $group: { _id: "$agencyId", count: { $sum: 1 } } }]);
   const countByAgency = new Map(counts.map((c) => [String(c._id), c.count]));
+  // Personas del equipo de cada inmobiliaria: se muestran en la confirmación de borrado.
+  const members = await User.aggregate([
+    { $match: { role: { $in: ["agency_owner", "agency_agent"] }, agencyId: { $ne: null } } },
+    { $group: { _id: "$agencyId", count: { $sum: 1 } } },
+  ]);
+  const membersByAgency = new Map(members.map((m) => [String(m._id), m.count]));
 
   return (
     <div className="flex flex-col gap-6">
@@ -80,7 +87,12 @@ export default async function AdminPage() {
               >
                 {AGENCY_STATUS_LABELS[a.status as keyof typeof AGENCY_STATUS_LABELS] ?? a.status}
               </span>
-              <DeleteAgencyButton agencyId={String(a._id)} name={a.name} />
+              <DeleteAgencyButton
+                agencyId={String(a._id)}
+                name={a.name}
+                propertyCount={countByAgency.get(String(a._id)) ?? 0}
+                memberCount={membersByAgency.get(String(a._id)) ?? 0}
+              />
             </div>
           ))}
         </div>

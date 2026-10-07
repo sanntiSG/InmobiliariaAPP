@@ -37,4 +37,32 @@ async function del(providerId: string): Promise<void> {
   await cloudinary.uploader.destroy(providerId);
 }
 
-export const cloudinaryStorage: StorageProvider = { upload, delete: del };
+/**
+ * Todo lo de una inmobiliaria vive bajo `umbral/agencies/<id>/` (propiedades,
+ * fotos 360°, logo y portada), así que alcanza con borrar por prefijo.
+ */
+async function deleteAgencyAssets(agencyId: string): Promise<number> {
+  // El id se interpola en un prefijo de la API de administración: se valida antes.
+  if (!/^[a-f0-9]{24}$/.test(agencyId)) return 0;
+  const prefix = `umbral/agencies/${agencyId}/`;
+  let deleted = 0;
+  try {
+    // La API borra de a lotes (hasta 1000): se repite mientras diga que quedó algo.
+    for (let i = 0; i < 20; i++) {
+      const res = await cloudinary.api.delete_resources_by_prefix(prefix);
+      deleted += Object.values(res.deleted ?? {}).filter((v) => v === "deleted").length;
+      if (!res.partial) break;
+    }
+    // Las carpetas vacías quedan en el panel de Cloudinary: se limpian (si ya no existen, no pasa nada).
+    for (const sub of ["properties", "branding", ""]) {
+      await cloudinary.api
+        .delete_folder(`umbral/agencies/${agencyId}${sub ? `/${sub}` : ""}`)
+        .catch(() => {});
+    }
+  } catch (err) {
+    console.error("cloudinary deleteAgencyAssets failed:", err);
+  }
+  return deleted;
+}
+
+export const cloudinaryStorage: StorageProvider = { upload, delete: del, deleteAgencyAssets };

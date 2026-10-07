@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
@@ -25,7 +24,6 @@ export function AgencyApprovalCelebration({
   celebration: Celebration;
   onClose: () => void;
 }) {
-  const router = useRouter();
   const { update } = useSession();
   const scope = useRef<HTMLDivElement>(null);
 
@@ -66,7 +64,8 @@ export function AgencyApprovalCelebration({
 
   function go() {
     onClose();
-    router.push(celebration.href);
+    // Carga completa: así la página ya llega con la sesión y los permisos actualizados.
+    window.location.href = celebration.href;
   }
 
   return createPortal(

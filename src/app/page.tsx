@@ -8,6 +8,7 @@ import { HeroTypingText } from "@/components/home/HeroTypingText";
 import { HeroFeatures } from "@/components/home/HeroFeatures";
 import { brand } from "@/config/brand";
 import { auth } from "@/auth";
+import { getFreshAccount, type FreshAccount } from "@/lib/auth/fresh-account";
 
 /**
  * Landing con los 3 caminos del brief: Explorar (sin cuenta), Ingresar /
@@ -16,7 +17,10 @@ import { auth } from "@/auth";
  */
 export default async function Home() {
   const session = await auth().catch(() => null);
-  const secondaryCta = resolveSecondaryCta(session?.user);
+  // Rol y agencia de la base, no del JWT: justo después de recibir el permiso o de crear la
+  // inmobiliaria la cookie todavía trae el estado anterior.
+  const account = session?.user?.id ? await getFreshAccount(session.user.id) : null;
+  const secondaryCta = resolveSecondaryCta(account);
 
   return (
     <main className="hero-main">
@@ -76,14 +80,12 @@ export default async function Home() {
  * - cualquier otro caso (sin sesión, o usuario sin permiso de agencia) →
  *   solicitud para gestionar una inmobiliaria (ver /solicitar-inmobiliaria).
  */
-function resolveSecondaryCta(
-  user: { role?: string; agencyId?: string | null } | undefined
-): SecondaryCta {
-  if (user?.role === "admin") {
+function resolveSecondaryCta(account: FreshAccount | null): SecondaryCta {
+  if (account?.role === "admin") {
     return { label: "Panel de admin", href: "/admin" };
   }
-  if (user?.role === "agency_owner" || user?.role === "agency_agent") {
-    return user.agencyId
+  if (account?.role === "agency_owner" || account?.role === "agency_agent") {
+    return account.agencyId
       ? { label: "Ir a mi panel", href: "/dashboard" }
       : { label: "Creá tu inmobiliaria", href: "/publicar" };
   }
@@ -92,6 +94,6 @@ function resolveSecondaryCta(
   // ofreciendo el contacto por WhatsApp con el proveedor.
   return {
     label: "Publicá tu inmobiliaria",
-    href: user ? "/solicitar-inmobiliaria" : "/crear-cuenta?tipo=gestionar",
+    href: account ? "/solicitar-inmobiliaria" : "/crear-cuenta?tipo=gestionar",
   };
 }

@@ -97,6 +97,7 @@ Navegación: Resumen · Propiedades · Clientes · Oportunidades · Mi inmobilia
 ### Multi-tenant ("Shopify de las inmobiliarias")
 - Cada inmobiliaria tiene su propio perfil, catálogo de propiedades y dashboard aislado.
 - Alta de inmobiliarias controlada exclusivamente por admin/proveedor (vía contacto de WhatsApp, no autoservicio).
+- **Eliminar una inmobiliaria** (sólo admin) la borra **en cascada** (`lib/admin/delete-agency.ts`): propiedades con sus me gusta, favoritos, puntajes, comentarios y estadísticas; fotos, fotos 360°, logo y portada en el storage (`deleteAgencyAssets`, por prefijo `umbral/agencies/<id>/` en Cloudinary); clientes potenciales, seguidores, permisos, solicitudes y las **cuentas completas** de quienes la gestionaban con su actividad (`lib/admin/purge-user.ts`, que además corrige los contadores de otras propiedades/inmobiliarias). Nunca toca a un admin. Si esas personas se registran de nuevo empiezan de cero y deben pedir permiso otra vez. El panel de admin muestra con números qué se va a perder antes de confirmar.
 
 ---
 
@@ -173,6 +174,7 @@ Complementarias, usar cuando el caso lo amerite (no obligatorias en cada tarea):
 - No se debe subir nada peligroso ni introducir vulnerabilidades típicas (inyección, XSS, exposición de datos, etc.).
 - Alta de inmobiliarias restringida exclusivamente a admin/proveedor — nunca autoservicio: la persona **solicita**, el admin aprueba. `/api/agency/onboarding` confirma rol y agencia contra la base (no contra el JWT, que puede estar desactualizado 5 min) y reserva la agencia de forma atómica.
 - **Aislamiento entre inmobiliarias**: todo endpoint/página del panel pasa por `agencyScope(access, requested)` (`lib/auth/agency-scope.ts`): dueños/agentes siempre quedan en su propia `agencyId` (cualquier otra se ignora); sólo el admin puede elegir. El filtro va dentro de la query, así un recurso ajeno es indistinguible de uno inexistente (404).
+- **Sesión y permisos siempre al día**: el JWT guarda el rol y la agencia con los que la persona se logueó y puede quedar desactualizado (recién aprobada la solicitud, recién creada la inmobiliaria, inmobiliaria borrada). Por eso **toda decisión de acceso o de qué mostrar según el rol sale de la base** (`getFreshAccount`, `lib/auth/fresh-account.ts`): `requireDashboardAccess`, `/publicar`, `/solicitar-inmobiliaria`, el CTA del hero y el menú del header (el layout raíz reemplaza el rol del JWT por el real). El middleware (`proxy.ts`) sólo exige tener sesión para `/dashboard` y `/publicar` (no puede consultar la base); `/admin` sigue exigiendo rol admin. El JWT se relee cada 60 s, y cada 10 s mientras la persona espera la aprobación o aún no creó su inmobiliaria; si la cuenta ya no existe el callback `jwt` devuelve `null` y la sesión se cierra sola. Los flujos del cliente no dependen de `useSession().update()` (no hace nada si hay otra carga de sesión en curso): navegan con carga completa.
 - **Rate limiting** (`lib/security/rate-limit.ts`): `rateLimit`/`limitOr429` respaldados por Mongo (ventana fija, `$inc` atómico, TTL — válido entre instancias serverless) y `softLimitOr429` en memoria para lecturas públicas muy frecuentes. Aplicado a tracking, consultas, solicitudes, registro, comentarios, like/favorito/rating, subidas, seguir, YouTube y geocodificación; los endpoints sensibles fallan cerrado.
 - Formularios públicos (consulta, solicitud): honeypot que responde 201 en silencio, validación con zod, nada de `dangerouslySetInnerHTML`; los textos de usuario se renderizan como texto.
 - Imágenes de logo/portada: sólo URLs de nuestro storage (Cloudinary o `/uploads/`), nunca externas. YouTube: hosts fijos + ids por regex; el cliente sólo manda `videoId`.
@@ -203,6 +205,7 @@ Complementarias, usar cuando el caso lo amerite (no obligatorias en cada tarea):
 - **Datos de prueba**: para verificar reglas y pantallas se insertan filas sintéticas y se borran al terminar; nunca dejar datos de prueba en la base.
 
 ### Pendiente / siguientes pasos
+- En Cloudinary quedan 2 carpetas de septiembre (`umbral/agencies/6a9a1285…` y `6a9daf06…`, 4 archivos) de inmobiliarias borradas antes de existir la cascada; ya no tienen dueño y se pueden eliminar.
 - Probar visualmente en navegador real (esta etapa se verificó por API, HTML servido y scripts; los gráficos SVG se renderizan en el cliente).
 - Deploy a Netlify/Render con las variables de entorno (ver SETUP.md) y confirmar el límite real de payload en subidas.
 - **Cambiar ya la contraseña de GitHub** (quedó en el historial público; ver sección 9) y activar 2FA. Rotar el secret de Google OAuth es opcional.

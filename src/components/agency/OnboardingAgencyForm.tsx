@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { FormField } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
@@ -30,7 +29,6 @@ const emptyValues: Values = {
 export type OnboardingPrefill = Partial<Pick<Values, "name" | "whatsapp" | "phone" | "city">>;
 
 export function OnboardingAgencyForm({ prefill }: { prefill?: OnboardingPrefill }) {
-  const router = useRouter();
   const { update } = useSession();
   const [values, setValues] = useState<Values>({ ...emptyValues, ...prefill });
   const [saving, setSaving] = useState(false);
@@ -51,15 +49,19 @@ export function OnboardingAgencyForm({ prefill }: { prefill?: OnboardingPrefill 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.issues?.[0]?.message ?? data.error ?? "No se pudo crear la inmobiliaria.");
+      const data = await res.json().catch(() => null);
+      // 409 = "ya tenés una inmobiliaria": la primera vez sí se creó (por ejemplo, si la pantalla no
+      // avanzó); hay que seguir al panel, no mostrar un error.
+      if (!res.ok && res.status !== 409) {
+        throw new Error(data?.issues?.[0]?.message ?? data?.error ?? "No se pudo crear la inmobiliaria.");
+      }
 
-      // Fuerza al JWT a releer el rol/agencyId desde la DB ahora mismo — si
-      // no, el guard del dashboard sigue viendo la sesión vieja hasta el
-      // próximo refresco automático (cada 5 min, ver src/auth.ts).
-      await update();
-      router.push("/dashboard");
-      router.refresh();
+      // Refresca la cookie si puede (si hay otra carga de sesión en curso, update() no hace nada: por
+      // eso no se depende de él — el panel verifica contra la base).
+      await update().catch(() => {});
+      // Carga completa en vez de router.push: siempre llega con la sesión y los datos actuales.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- carga completa a propósito: router.push puede llegar con la cookie vieja
+      window.location.href = "/dashboard";
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo crear la inmobiliaria.");
       setSaving(false);

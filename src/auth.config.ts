@@ -28,9 +28,11 @@ export const authConfig = {
       const { pathname } = request.nextUrl;
 
       if (pathname.startsWith("/admin")) return role === "admin";
-      if (pathname.startsWith("/dashboard") || pathname === "/publicar") {
-        return role === "admin" || role === "agency_owner" || role === "agency_agent";
-      }
+      // /dashboard y /publicar: acá (borde, sólo con el JWT) alcanza con tener sesión. El rol y la
+      // agencia pueden estar desactualizados en el token (recién aprobada la solicitud, o recién
+      // creada la inmobiliaria) y bloquear acá dejaba a la persona afuera de su propio panel; el
+      // control real lo hace cada layout, página y API contra la base (requireDashboardAccess).
+      if (pathname.startsWith("/dashboard") || pathname === "/publicar") return !!auth?.user;
       return true;
     },
   },

@@ -25,6 +25,8 @@ declare module "next-auth/jwt" {
     agencyId: string | null;
     /** Epoch ms de la última vez que se releyó el rol desde la DB — ver src/auth.ts. */
     roleCheckedAt?: number;
+    /** Tiene una solicitud de inmobiliaria pendiente: se relee el rol seguido para detectar la aprobación. */
+    watch?: boolean;
   }
 }
 
@@ -38,5 +40,6 @@ declare module "@auth/core/jwt" {
     role: Role;
     agencyId: string | null;
     roleCheckedAt?: number;
+    watch?: boolean;
   }
 }

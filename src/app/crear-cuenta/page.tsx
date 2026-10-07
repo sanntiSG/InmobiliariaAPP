@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { RegisterForm } from "@/components/auth/RegisterForm";
 import { AccountTypeChooser } from "@/components/auth/AccountTypeChooser";
+import { getFreshAccount } from "@/lib/auth/fresh-account";
 
 export const metadata = { title: "Crear cuenta" };
 
@@ -14,7 +15,8 @@ export default async function CrearCuentaPage({ searchParams }: PageProps<"/crea
   const tipo = tipoParam === "explorar" || tipoParam === "gestionar" ? tipoParam : null;
 
   const session = await auth().catch(() => null);
-  if (session?.user) redirect(tipo === "gestionar" ? MANAGE_URL : "/");
+  // Sólo si la cuenta sigue existiendo (una cookie de una cuenta borrada puede volver a registrarse).
+  if (session?.user?.id && (await getFreshAccount(session.user.id))) redirect(tipo === "gestionar" ? MANAGE_URL : "/");
 
   // Paso 1: elegir qué se quiere hacer.
   if (!tipo) {

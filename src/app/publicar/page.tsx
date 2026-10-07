@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { getFreshAccount, isAgencyRole } from "@/lib/auth/fresh-account";
 import { Logo } from "@/components/layout/Logo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { UserMenu } from "@/components/auth/UserMenu";
@@ -14,13 +15,16 @@ export default async function PublicarPage() {
   const session = await auth().catch(() => null);
   const user = session?.user;
 
-  if (!user) redirect("/ingresar");
-  if (user.role === "admin") redirect("/admin");
-  if (user.role === "agency_owner" || user.role === "agency_agent") {
-    if (user.agencyId) redirect("/dashboard");
+  if (!user?.id) redirect("/ingresar");
+  // Rol y agencia de la base (no del JWT, que puede estar desactualizado).
+  const account = await getFreshAccount(user.id);
+  if (!account) redirect("/ingresar");
+  if (account.role === "admin") redirect("/admin");
+  if (isAgencyRole(account.role)) {
+    if (account.agencyId) redirect("/dashboard");
   } else {
-    // Sin permiso de agencia — no tiene nada que hacer acá.
-    redirect("/");
+    // Sin permiso de agencia — tiene que pedirlo (o esperar que se lo den).
+    redirect("/solicitar-inmobiliaria");
   }
 
   // Si la persona pasó por la solicitud, el formulario arranca con lo que ya completó.
