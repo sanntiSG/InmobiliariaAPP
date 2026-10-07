@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Plus } from "lucide-react";
+import { ImagePlus, Plus } from "lucide-react";
 import { requireAdminUser } from "@/lib/auth/require-admin";
 import { connectDB } from "@/lib/db/connect";
 import { Agency } from "@/lib/db/models/Agency";
@@ -74,6 +74,12 @@ export default async function AdminPage() {
                     className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
                   >
                     <Plus className="h-3.5 w-3.5" aria-hidden /> Propiedad
+                  </Link>
+                  <Link
+                    href={`/dashboard/contenido?agencyId=${a._id}`}
+                    className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
+                  >
+                    <ImagePlus className="h-3.5 w-3.5" aria-hidden /> Contenido para redes
                   </Link>
                 </div>
               </div>
