@@ -130,7 +130,7 @@ export function HeroCtas({ secondaryCta, exploreMenu = false }: { secondaryCta: 
           duration: 0.6,
           ease: "expo.out",
           stagger: 0.08,
-          delay: 1.1,
+          delay: 1.6,
           clearProps: "transform,opacity",
         }
       );
@@ -141,7 +141,6 @@ export function HeroCtas({ secondaryCta, exploreMenu = false }: { secondaryCta: 
   return (
     <div
       ref={scope}
-      data-hero-avoid="cta"
       className="hero-ctas-row pointer-events-none relative z-10 flex w-full flex-col gap-3 sm:w-auto sm:flex-row"
     >
       {exploreMenu ? (
