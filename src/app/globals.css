@@ -234,15 +234,17 @@ body {
 }
 
 /* ─────────────────────────────────────────────────────────────
-   Hero Section — Landing animada con objetos 3D flotando,
-   texto que se "tipea", features bar y scroll indicator.
-   Referencia: /public/HeroIdea/HeroSecuence/
+   Hero — landing con objetos 3D flotando (HeroScene) y titular
+   editorial. La escena mide los elementos [data-hero-avoid] para
+   repartir los modelos en el espacio libre: si se cambia el
+   layout de este bloque no hace falta tocar posiciones en JS.
    ───────────────────────────────────────────────────────────── */
 .hero-main {
+  --hero-gutter: clamp(1.25rem, 0.5rem + 3.2vw, 3.5rem);
   position: relative;
   display: flex;
   flex-direction: column;
-  min-height: 100dvh;
+  min-height: 100svh;
   overflow: hidden;
   background: var(--bg);
 }
@@ -253,109 +255,89 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1.25rem 1.25rem;
-}
-@media (min-width: 640px) {
-  .hero-header {
-    padding: 1.25rem 2rem;
-  }
+  padding: 1.25rem var(--hero-gutter);
 }
 
-/* ── Hero Content (texto + CTAs, alineado abajo a la izquierda) ── */
+/* ── Contenido (titular + CTAs, abajo a la izquierda) ───────── */
 .hero-content {
   position: relative;
   z-index: 5;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   justify-content: flex-end;
   flex: 1;
-  padding: 2rem 1.5rem 1rem;
-  max-width: 56rem;
-}
-@media (min-width: 640px) {
-  .hero-content {
-    padding: 2rem 2.5rem 1.5rem;
-  }
-}
-@media (min-width: 1024px) {
-  .hero-content {
-    padding: 3rem 3.5rem 2rem;
-  }
+  padding: 2rem var(--hero-gutter) 0.5rem;
 }
 
-/* ── Typing text ────────────────────────────────────────────── */
 .hero-typing-container {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  max-width: 100%;
 }
 
 .hero-typing-subtitle {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--text-muted);
-  margin-bottom: 0.75rem;
-}
-.hero-typing-subtitle-icon {
+  gap: 0.75rem;
+  margin-bottom: clamp(0.75rem, 1.6vh, 1.25rem);
+  font-family: var(--font-manrope), system-ui, sans-serif;
   font-size: 0.875rem;
-  color: var(--accent);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--text-muted);
+}
+.hero-typing-rule {
+  flex: none;
+  width: 1.5rem;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.7;
 }
 
 .hero-typing-headline {
   display: flex;
   flex-direction: column;
+  max-width: 100%;
   font-family: var(--font-display, var(--font-bricolage));
-  font-weight: 400;
-  font-size: clamp(2rem, 5.5vw, 4rem);
-  line-height: 1.05;
+  font-weight: 380;
+  font-size: clamp(1.75rem, 0.75rem + 4.2vw, 4.5rem);
+  line-height: 0.98;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
   color: var(--text);
-  letter-spacing: -0.02em;
+}
+@media (min-width: 640px) {
+  /* El ancho en em mantiene el titular en 2-3 líneas y deja aire a la derecha. */
+  .hero-typing-headline {
+    max-width: 11em;
+  }
 }
 
-.hero-typing-line1 {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.25em;
-  flex-wrap: wrap;
+/* Máscara de la entrada: el padding evita recortar ascendentes y descendentes. */
+.hero-line {
+  display: block;
+  overflow: hidden;
+  padding: 0.06em 0 0.24em;
+  margin: -0.06em 0 -0.24em;
 }
-
+.hero-typing-line1,
 .hero-typing-line2 {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.2em;
-  flex-wrap: wrap;
+  display: block;
 }
 
 .hero-typing-bold {
-  font-weight: 800;
+  font-weight: 760;
   color: var(--text);
 }
 
-/* Sparkle decorations */
-.hero-sparkle {
-  display: inline-flex;
-  align-items: center;
-  font-size: 0.5em;
-  color: var(--accent);
-  transform-origin: center;
-}
-.hero-sparkle--sm {
-  font-size: 0.35em;
-  opacity: 0.6;
-}
-
-/* ── CTAs row ───────────────────────────────────────────────── */
+/* ── CTAs ───────────────────────────────────────────────────── */
 .hero-ctas-row {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 0.75rem;
-  margin-top: 1.75rem;
+  margin-top: clamp(1.5rem, 3.4vh, 2.25rem);
 }
 @media (min-width: 640px) {
   .hero-ctas-row {
@@ -364,58 +346,58 @@ body {
   }
 }
 
-/* ── Scroll indicator arrow ─────────────────────────────────── */
+/* ── Indicador de scroll ────────────────────────────────────── */
 .hero-scroll-indicator {
   position: relative;
   z-index: 5;
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  padding: 1rem 1.5rem;
+  padding: 1rem var(--hero-gutter) 0;
   color: var(--text);
-  opacity: 0.5;
-  animation: hero-bounce-arrow 2s ease-in-out infinite;
+  opacity: 0.45;
+  animation: hero-bounce-arrow 2.4s var(--ease-out) infinite;
   animation-delay: 3s;
-}
-@media (min-width: 640px) {
-  .hero-scroll-indicator {
-    padding: 1rem 2.5rem;
-  }
-}
-@media (min-width: 1024px) {
-  .hero-scroll-indicator {
-    padding: 1rem 3.5rem;
-  }
 }
 @keyframes hero-bounce-arrow {
   0%, 100% {
     transform: translateY(0);
   }
   50% {
-    transform: translateY(6px);
+    transform: translateY(5px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-scroll-indicator {
+    animation: none;
   }
 }
 
-/* ── Features bar ───────────────────────────────────────────── */
+/* ── Datos al pie: una línea de texto con filetes, sin chips ── */
 .hero-features {
   position: relative;
   z-index: 5;
+  align-self: flex-start;
   display: flex;
-  align-items: center;
-  gap: 1.5rem;
-  padding: 1rem 1.5rem;
   flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 1.25rem;
+  max-width: 100%;
+  padding: 1rem var(--hero-gutter);
+  font-family: var(--font-manrope), system-ui, sans-serif;
+  font-size: 0.8125rem;
+  line-height: 1.3;
 }
 @media (min-width: 640px) {
   .hero-features {
-    padding: 1rem 2.5rem;
-    gap: 2rem;
+    flex-wrap: nowrap;
+    gap: 0;
+    font-size: 0.875rem;
   }
-}
-@media (min-width: 1024px) {
-  .hero-features {
-    padding: 1rem 3.5rem;
-    gap: 2.5rem;
+  .hero-feature-item + .hero-feature-item {
+    margin-left: 1.5rem;
+    padding-left: 1.5rem;
+    border-left: 1px solid var(--border);
   }
 }
 
@@ -424,86 +406,27 @@ body {
   align-items: center;
   gap: 0.5rem;
 }
-
 .hero-feature-icon {
-  display: grid;
-  place-items: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: var(--shadow-pop);
-  flex-shrink: 0;
-}
-
-.hero-feature-text {
-  display: flex;
-  flex-direction: column;
-}
-
-.hero-feature-label {
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text);
-  line-height: 1.2;
-}
-
-.hero-feature-sublabel {
-  font-size: 0.65rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  flex: none;
+  width: 1rem;
+  height: 1rem;
   color: var(--text-muted);
-  line-height: 1.2;
+}
+.hero-feature-label {
+  font-weight: 700;
+  color: var(--text);
+}
+.hero-feature-sublabel {
+  font-weight: 500;
+  color: var(--text-muted);
 }
 
 /* ── Footer ─────────────────────────────────────────────────── */
 .hero-footer {
   position: relative;
   z-index: 5;
-  padding: 1rem 1.5rem 1.5rem;
-  text-align: center;
+  padding: 0.5rem var(--hero-gutter) 1.5rem;
+  text-align: left;
   font-size: 0.75rem;
   color: var(--text-muted);
-}
-@media (min-width: 640px) {
-  .hero-footer {
-    text-align: left;
-    padding: 1rem 2.5rem 1.5rem;
-  }
-}
-@media (min-width: 1024px) {
-  .hero-footer {
-    padding: 1rem 3.5rem 1.5rem;
-  }
-}
-
-/* ── Responsive: en móvil, la escena 3D se muestra arriba ─── */
-@media (max-width: 639px) {
-  .hero-typing-headline {
-    font-size: clamp(1.75rem, 8vw, 2.5rem);
-  }
-  .hero-features {
-    gap: 1rem;
-  }
-  .hero-feature-item {
-    gap: 0.375rem;
-  }
-  .hero-feature-icon {
-    width: 1.625rem;
-    height: 1.625rem;
-  }
-  .hero-feature-icon svg {
-    width: 0.875rem;
-    height: 0.875rem;
-  }
-  .hero-feature-label {
-    font-size: 0.625rem;
-  }
-  .hero-feature-sublabel {
-    font-size: 0.5625rem;
-  }
 }

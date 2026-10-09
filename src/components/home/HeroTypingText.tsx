@@ -5,10 +5,10 @@ import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 
 /**
- * Texto del hero animado con efecto de escritura carácter-por-carácter,
- * al estilo de la referencia (HeroSecuence). El texto grande aparece
- * progresivamente como si se tipeara, con decoraciones (* sparkles)
- * que se animan al lado del texto. Respeta prefers-reduced-motion.
+ * Titular del hero. Cada línea sube desde una máscara (overflow hidden) con
+ * un stagger corto, y el eyebrow aparece justo antes. Sin destellos ni efecto
+ * de "tipeo": la entrada es una sola acción legible. Respeta
+ * prefers-reduced-motion (se muestra directo, sin animar).
  */
 export function HeroTypingText({
   line1,
@@ -32,104 +32,64 @@ export function HeroTypingText({
       // Los textos arrancan ocultos (opacity: 0 en el JSX); con movimiento
       // reducido se muestran de una, sin animar.
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        gsap.set("[data-hero-subtitle], [data-hero-line1], [data-hero-line2], [data-hero-sparkle]", {
-          opacity: 1,
-        });
+        gsap.set("[data-hero-subtitle], [data-hero-line]", { opacity: 1 });
         return;
       }
 
       const tl = gsap.timeline({ defaults: { ease: "expo.out" } });
 
-      // Subtitle (pequeño texto superior)
       tl.fromTo(
         "[data-hero-subtitle]",
-        { opacity: 0, y: 20 },
-        { opacity: 1, y: 0, duration: 0.6 },
+        { opacity: 0, y: 10 },
+        { opacity: 1, y: 0, duration: 0.7, clearProps: "transform" },
+        0.2
+      );
+
+      tl.fromTo(
+        "[data-hero-line]",
+        { opacity: 1, yPercent: 110 },
+        { yPercent: 0, duration: 1.1, stagger: 0.12, clearProps: "transform" },
         0.3
-      );
-
-      // Línea 1 — typing effect (reveal with clip-path)
-      tl.fromTo(
-        "[data-hero-line1]",
-        { opacity: 0, clipPath: "inset(0 100% 0 0)" },
-        {
-          opacity: 1,
-          clipPath: "inset(0 0% 0 0)",
-          duration: 1.2,
-          ease: "power3.inOut",
-          clearProps: "clipPath",
-        },
-        0.5
-      );
-
-      // Línea 2 — reveal
-      tl.fromTo(
-        "[data-hero-line2]",
-        { opacity: 0, clipPath: "inset(0 100% 0 0)" },
-        {
-          opacity: 1,
-          clipPath: "inset(0 0% 0 0)",
-          duration: 1.4,
-          ease: "power3.inOut",
-          clearProps: "clipPath",
-        },
-        0.9
-      );
-
-      // Sparkle decorations
-      tl.fromTo(
-        "[data-hero-sparkle]",
-        { opacity: 0, scale: 0, rotation: -180 },
-        {
-          opacity: 1,
-          scale: 1,
-          rotation: 0,
-          duration: 0.6,
-          stagger: 0.08,
-          ease: "back.out(2)",
-        },
-        1.2
       );
     },
     { scope }
   );
 
   return (
-    <div ref={scope} className="hero-typing-container pointer-events-none">
-      {/* Subtítulo superior */}
-      <div
+    <div
+      ref={scope}
+      data-hero-avoid="text"
+      className="hero-typing-container pointer-events-none"
+    >
+      <p
         data-hero-subtitle=""
         className="hero-typing-subtitle"
         style={{ opacity: 0 }}
       >
-        <span className="hero-typing-subtitle-icon">✦</span>
+        <span className="hero-typing-rule" aria-hidden />
         <span>{subtitle}</span>
-      </div>
+      </p>
 
-      {/* Headline */}
       <h1 className="hero-typing-headline">
-        <span
-          data-hero-line1=""
-          className="hero-typing-line1"
-          style={{ opacity: 0 }}
-        >
-          {line1}
-          {/* Sparkle inline */}
-          <span data-hero-sparkle="" className="hero-sparkle" aria-hidden>
-            ✦
-          </span>
-          <span data-hero-sparkle="" className="hero-sparkle hero-sparkle--sm" aria-hidden>
-            ✦
+        <span className="hero-line">
+          <span
+            data-hero-line=""
+            className="hero-typing-line1"
+            style={{ opacity: 0 }}
+          >
+            {line1}
           </span>
         </span>
-        <span
-          data-hero-line2=""
-          className="hero-typing-line2"
-          style={{ opacity: 0 }}
-        >
-          {line2Prefix && <span>{line2Prefix}</span>}
-          <strong className="hero-typing-bold">{line2Bold}</strong>
-          {line2Suffix && <span>{line2Suffix}</span>}
+        <span className="hero-line">
+          <span
+            data-hero-line=""
+            className="hero-typing-line2"
+            style={{ opacity: 0 }}
+          >
+            {line2Prefix && <span>{line2Prefix}</span>}
+            <strong className="hero-typing-bold">{line2Bold}</strong>
+            {line2Suffix && <span>{line2Suffix}</span>}
+          </span>
         </span>
       </h1>
     </div>

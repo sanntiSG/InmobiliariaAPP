@@ -6,9 +6,9 @@ import { useGSAP } from "@gsap/react";
 import { Compass, Users, Building2 } from "lucide-react";
 
 /**
- * Fila de features en la parte inferior del hero, al estilo de la
- * referencia (Custom things | People's first choice | Different varieties).
- * Adaptado al contexto inmobiliario.
+ * Tres datos de la propuesta al pie del hero, como una sola línea de texto
+ * separada por filetes (sin chips ni mayúsculas). En pantallas angostas pasa
+ * a dos líneas, nunca con letra diminuta.
  */
 
 const FEATURES = [
@@ -29,14 +29,14 @@ export function HeroFeatures() {
 
       gsap.fromTo(
         scope.current.children,
-        { opacity: 0, y: 24 },
+        { opacity: 0, y: 12 },
         {
           opacity: 1,
           y: 0,
           duration: 0.7,
           ease: "expo.out",
-          stagger: 0.1,
-          delay: 2.2,
+          stagger: 0.08,
+          delay: 1.5,
           clearProps: "transform,opacity",
         }
       );
@@ -47,18 +47,16 @@ export function HeroFeatures() {
   return (
     <div
       ref={scope}
-      data-hero-features=""
+      data-hero-avoid="features"
       className="hero-features pointer-events-none"
     >
       {FEATURES.map((feat) => (
         <div key={feat.label} className="hero-feature-item">
-          <div className="hero-feature-icon">
-            <feat.icon className="h-5 w-5" aria-hidden />
-          </div>
-          <div className="hero-feature-text">
-            <span className="hero-feature-label">{feat.label}</span>
+          <feat.icon className="hero-feature-icon" aria-hidden />
+          <span className="hero-feature-text">
+            <span className="hero-feature-label">{feat.label}</span>{" "}
             <span className="hero-feature-sublabel">{feat.sublabel}</span>
-          </div>
+          </span>
         </div>
       ))}
     </div>

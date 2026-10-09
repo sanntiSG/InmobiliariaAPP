@@ -28,7 +28,7 @@ export default async function Home() {
       <HeroScene />
 
       {/* Header — mismo estilo que antes, sobre la escena 3D */}
-      <header className="hero-header">
+      <header className="hero-header" data-hero-avoid="header">
         <Logo href={null} />
         <div className="flex items-center gap-2 sm:gap-3">
           <NotificationBell />
