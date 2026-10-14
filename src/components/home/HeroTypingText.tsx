@@ -7,8 +7,7 @@ import { useGSAP } from "@gsap/react";
 /**
  * Texto del hero animado con efecto de escritura carácter-por-carácter,
  * al estilo de la referencia (HeroSecuence). El texto grande aparece
- * progresivamente como si se tipeara, con decoraciones (* sparkles)
- * que se animan al lado del texto. Respeta prefers-reduced-motion.
+ * progresivamente como si se tipeara. Respeta prefers-reduced-motion.
  */
 export function HeroTypingText({
   line1,
@@ -32,7 +31,7 @@ export function HeroTypingText({
       // Los textos arrancan ocultos (opacity: 0 en el JSX); con movimiento
       // reducido se muestran de una, sin animar.
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        gsap.set("[data-hero-subtitle], [data-hero-line1], [data-hero-line2], [data-hero-sparkle]", {
+        gsap.set("[data-hero-subtitle], [data-hero-line1], [data-hero-line2]", {
           opacity: 1,
         });
         return;
@@ -76,20 +75,7 @@ export function HeroTypingText({
         0.9
       );
 
-      // Sparkle decorations
-      tl.fromTo(
-        "[data-hero-sparkle]",
-        { opacity: 0, scale: 0, rotation: -180 },
-        {
-          opacity: 1,
-          scale: 1,
-          rotation: 0,
-          duration: 0.6,
-          stagger: 0.08,
-          ease: "back.out(2)",
-        },
-        1.2
-      );
+
     },
     { scope }
   );
@@ -102,7 +88,7 @@ export function HeroTypingText({
         className="hero-typing-subtitle"
         style={{ opacity: 0 }}
       >
-        <span className="hero-typing-subtitle-icon">✦</span>
+        <span className="hero-typing-subtitle-icon"></span>
         <span>{subtitle}</span>
       </div>
 
@@ -113,14 +99,7 @@ export function HeroTypingText({
           className="hero-typing-line1"
           style={{ opacity: 0 }}
         >
-          {line1}
-          {/* Sparkle inline */}
-          <span data-hero-sparkle="" className="hero-sparkle" aria-hidden>
-            ✦
-          </span>
-          <span data-hero-sparkle="" className="hero-sparkle hero-sparkle--sm" aria-hidden>
-            ✦
-          </span>
+
         </span>
         <span
           data-hero-line2=""

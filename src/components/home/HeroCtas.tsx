@@ -80,7 +80,7 @@ function ExploreMenu() {
         onClick={() => setOpen((v) => !v)}
         className={buttonClasses("primary", "lg", "w-full sm:w-auto sm:min-w-[200px]")}
       >
-        Explorar
+        Explorar propiedades
         <ChevronDown
           className={cn("h-4 w-4 transition-transform duration-200 [transition-timing-function:var(--ease-out)]", open && "rotate-180")}
           aria-hidden
@@ -154,7 +154,7 @@ export function HeroCtas({ secondaryCta, exploreMenu = false }: { secondaryCta: 
             "pointer-events-auto w-full sm:w-auto sm:min-w-[200px]"
           )}
         >
-          Explorar
+          Explorar propiedades
         </Link>
       )}
       {/* <a> en vez de <Link>: el href es dinámico (ruta interna o wa.me

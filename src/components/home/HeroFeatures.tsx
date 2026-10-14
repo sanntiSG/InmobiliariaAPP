@@ -12,9 +12,9 @@ import { Compass, Users, Building2 } from "lucide-react";
  */
 
 const FEATURES = [
-  { icon: Compass, label: "Recorridos", sublabel: "virtuales 3D" },
-  { icon: Users, label: "Primera", sublabel: "opción del mercado" },
-  { icon: Building2, label: "Diferentes", sublabel: "propiedades" },
+  { icon: Compass, label: "Recorridos", sublabel: " 3D" },
+  { icon: Users, label: "Tu", sublabel: " propiedad" },
+  { icon: Building2, label: "Tú", sublabel: " eleccion" },
 ] as const;
 
 export function HeroFeatures() {

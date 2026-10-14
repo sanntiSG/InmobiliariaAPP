@@ -41,25 +41,12 @@ export default async function Home() {
       <div className="hero-content">
         <HeroTypingText
           line1={brand.tagline}
-          line2Bold="nueva generación"
-          line2Suffix=" de propiedades."
+          line2Bold="Conocé la propiedad"
+          line2Suffix=" antes de visitarla."
           subtitle="Más que un portal inmobiliario"
         />
 
         <HeroCtas secondaryCta={secondaryCta} exploreMenu={account?.role === "user"} />
-      </div>
-
-      {/* Scroll-down indicator (flecha ↓ como en la referencia) */}
-      <div className="hero-scroll-indicator" aria-hidden>
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-          <path
-            d="M10 3v14m0 0l-5-5m5 5l5-5"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
       </div>
 
       {/* Features bar al fondo */}
@@ -93,7 +80,7 @@ function resolveSecondaryCta(account: FreshAccount | null): SecondaryCta {
   // de explorador: directo a la solicitud. En ambos casos el formulario termina
   // ofreciendo el contacto por WhatsApp con el proveedor.
   return {
-    label: "Publicá tu inmobiliaria",
+    label: "Soy inmobiliaria",
     href: account ? "/solicitar-inmobiliaria" : "/crear-cuenta?tipo=gestionar",
   };
 }
