@@ -126,7 +126,7 @@ export function HomeSections({ secondaryCta }: { secondaryCta: SecondaryCta }) {
                 clearProps: clear,
                 scrollTrigger: coarse
                   ? { trigger: title, start: "top 90%", once: true }
-                  : { trigger: title, start: "top 92%", end: "top 45%", scrub: 1.1 },
+                  : { trigger: title, start: "top 92%", end: "clamp(top 45%)", scrub: 1.1 },
               }
             );
           });
@@ -170,7 +170,7 @@ export function HomeSections({ secondaryCta }: { secondaryCta: SecondaryCta }) {
                   }
                 : {
                     ...to,
-                    scrollTrigger: { trigger: frame, start: "top 85%", end: "top 45%", scrub: 1 },
+                    scrollTrigger: { trigger: frame, start: "top 85%", end: "clamp(top 45%)", scrub: 1 },
                   }
             );
             gsap.fromTo(
@@ -256,20 +256,15 @@ export function HomeSections({ secondaryCta }: { secondaryCta: SecondaryCta }) {
 
           // Cierre: las líneas topográficas se dibujan con el scroll.
           q("[data-topo] path").forEach((path) => {
-            const el = path as unknown as SVGPathElement;
-            let len = 0;
-            try {
-              len = el.getTotalLength();
-            } catch {
-              return;
-            }
+            // pathLength=1 normaliza el trazo: no depende de getTotalLength (en WebKit con el SVG
+            // estirado quedaba más corto que el trazo real y la línea no se completaba).
             gsap.fromTo(
-              el,
-              { strokeDasharray: len, strokeDashoffset: len },
+              path,
+              { strokeDasharray: 1, strokeDashoffset: 1 },
               {
                 strokeDashoffset: 0,
                 ease: "none",
-                scrollTrigger: { trigger: ".home-closing", start: "top 85%", end: "center 55%", scrub: true },
+                scrollTrigger: { trigger: ".home-closing", start: "top 85%", end: "clamp(center 55%)", scrub: true },
               }
             );
           });
@@ -381,10 +376,10 @@ export function HomeSections({ secondaryCta }: { secondaryCta: SecondaryCta }) {
 
       <section className="home-closing" aria-labelledby="home-closing-title">
         <svg className="home-topo" data-topo="" viewBox="0 0 1200 360" preserveAspectRatio="none" fill="none" aria-hidden="true">
-          <path d="M0 80C200 20 320 140 560 90S960 10 1200 70" stroke="var(--accent)" strokeOpacity=".35" />
-          <path d="M0 140C220 90 360 200 600 150S980 70 1200 130" stroke="var(--text-muted)" strokeOpacity=".25" />
-          <path d="M0 200C240 150 380 260 640 210S1000 130 1200 190" stroke="var(--accent)" strokeOpacity=".25" />
-          <path d="M0 260C260 210 400 320 680 270S1020 190 1200 250" stroke="var(--text-muted)" strokeOpacity=".2" />
+          <path d="M0 80C200 20 320 140 560 90S960 10 1200 70" pathLength={1} stroke="var(--accent)" strokeOpacity=".35" />
+          <path d="M0 140C220 90 360 200 600 150S980 70 1200 130" pathLength={1} stroke="var(--text-muted)" strokeOpacity=".25" />
+          <path d="M0 200C240 150 380 260 640 210S1000 130 1200 190" pathLength={1} stroke="var(--accent)" strokeOpacity=".25" />
+          <path d="M0 260C260 210 400 320 680 270S1020 190 1200 250" pathLength={1} stroke="var(--text-muted)" strokeOpacity=".2" />
         </svg>
         <h2 id="home-closing-title" className="home-closing-title" data-scrub-title="" aria-label={CLOSING.title}>
           <Chars text={CLOSING.title} />
