@@ -50,6 +50,7 @@ export const viewport: Viewport = {
  */
 const themeInitScript = `
 (function () {
+  document.documentElement.classList.add("js");
   try {
     if (document.cookie.indexOf("${THEME_COOKIE_NAME}=") !== -1) return;
     var stored = localStorage.getItem("${THEME_COOKIE_NAME}");

@@ -18,8 +18,7 @@ export type SecondaryCta = {
  * Los dos CTA principales de la landing. El primero ("Explorar") es fijo;
  * el segundo cambia según quién mira (visitante → WhatsApp al proveedor,
  * inmobiliaria habilitada → su panel/onboarding, admin → panel de admin —
- * ver src/app/page.tsx). La entrada anima con GSAP, respetando
- * prefers-reduced-motion (mismo patrón que ResultsPanel).
+ * ver src/app/page.tsx). La entrada la anima HeroStage (data-hero-cta).
  *
  * El contenedor no captura toques (pointer-events-none) para no tapar el
  * header en mobile; solo los botones son interactivos.
@@ -71,14 +70,14 @@ function ExploreMenu() {
   );
 
   return (
-    <div ref={root} className="pointer-events-auto relative w-full sm:w-auto">
+    <div ref={root} data-hero-cta="" className="pointer-events-auto relative w-full sm:w-auto">
       <button
         ref={trigger}
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className={buttonClasses("primary", "lg", "w-full sm:w-auto sm:min-w-[200px]")}
+        className={buttonClasses("primary", "lg", "hero-btn w-full sm:w-auto sm:min-w-[200px]")}
       >
         Explorar propiedades
         <ChevronDown
@@ -115,44 +114,15 @@ function ExploreMenu() {
 }
 
 export function HeroCtas({ secondaryCta, exploreMenu = false }: { secondaryCta: SecondaryCta; exploreMenu?: boolean }) {
-  const scope = useRef<HTMLDivElement>(null);
-
-  useGSAP(
-    () => {
-      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      if (reduceMotion || !scope.current) return;
-      gsap.fromTo(
-        scope.current.children,
-        { opacity: 0, y: 16 },
-        {
-          opacity: 1,
-          y: 0,
-          duration: 0.6,
-          ease: "expo.out",
-          stagger: 0.08,
-          delay: 1.6,
-          clearProps: "transform,opacity",
-        }
-      );
-    },
-    { scope }
-  );
-
   return (
-    <div
-      ref={scope}
-      className="hero-ctas-row pointer-events-none relative z-10 flex w-full flex-col gap-3 sm:w-auto sm:flex-row"
-    >
+    <div className="hero-ctas-row pointer-events-none relative z-10 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
       {exploreMenu ? (
         <ExploreMenu />
       ) : (
         <Link
           href="/mapa"
-          className={buttonClasses(
-            "primary",
-            "lg",
-            "pointer-events-auto w-full sm:w-auto sm:min-w-[200px]"
-          )}
+          data-hero-cta=""
+          className={buttonClasses("primary", "lg", "hero-btn pointer-events-auto w-full sm:w-auto sm:min-w-[200px]")}
         >
           Explorar propiedades
         </Link>
@@ -162,15 +132,10 @@ export function HeroCtas({ secondaryCta, exploreMenu = false }: { secondaryCta: 
           conocida en tiempo de build. */}
       <a
         href={secondaryCta.href}
+        data-hero-cta=""
         target={secondaryCta.external ? "_blank" : undefined}
         rel={secondaryCta.external ? "noopener noreferrer" : undefined}
-        className={cn(
-          buttonClasses(
-            "secondary",
-            "lg",
-            "pointer-events-auto w-full sm:w-auto sm:min-w-[200px]"
-          )
-        )}
+        className={buttonClasses("secondary", "lg", "hero-btn pointer-events-auto w-full sm:w-auto sm:min-w-[200px]")}
       >
         {secondaryCta.label}
       </a>
