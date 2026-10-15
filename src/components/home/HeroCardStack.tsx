@@ -30,7 +30,11 @@ export function HeroCardStack() {
   useGSAP(
     () => {
       const root = scope.current;
-      if (!root || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      if (
+        !root ||
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      )
+        return;
 
       const small = window.matchMedia("(max-width: 639px)").matches;
       const coarse = window.matchMedia("(pointer: coarse)").matches;
@@ -59,89 +63,139 @@ export function HeroCardStack() {
             delay: 0.35 + i * 0.12,
             ease: "power3.out",
             clearProps: "transform,filter",
-          }
+          },
         );
       });
     },
-    { scope }
+    { scope },
   );
 
   return (
     <div ref={scope} className="hero-stack" aria-hidden="true">
       <div className="hero-card-pos" data-card="tour">
-        <div className="hero-card">
-          <div className="hero-card-row">
-            <span className="hero-chip">
-              <Compass aria-hidden /> 360°
-            </span>
-            <span className="hero-card-meta">Recorrido</span>
+        <div className="hero-card-float">
+          <div className="hero-card">
+            <div className="hero-card-row">
+              <span className="hero-chip">
+                <Compass aria-hidden /> 360°
+              </span>
+              <span className="hero-card-meta">Recorrido</span>
+            </div>
+            <svg viewBox="0 0 200 84" className="hero-card-art" fill="none">
+              <ellipse
+                cx="100"
+                cy="46"
+                rx="86"
+                ry="30"
+                stroke="currentColor"
+                strokeOpacity=".35"
+              />
+              <ellipse
+                cx="100"
+                cy="46"
+                rx="44"
+                ry="30"
+                stroke="currentColor"
+                strokeOpacity=".35"
+              />
+              <path
+                d="M14 46h172M100 16v60"
+                stroke="currentColor"
+                strokeOpacity=".35"
+              />
+              <circle cx="132" cy="38" r="5" fill="var(--accent)" />
+              <circle
+                cx="132"
+                cy="38"
+                r="10"
+                stroke="var(--accent)"
+                strokeOpacity=".4"
+              />
+            </svg>
+            <p className="hero-card-title">Entrá antes de entrar</p>
           </div>
-          <svg viewBox="0 0 200 84" className="hero-card-art" fill="none">
-            <ellipse cx="100" cy="46" rx="86" ry="30" stroke="currentColor" strokeOpacity=".35" />
-            <ellipse cx="100" cy="46" rx="44" ry="30" stroke="currentColor" strokeOpacity=".35" />
-            <path d="M14 46h172M100 16v60" stroke="currentColor" strokeOpacity=".35" />
-            <circle cx="132" cy="38" r="5" fill="var(--accent)" />
-            <circle cx="132" cy="38" r="10" stroke="var(--accent)" strokeOpacity=".4" />
-          </svg>
-          <p className="hero-card-title">Entrá antes de entrar</p>
         </div>
       </div>
 
       <div className="hero-card-pos" data-card="map">
-        <div className="hero-card">
-          <svg viewBox="0 0 200 110" className="hero-card-art hero-card-map" fill="none">
-            <path
-              d="M0 30h200M0 70h200M40 0v110M110 0v110M165 0v110M0 100 200 20"
-              stroke="currentColor"
-              strokeOpacity=".22"
-            />
-            <circle cx="62" cy="52" r="12" fill="var(--accent)" />
-            <text x="62" y="56.5" textAnchor="middle" fontSize="11" fontWeight="700" fill="var(--accent-contrast)">
-              4
-            </text>
-            <circle cx="140" cy="38" r="5" fill="var(--accent)" />
-            <circle cx="150" cy="82" r="5" fill="var(--accent)" />
-          </svg>
-          <div className="hero-card-row">
-            <p className="hero-card-title">
-              <MapPin aria-hidden /> Mapa de AMBA
-            </p>
+        <div className="hero-card-float">
+          <div className="hero-card">
+            <svg
+              viewBox="0 0 200 110"
+              className="hero-card-art hero-card-map"
+              fill="none"
+            >
+              <path
+                d="M0 30h200M0 70h200M40 0v110M110 0v110M165 0v110M0 100 200 20"
+                stroke="currentColor"
+                strokeOpacity=".22"
+              />
+              <circle cx="62" cy="52" r="12" fill="var(--accent)" />
+              <text
+                x="62"
+                y="56.5"
+                textAnchor="middle"
+                fontSize="11"
+                fontWeight="700"
+                fill="var(--accent-contrast)"
+              >
+                4
+              </text>
+              <circle cx="140" cy="38" r="5" fill="var(--accent)" />
+              <circle cx="150" cy="82" r="5" fill="var(--accent)" />
+            </svg>
+            <div className="hero-card-row">
+              <p className="hero-card-title">
+                <MapPin aria-hidden /> Mapa de AMBA
+              </p>
+            </div>
           </div>
         </div>
       </div>
 
       <div className="hero-card-pos" data-card="social">
-        <div className="hero-card">
-          <div className="hero-card-row hero-card-stats">
-            <span>
-              <Heart aria-hidden /> 1,2k
-            </span>
-            <span>
-              <Star aria-hidden /> 4,8
-            </span>
+        <div className="hero-card-float">
+          <div className="hero-card">
+            <div className="hero-card-row hero-card-stats">
+              <span>
+                <Heart aria-hidden /> 1,2k
+              </span>
+              <span>
+                <Star aria-hidden /> 4,8
+              </span>
+            </div>
+            <p className="hero-card-quote">
+              “Ideal, y el recorrido me ahorró dos visitas.”
+            </p>
           </div>
-          <p className="hero-card-quote">“Ideal, y el recorrido me ahorró dos visitas.”</p>
         </div>
       </div>
 
       <div className="hero-card-pos" data-card="panel">
-        <div className="hero-card">
-          <div className="hero-card-row">
-            <span className="hero-card-meta">Tu panel</span>
-            <span className="hero-chip hero-chip-up">
-              <TrendingUp aria-hidden /> +12%
-            </span>
+        <div className="hero-card-float">
+          <div className="hero-card">
+            <div className="hero-card-row">
+              <span className="hero-card-meta">Tu panel</span>
+              <span className="hero-chip hero-chip-up">
+                <TrendingUp aria-hidden /> +12%
+              </span>
+            </div>
+            <svg
+              viewBox="0 0 200 50"
+              className="hero-card-art"
+              fill="none"
+              preserveAspectRatio="none"
+            >
+              <path
+                d="M0 40 22 34 44 38 66 26 88 30 110 18 132 22 154 10 176 14 200 4"
+                stroke="var(--accent)"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <p className="hero-card-title">Visitas esta semana</p>
           </div>
-          <svg viewBox="0 0 200 50" className="hero-card-art" fill="none" preserveAspectRatio="none">
-            <path
-              d="M0 40 22 34 44 38 66 26 88 30 110 18 132 22 154 10 176 14 200 4"
-              stroke="var(--accent)"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <p className="hero-card-title">Visitas esta semana</p>
         </div>
       </div>
     </div>

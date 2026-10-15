@@ -250,6 +250,7 @@ body {
   position: relative;
   display: flex;
   flex-direction: column;
+  min-height: 100vh;
   min-height: 100svh;
   overflow: hidden;
   background: var(--bg);
@@ -447,8 +448,9 @@ body {
 /* ── Abanico de tarjetas ────────────────────────────────────── */
 .hero-stack {
   position: relative;
-  container-type: size;
   width: 100%;
+  height: 15rem;
+  height: clamp(15rem, 34vh, 22rem);
   height: clamp(15rem, 34svh, 22rem);
   pointer-events: none;
 }
@@ -467,9 +469,16 @@ body {
 
 .hero-card-pos {
   position: absolute;
-  font-size: clamp(10px, min(2.6cqw, 4.4cqh), 15px);
-  rotate: var(--rot, 0deg);
+  font-size: clamp(9.5px, 2.6vw, 13px);
   will-change: transform;
+}
+@media (min-width: 640px) {
+  .hero-card-pos {
+    font-size: clamp(12px, 0.7vw + 6px, 15px);
+  }
+}
+.hero-card-float {
+  transform: rotate(var(--rot, 0deg));
 }
 .hero-card-pos[data-card="tour"] {
   --rot: -5deg;
@@ -639,18 +648,18 @@ body {
 
 /* Flotación y hover sólo con puntero fino y movimiento permitido. */
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  .hero-card {
+  .hero-card-float {
     animation: hero-float 7s ease-in-out infinite;
   }
-  [data-card="map"] .hero-card {
+  [data-card="map"] .hero-card-float {
     animation-duration: 8s;
     animation-delay: -2s;
   }
-  [data-card="social"] .hero-card {
+  [data-card="social"] .hero-card-float {
     animation-duration: 6s;
     animation-delay: -4s;
   }
-  [data-card="panel"] .hero-card {
+  [data-card="panel"] .hero-card-float {
     animation-duration: 7.5s;
     animation-delay: -1s;
   }
@@ -665,10 +674,10 @@ body {
 @keyframes hero-float {
   0%,
   100% {
-    translate: 0 0;
+    transform: rotate(var(--rot, 0deg)) translateY(0);
   }
   50% {
-    translate: 0 -4px;
+    transform: rotate(var(--rot, 0deg)) translateY(-4px);
   }
 }
 
@@ -703,6 +712,7 @@ body {
   flex: 1;
   min-width: 0;
   overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
   mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
 }
 .hero-marquee-list {
