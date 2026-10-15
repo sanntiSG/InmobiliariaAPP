@@ -239,7 +239,8 @@ body {
    usa transform/opacity; el estado oculto inicial sólo existe con
    JS (`html.js`) y sin prefers-reduced-motion.
    ───────────────────────────────────────────────────────────── */
-.hero-main {
+.hero-main,
+.home-sections {
   --hero-gutter: clamp(1.25rem, 0.5rem + 3.2vw, 3.5rem);
   --shadow-layer:
     inset 0 1px 0 rgb(255 255 255 / 0.9), 0 0 0 1px rgb(16 24 40 / 0.05), 0 1px 2px rgb(16 24 40 / 0.06),
@@ -247,6 +248,8 @@ body {
   --shadow-layer-hover:
     inset 0 1px 0 rgb(255 255 255 / 0.95), 0 0 0 1px rgb(24 83 173 / 0.18), 0 2px 4px rgb(16 24 40 / 0.06),
     0 22px 36px -16px rgb(16 24 40 / 0.26), 0 44px 70px -28px rgb(16 24 40 / 0.3);
+}
+.hero-main {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -255,7 +258,8 @@ body {
   overflow: hidden;
   background: var(--bg);
 }
-:root[data-theme="dark"] .hero-main {
+:root[data-theme="dark"] .hero-main,
+:root[data-theme="dark"] .home-sections {
   --shadow-layer:
     inset 0 1px 0 rgb(255 255 255 / 0.08), 0 0 0 1px rgb(255 255 255 / 0.07), 0 1px 2px rgb(0 0 0 / 0.5),
     0 16px 28px -14px rgb(0 0 0 / 0.7), 0 36px 60px -26px rgb(0 0 0 / 0.75);
@@ -264,7 +268,8 @@ body {
     0 24px 40px -16px rgb(0 0 0 / 0.8), 0 46px 72px -28px rgb(0 0 0 / 0.85);
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .hero-main {
+  :root:not([data-theme="light"]) .hero-main,
+  :root:not([data-theme="light"]) .home-sections {
     --shadow-layer:
       inset 0 1px 0 rgb(255 255 255 / 0.08), 0 0 0 1px rgb(255 255 255 / 0.07), 0 1px 2px rgb(0 0 0 / 0.5),
       0 16px 28px -14px rgb(0 0 0 / 0.7), 0 36px 60px -26px rgb(0 0 0 / 0.75);
@@ -776,6 +781,304 @@ body {
   .js [data-hero-proof],
   .js [data-hero-cta],
   .js .hero-card-pos {
+    opacity: 0;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Secciones de la landing debajo del hero (HomeSections).
+   ───────────────────────────────────────────────────────────── */
+.home-sections {
+  --hero-gutter: clamp(1.25rem, 0.5rem + 3.2vw, 3.5rem);
+  position: relative;
+  overflow: hidden;
+  background: var(--bg);
+  font-family: var(--font-manrope), system-ui, sans-serif;
+}
+.home-section {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: clamp(4rem, 9vw, 8rem) var(--hero-gutter) 0;
+}
+.home-eyebrow {
+  width: fit-content;
+}
+.home-title {
+  max-width: 18em;
+  margin-top: 1rem;
+  font-family: var(--font-display, var(--font-bricolage));
+  font-weight: 420;
+  font-size: clamp(1.875rem, 1rem + 3.2vw, 3.5rem);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+  color: var(--text);
+}
+
+/* Sección 1 */
+.home-showcase-grid {
+  display: grid;
+  gap: 1rem;
+  margin-top: clamp(1.75rem, 4vw, 3rem);
+}
+@media (min-width: 900px) {
+  .home-showcase-grid {
+    grid-template-columns: 1.35fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 1.25rem;
+  }
+  .home-frame {
+    grid-row: 1 / span 2;
+  }
+}
+.home-frame {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  min-height: 21rem;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border-radius: 1.75rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-layer);
+  color: var(--text-muted);
+}
+.home-frame-art {
+  position: absolute;
+  inset: 8% 6% 34%;
+  width: 88%;
+  height: 58%;
+}
+.home-hotspot {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.7rem 0.3rem 0.35rem;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.home-hotspot-dot {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+.home-hotspot[data-i="0"] {
+  left: 14%;
+  top: 22%;
+}
+.home-hotspot[data-i="1"] {
+  left: 52%;
+  top: 14%;
+}
+.home-hotspot[data-i="2"] {
+  left: 66%;
+  top: 40%;
+}
+.home-frame-copy {
+  position: relative;
+  max-width: 26rem;
+  color: var(--text);
+}
+.home-frame-copy h3,
+.home-card h3 {
+  margin-top: 0.75rem;
+  font-family: var(--font-display, var(--font-bricolage));
+  font-size: 1.25rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+.home-frame-copy p,
+.home-card p {
+  margin-top: 0.4rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.home-card {
+  padding: clamp(1.25rem, 2.5vw, 1.75rem);
+  border-radius: 1.5rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-layer);
+  transition:
+    transform 220ms var(--ease-out),
+    box-shadow 220ms var(--ease-out);
+}
+@media (hover: hover) {
+  .home-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-layer-hover);
+  }
+}
+.home-card h3 {
+  margin-top: 0.9rem;
+}
+.home-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.home-icon svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+/* Sección 2 */
+.home-signals {
+  display: grid;
+  margin-top: clamp(1.75rem, 4vw, 3rem);
+  border-top: 1px solid var(--border);
+}
+@media (min-width: 640px) {
+  .home-signals {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .home-signal + .home-signal {
+    border-left: 1px solid var(--border);
+    padding-left: 1.5rem;
+  }
+}
+.home-signal {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 1.25rem 0;
+}
+.home-signal strong {
+  font-family: var(--font-display, var(--font-bricolage));
+  font-size: clamp(2.5rem, 2rem + 2vw, 3.75rem);
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--text);
+}
+.home-signal span {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+.home-agency-grid {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+@media (min-width: 900px) {
+  .home-agency-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.25rem;
+  }
+}
+.home-art {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 5.5rem;
+  padding: 0.9rem;
+  border-radius: 1rem;
+  background: var(--surface-2);
+}
+.home-art svg {
+  width: 100%;
+  height: 3rem;
+}
+.home-art .hero-chip {
+  align-self: flex-start;
+  font-size: 0.75rem;
+}
+.home-art svg.lucide,
+.home-art .hero-chip svg {
+  width: 1em;
+  height: 1em;
+}
+.home-art-list {
+  list-style: none;
+  margin: 0;
+  justify-content: center;
+}
+.home-art-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.home-art-list svg {
+  width: 1rem;
+  height: 1rem;
+  color: var(--warning);
+}
+.home-art-stages {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-content: center;
+}
+.home-chip-quiet {
+  background: var(--surface);
+  color: var(--text-muted);
+}
+.home-cta-row {
+  display: flex;
+  margin-top: clamp(1.75rem, 4vw, 2.5rem);
+}
+.home-cta-center {
+  justify-content: center;
+}
+
+/* Cierre */
+.home-closing {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: clamp(5rem, 11vw, 9rem) var(--hero-gutter) clamp(4rem, 8vw, 6rem);
+}
+.home-topo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.home-closing-title {
+  position: relative;
+  font-family: var(--font-display, var(--font-bricolage));
+  font-weight: 560;
+  font-size: clamp(2.5rem, 1rem + 6vw, 5.5rem);
+  line-height: 1;
+  letter-spacing: -0.045em;
+  text-wrap: balance;
+  color: var(--text);
+}
+.home-closing-text {
+  position: relative;
+  max-width: 28rem;
+  margin-top: 1rem;
+  font-size: 1.0625rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.home-closing .home-cta-row {
+  position: relative;
+  width: 100%;
+}
+
+/* Estado inicial de los reveals (GSAP los lleva a opacity 1). */
+@media (prefers-reduced-motion: no-preference) {
+  .js .home-sections [data-scrub-char],
+  .js .home-sections [data-reveal],
+  .js .home-sections [data-drift],
+  .js .home-sections [data-rise],
+  .js .home-sections [data-hotspot] {
     opacity: 0;
   }
 }

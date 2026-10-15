@@ -6,6 +6,7 @@ import { HeroCtas, type SecondaryCta } from "@/components/home/HeroCtas";
 import { HeroStage } from "@/components/home/HeroStage";
 import { HeroCardStack } from "@/components/home/HeroCardStack";
 import { HeroMarquee } from "@/components/home/HeroMarquee";
+import { HomeSections } from "@/components/home/HomeSections";
 import { brand } from "@/config/brand";
 import { getHeroStats } from "@/lib/home/hero-stats";
 import { auth } from "@/auth";
@@ -28,7 +29,8 @@ export default async function Home() {
   const secondaryCta = resolveSecondaryCta(account);
 
   return (
-    <main className="hero-main">
+    <main>
+      <section className="hero-main">
       <header className="hero-header">
         <Logo href={null} />
         <div className="flex items-center gap-2 sm:gap-3">
@@ -51,6 +53,9 @@ export default async function Home() {
       </div>
 
       <HeroMarquee />
+      </section>
+
+      <HomeSections secondaryCta={secondaryCta} />
 
       <footer className="hero-footer">
         {brand.name} — {brand.domainLabel}
