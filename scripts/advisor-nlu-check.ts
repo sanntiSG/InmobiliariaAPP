@@ -159,6 +159,14 @@ const CASES: Case[] = [
   E("hola", "common.greeting"),
   E("que podes hacer", "common.help"),
   E("y en palermo?", "explorer.search", { zones: ["Palermo"] }, afterSearch),
+  E("busco una casa con pileta y quincho en tigre", "explorer.search", { types: ["casa"], zones: ["Tigre"] }),
+  E("cuanto sale alquilar un 2 ambientes en belgrano", "explorer.price_typical|explorer.search", { zones: ["Belgrano"], rooms: 2 }),
+  E("hay departamentos con recorrido virtual en palermo", "explorer.with_tour|explorer.search", { zones: ["Palermo"] }),
+  E("inmobiliarias en nordelta", "explorer.agencies", { zones: ["Nordelta"] }),
+  E("las propiedades mas vistas", "explorer.popular"),
+  E("recien publicadas en tigre", "explorer.new", { zones: ["Tigre"] }),
+  E("gracias", "common.thanks"),
+  E("cual es la mejor pizzeria", "unknown"),
 ];
 
 function matches(actual: string, expected: string): boolean {
