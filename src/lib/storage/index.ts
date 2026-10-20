@@ -1,3 +1,5 @@
+export type ResourceType = "image" | "raw";
+
 export type UploadInput = {
   buffer: Buffer;
   filename: string;
@@ -10,6 +12,12 @@ export type UploadInput = {
    * compresión estándar se nota mucho más.
    */
   quality?: "auto" | "best";
+  /**
+   * "image" (default) para fotos. "raw" para archivos que no son imágenes (ej. el
+   * modelo 3D `.glb` del asesor): se suben tal cual, sin transformaciones, y la
+   * URL conserva la extensión original.
+   */
+  resourceType?: ResourceType;
 };
 
 export type UploadResult = {
@@ -20,15 +28,40 @@ export type UploadResult = {
   height?: number;
 };
 
+/** Permiso firmado para que el NAVEGADOR suba un archivo directo al storage, sin pasar por nuestro servidor. */
+export type DirectUploadTicket = {
+  uploadUrl: string;
+  /** Campos que el navegador debe mandar tal cual en el FormData, antes de `file`. */
+  fields: Record<string, string>;
+  /** `public_id` con el que va a quedar el archivo (el servidor lo vuelve a verificar al registrarlo). */
+  providerId: string;
+  resourceType: ResourceType;
+};
+
+export type AssetInfo = { url: string; providerId: string; bytes: number };
+
 export interface StorageProvider {
   upload(input: UploadInput): Promise<UploadResult>;
-  delete(providerId: string): Promise<void>;
+  delete(providerId: string, resourceType?: ResourceType): Promise<void>;
   /**
    * Borra TODO lo que subió una inmobiliaria (fotos, fotos 360°, logo y
    * portada). Devuelve cuántos archivos eliminó. Mejor esfuerzo: nunca lanza,
    * porque un fallo del storage no debe impedir limpiar la base de datos.
    */
   deleteAgencyAssets(agencyId: string): Promise<number>;
+  /**
+   * Firma una subida directa desde el navegador (esquiva el tope de payload de las
+   * funciones serverless). `null` si este provider no lo soporta (el de desarrollo
+   * local): el llamador usa entonces la subida por el servidor.
+   */
+  signDirectUpload(input: {
+    folder: string;
+    /** Extensión con punto, ej. ".glb" (validada por el provider). */
+    extension: string;
+    resourceType: ResourceType;
+  }): Promise<DirectUploadTicket | null>;
+  /** Tamaño y URL de un archivo ya subido, o `null` si no existe. Sirve para verificar antes de registrarlo. */
+  inspect(providerId: string, resourceType?: ResourceType): Promise<AssetInfo | null>;
 }
 
 let cached: StorageProvider | null = null;

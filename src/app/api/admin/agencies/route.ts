@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { agencyCreateSchema } from "@/lib/validation/agency";
+import { logActivity, touchAgencyData } from "@/lib/activity/log";
 import { requireAdminUser } from "@/lib/auth/require-admin";
 import { connectDB } from "@/lib/db/connect";
 import { Agency } from "@/lib/db/models/Agency";
@@ -47,6 +48,18 @@ export async function POST(req: Request) {
         ownerPassword: data.ownerPassword || undefined,
       });
     }
+
+    const createdId = agencyId;
+    touchAgencyData(createdId);
+    after(() =>
+      logActivity({
+        agencyId: createdId,
+        actorId: admin.id,
+        actorRole: "admin",
+        kind: "agency_created",
+        changes: [{ field: "agency.name", after: agency.name }],
+      })
+    );
 
     return NextResponse.json({ id: agencyId, slug: agency.slug }, { status: 201 });
   } catch (err) {

@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { auth } from "@/auth";
+import { logActivity, touchAgencyData } from "@/lib/activity/log";
 import { connectDB } from "@/lib/db/connect";
 import { Agency } from "@/lib/db/models/Agency";
 import { User } from "@/lib/db/models/User";
@@ -68,6 +69,18 @@ export async function POST(req: Request) {
         { $set: { agencyId: agency._id, status: "active" } }
       );
     }
+
+    const createdId = String(agency._id);
+    touchAgencyData(createdId);
+    after(() =>
+      logActivity({
+        agencyId: createdId,
+        actorId: String(user._id),
+        actorRole: user.role,
+        kind: "agency_created",
+        changes: [{ field: "agency.name", after: agency.name }],
+      })
+    );
 
     return NextResponse.json({ id: String(agency._id), slug: agency.slug }, { status: 201 });
   } catch (err) {

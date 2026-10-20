@@ -1,5 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { connectDB } from "@/lib/db/connect";
+import { diffAgency, snapshotAgency, type AgencySnapshot } from "@/lib/activity/diff";
+import { logActivity, touchAgencyData } from "@/lib/activity/log";
 import { Agency } from "@/lib/db/models/Agency";
 import { requireDashboardAccess } from "@/lib/auth/require-dashboard-access";
 import { agencyScope } from "@/lib/auth/agency-scope";
@@ -41,12 +43,39 @@ export async function PATCH(req: Request) {
     if (data.logo !== undefined) update.logo = data.logo || null;
     if (data.cover !== undefined) update.cover = data.cover || null;
 
-    const agency = await Agency.findOneAndUpdate({ _id: scope.agencyId }, { $set: update }, { new: true })
-      .select("slug")
+    // `new: false` devuelve cómo estaba ANTES: sirve de base para la bitácora del asesor.
+    const before = await Agency.findOneAndUpdate({ _id: scope.agencyId }, { $set: update }, { new: false })
+      .select("slug name description contact address logo cover")
       .lean();
-    if (!agency) return NextResponse.json({ error: "Inmobiliaria no encontrada." }, { status: 404 });
+    if (!before) return NextResponse.json({ error: "Inmobiliaria no encontrada." }, { status: 404 });
 
-    return NextResponse.json({ ok: true, slug: agency.slug });
+    const agencyId = scope.agencyId;
+    const beforeSnap = snapshotAgency(before);
+    const afterSnap: AgencySnapshot = {
+      ...beforeSnap,
+      name: data.name,
+      description: data.description ?? "",
+      whatsapp: data.whatsapp,
+      phone: data.phone ?? "",
+      email: data.email ?? "",
+      website: data.website ?? "",
+      city: data.city,
+      province: data.province ?? "",
+      ...(data.logo !== undefined ? { logo: data.logo || "" } : {}),
+      ...(data.cover !== undefined ? { cover: data.cover || "" } : {}),
+    };
+    touchAgencyData(agencyId);
+    after(() =>
+      logActivity({
+        agencyId,
+        actorId: access.userId,
+        actorRole: access.role,
+        kind: "agency_updated",
+        changes: diffAgency(beforeSnap, afterSnap),
+      })
+    );
+
+    return NextResponse.json({ ok: true, slug: before.slug });
   } catch (err) {
     console.error("PATCH /api/dashboard/agency failed:", err);
     return NextResponse.json({ error: "No se pudo guardar el perfil." }, { status: 503 });

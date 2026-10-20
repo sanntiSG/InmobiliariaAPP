@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { z } from "zod";
+import { logActivity, touchAgencyData } from "@/lib/activity/log";
 import { socialAccess } from "@/lib/social/access";
 import { getState, setMode, SocialError } from "@/lib/social/engine";
 import { limitOr429 } from "@/lib/security/rate-limit";
@@ -29,6 +30,17 @@ export async function PATCH(req: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: "Modo inválido." }, { status: 400 });
   try {
     await setMode(a.agencyId, parsed.data.mode);
+    const agencyId = a.agencyId;
+    touchAgencyData(agencyId);
+    after(() =>
+      logActivity({
+        agencyId,
+        actorId: a.userId,
+        actorRole: a.isAdmin ? "admin" : undefined,
+        kind: "social_mode_changed",
+        changes: [{ field: "social.mode", after: parsed.data.mode }],
+      })
+    );
     return NextResponse.json(await getState(a.agencyId, a.isAdmin));
   } catch (err) {
     if (err instanceof SocialError) return NextResponse.json({ error: err.message }, { status: err.status });

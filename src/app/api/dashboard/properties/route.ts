@@ -8,6 +8,7 @@ import { Agency } from "@/lib/db/models/Agency";
 import { Property } from "@/lib/db/models/Property";
 import { slugify } from "@/lib/utils/slugify";
 import { notifyNewPublication } from "@/lib/notifications/new-property";
+import { logActivity, touchAgencyData } from "@/lib/activity/log";
 
 const createSchema = propertyInputSchema.omit({ agencyId: true }).extend({
   // Solo se usa si quien publica es admin (sin inmobiliaria fija); para
@@ -58,6 +59,23 @@ export async function POST(req: Request) {
     if (property.status === "published") {
       after(() => notifyNewPublication(property));
     }
+
+    touchAgencyData(agencyId);
+    after(() =>
+      logActivity({
+        agencyId,
+        propertyId: String(property._id),
+        propertyTitle: property.title,
+        actorId: access.userId,
+        actorRole: access.role,
+        kind: "property_created",
+        changes: [
+          { field: "status", after: property.status },
+          { field: "price", after: data.price.amount, unit: data.price.currency },
+          { field: "photos", after: property.media?.images?.length ?? 0, unit: "fotos" },
+        ],
+      })
+    );
 
     return NextResponse.json({ id: String(property._id), slug: property.slug }, { status: 201 });
   } catch (err) {

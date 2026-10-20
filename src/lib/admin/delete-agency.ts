@@ -1,4 +1,6 @@
 import { Types } from "mongoose";
+import { ActivityLog } from "@/lib/db/models/ActivityLog";
+import { invalidateAgency } from "@/lib/intelligence/cache";
 import { Agency } from "@/lib/db/models/Agency";
 import { AgencyDeletionNotice } from "@/lib/db/models/AgencyDeletionNotice";
 import { AgencyFollow } from "@/lib/db/models/AgencyFollow";
@@ -81,7 +83,9 @@ export async function deleteAgencyCascade(agencyId: string): Promise<DeleteAgenc
     AgencyFollow.deleteMany({ agencyId: agencyOid }),
     PropertyDailyStat.deleteMany({ agencyId: agencyOid }),
     SocialContent.deleteMany({ agencyId: agencyOid }),
+    ActivityLog.deleteMany({ agencyId: agencyOid }),
   ]);
+  invalidateAgency(agencyId);
 
   // — Archivos subidos (mejor esfuerzo: un fallo del storage no frena la limpieza de la base) —
   const files = await getStorageProvider()

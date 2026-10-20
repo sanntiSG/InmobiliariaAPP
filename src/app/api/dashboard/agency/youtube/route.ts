@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { z } from "zod";
+import { logActivity, touchAgencyData } from "@/lib/activity/log";
 import { connectDB } from "@/lib/db/connect";
 import { Agency } from "@/lib/db/models/Agency";
 import { requireDashboardAccess } from "@/lib/auth/require-dashboard-access";
@@ -32,8 +33,25 @@ export async function PUT(req: Request) {
   try {
     await connectDB();
 
+    const agencyId = scope.agencyId;
+    const actor = { actorId: access.userId, actorRole: access.role };
+
     if (!parsed.data.channel) {
-      await Agency.updateOne({ _id: scope.agencyId }, { $unset: { youtube: "" } });
+      const prev = await Agency.findOneAndUpdate({ _id: agencyId }, { $unset: { youtube: "" } }, { new: false })
+        .select("youtube.channelTitle")
+        .lean();
+      // Sólo deja huella si de verdad había un canal vinculado.
+      if (prev?.youtube?.channelId || prev?.youtube?.channelTitle) {
+        touchAgencyData(agencyId);
+        after(() =>
+          logActivity({
+            agencyId,
+            ...actor,
+            kind: "youtube_unlinked",
+            changes: [{ field: "youtube", before: true, after: false, note: prev.youtube?.channelTitle ?? undefined }],
+          })
+        );
+      }
       return NextResponse.json({ linked: false });
     }
 
@@ -41,8 +59,17 @@ export async function PUT(req: Request) {
     const channelId = await resolveChannelId(parsed.data.channel);
     const feed = await fetchChannelFeed(channelId);
     await Agency.updateOne(
-      { _id: scope.agencyId },
+      { _id: agencyId },
       { $set: { "youtube.channelId": channelId, "youtube.channelTitle": feed.title.slice(0, 120) } }
+    );
+    touchAgencyData(agencyId);
+    after(() =>
+      logActivity({
+        agencyId,
+        ...actor,
+        kind: "youtube_linked",
+        changes: [{ field: "youtube", before: false, after: true, note: feed.title.slice(0, 120) }],
+      })
     );
     return NextResponse.json({ linked: true, channelTitle: feed.title, videos: feed.videos.length });
   } catch (err) {

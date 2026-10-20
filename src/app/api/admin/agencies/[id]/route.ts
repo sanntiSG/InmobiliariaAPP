@@ -1,5 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { Types } from "mongoose";
+import { diffAgency, snapshotAgency } from "@/lib/activity/diff";
+import { logActivity, touchAgencyData } from "@/lib/activity/log";
 import { agencyInputSchema } from "@/lib/validation/agency";
 import { requireAdminUser } from "@/lib/auth/require-admin";
 import { connectDB } from "@/lib/db/connect";
@@ -24,14 +26,31 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const agency = await Agency.findById(id);
     if (!agency) return NextResponse.json({ error: "No encontrada" }, { status: 404 });
 
+    const beforeSnap = snapshotAgency(agency.toObject());
+    const previousStatus = agency.status;
+
     agency.name = data.name;
     agency.description = data.description ?? "";
-    agency.contact = { whatsapp: data.whatsapp, phone: data.phone, email: data.email || undefined };
+    // Campo por campo: reemplazar todo `contact` borraba el sitio web que la propia
+    // inmobiliaria cargó desde "Mi inmobiliaria".
+    agency.set("contact.whatsapp", data.whatsapp);
+    agency.set("contact.phone", data.phone);
+    agency.set("contact.email", data.email || undefined);
     agency.address = { ...agency.address, city: data.city, province: data.province, country: "Argentina" };
     agency.status = data.status;
     await agency.save();
 
-    return NextResponse.json({ id: String(agency._id) });
+    const agencyId = String(agency._id);
+    const changes = diffAgency(beforeSnap, snapshotAgency(agency.toObject()));
+    if (previousStatus !== agency.status) {
+      changes.push({ field: "agency.status", before: previousStatus, after: agency.status });
+    }
+    touchAgencyData(agencyId);
+    after(() =>
+      logActivity({ agencyId, actorId: admin.id, actorRole: "admin", kind: "agency_updated", changes })
+    );
+
+    return NextResponse.json({ id: agencyId });
   } catch (err) {
     console.error("PATCH /api/admin/agencies/[id] failed:", err);
     return NextResponse.json({ error: "No se pudo actualizar la inmobiliaria." }, { status: 503 });

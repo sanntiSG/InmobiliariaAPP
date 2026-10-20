@@ -1,9 +1,14 @@
-import { writeFile, unlink, readdir } from "node:fs/promises";
+import { writeFile, unlink, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import type { StorageProvider, UploadInput, UploadResult } from "./index";
+import type { AssetInfo, StorageProvider, UploadInput, UploadResult } from "./index";
 
 const UPLOADS_DIR = path.join(process.cwd(), "public", "uploads");
+
+/** El `providerId` local es sólo un nombre de archivo: nunca una ruta (sin `..` ni separadores). */
+function safeName(providerId: string): string | null {
+  return providerId && path.basename(providerId) === providerId && !providerId.startsWith(".") ? providerId : null;
+}
 
 /**
  * Provider de desarrollo: guarda archivos en /public/uploads para poder
@@ -18,7 +23,9 @@ async function upload({ buffer, filename, folder }: UploadInput): Promise<Upload
 }
 
 async function del(providerId: string): Promise<void> {
-  await unlink(path.join(UPLOADS_DIR, providerId)).catch(() => {});
+  const name = safeName(providerId);
+  if (!name) return;
+  await unlink(path.join(UPLOADS_DIR, name)).catch(() => {});
 }
 
 /** Los archivos locales llevan la carpeta en el nombre: `agencies-<id>-properties-<uuid>.jpg`. */
@@ -35,4 +42,20 @@ async function deleteAgencyAssets(agencyId: string): Promise<number> {
   }
 }
 
-export const localStorage: StorageProvider = { upload, delete: del, deleteAgencyAssets };
+/** En desarrollo no hay subida directa: el llamador sube por el servidor. */
+async function signDirectUpload(): Promise<null> {
+  return null;
+}
+
+async function inspect(providerId: string): Promise<AssetInfo | null> {
+  const name = safeName(providerId);
+  if (!name) return null;
+  try {
+    const info = await stat(path.join(UPLOADS_DIR, name));
+    return { url: `/uploads/${name}`, providerId: name, bytes: info.size };
+  } catch {
+    return null;
+  }
+}
+
+export const localStorage: StorageProvider = { upload, delete: del, deleteAgencyAssets, signDirectUpload, inspect };

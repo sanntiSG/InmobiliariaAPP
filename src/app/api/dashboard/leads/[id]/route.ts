@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { Types } from "mongoose";
+import { logActivity, touchAgencyData } from "@/lib/activity/log";
 import { connectDB } from "@/lib/db/connect";
 import { Lead } from "@/lib/db/models/Lead";
 import { requireDashboardAccess } from "@/lib/auth/require-dashboard-access";
@@ -30,6 +31,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const now = new Date();
     let touchedContact = !!changes.contacted;
+    const previousStatus = lead.status;
+    const leadAgencyId = String(lead.agencyId);
+    const leadPropertyId = String(lead.propertyId);
 
     if (changes.status && changes.status !== lead.status) {
       lead.status = changes.status;
@@ -52,6 +56,30 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     await lead.save();
     await lead.populate({ path: "propertyId", select: "title slug" });
+
+    // Bitácora del asesor: sólo etapa y cantidad de notas — nunca nombre, contacto ni texto del cliente.
+    const populated = lead.propertyId as unknown as { title?: string } | null;
+    const base = {
+      agencyId: leadAgencyId,
+      propertyId: leadPropertyId,
+      propertyTitle: populated?.title,
+      actorId: access.userId,
+      actorRole: access.role,
+    };
+    touchAgencyData(leadAgencyId);
+    if (lead.status !== previousStatus) {
+      after(() =>
+        logActivity({
+          ...base,
+          kind: "lead_stage_changed",
+          changes: [{ field: "lead.status", before: previousStatus, after: lead.status }],
+        })
+      );
+    }
+    if (changes.note) {
+      after(() => logActivity({ ...base, kind: "lead_note_added", changes: [{ field: "lead.note", after: lead.notes.length, unit: "notas" }] }));
+    }
+
     return NextResponse.json({ item: toLeadRow(lead.toObject()) });
   } catch (err) {
     console.error("PATCH /api/dashboard/leads/[id] failed:", err);

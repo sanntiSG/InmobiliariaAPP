@@ -17,6 +17,7 @@ export { RateLimit } from "./RateLimit";
 export { PropertyDailyStat } from "./PropertyDailyStat";
 export { AgencyDeletionNotice } from "./AgencyDeletionNotice";
 export { SocialContent, SOCIAL_MODES } from "./SocialContent";
+export { ActivityLog, ACTIVITY_KINDS } from "./ActivityLog";
 
 export type { AgencyDoc } from "./Agency";
 export type { UserDoc } from "./User";
@@ -36,3 +37,4 @@ export type { UserTasteProfileDoc } from "./UserTasteProfile";
 export type { RateLimitDoc } from "./RateLimit";
 export type { PropertyDailyStatDoc } from "./PropertyDailyStat";
 export type { SocialContentDoc } from "./SocialContent";
+export type { ActivityLogDoc, ActivityKind } from "./ActivityLog";
