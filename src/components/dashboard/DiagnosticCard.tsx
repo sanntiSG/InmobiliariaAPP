@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Lightbulb, TrendingUp, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { AdvisorTrigger } from "@/components/advisor/AdvisorTrigger";
 import type { Diagnostic, DiagnosticKind, DiagnosticSeverity } from "@/lib/intelligence/diagnostics";
 
 const KIND = {
@@ -55,11 +56,22 @@ export function DiagnosticCard({ diagnostic: d, compact = false }: { diagnostic:
             {d.action}
           </p>
         )}
-        {d.href && (
-          <Link href={d.href} className="inline-flex w-fit items-center gap-1 text-sm font-medium text-accent hover:underline">
-            Ir a resolverlo <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-          </Link>
-        )}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          {d.href && (
+            <Link href={d.href} className="inline-flex w-fit items-center gap-1 text-sm font-medium text-accent hover:underline">
+              Ir a resolverlo <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+            </Link>
+          )}
+          {d.propertyId && d.kind !== "positive" && (
+            <AdvisorTrigger
+              intent="agency.investigate"
+              slots={{ propertyIds: [d.propertyId] }}
+              label={`Investigar por qué: ${d.propertyTitle ?? "esta propiedad"}`}
+            >
+              Investigar por qué
+            </AdvisorTrigger>
+          )}
+        </div>
       </div>
     </article>
   );

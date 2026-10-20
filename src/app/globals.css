@@ -240,7 +240,8 @@ body {
    JS (`html.js`) y sin prefers-reduced-motion.
    ───────────────────────────────────────────────────────────── */
 .hero-main,
-.home-sections {
+.home-sections,
+.advisor-stage {
   --hero-gutter: clamp(1.25rem, 0.5rem + 3.2vw, 3.5rem);
   --shadow-layer:
     inset 0 1px 0 rgb(255 255 255 / 0.9), 0 0 0 1px rgb(16 24 40 / 0.05), 0 1px 2px rgb(16 24 40 / 0.06),
@@ -259,7 +260,8 @@ body {
   background: var(--bg);
 }
 :root[data-theme="dark"] .hero-main,
-:root[data-theme="dark"] .home-sections {
+:root[data-theme="dark"] .home-sections,
+:root[data-theme="dark"] .advisor-stage {
   --shadow-layer:
     inset 0 1px 0 rgb(255 255 255 / 0.08), 0 0 0 1px rgb(255 255 255 / 0.07), 0 1px 2px rgb(0 0 0 / 0.5),
     0 16px 28px -14px rgb(0 0 0 / 0.7), 0 36px 60px -26px rgb(0 0 0 / 0.75);
@@ -269,7 +271,8 @@ body {
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .hero-main,
-  :root:not([data-theme="light"]) .home-sections {
+  :root:not([data-theme="light"]) .home-sections,
+  :root:not([data-theme="light"]) .advisor-stage {
     --shadow-layer:
       inset 0 1px 0 rgb(255 255 255 / 0.08), 0 0 0 1px rgb(255 255 255 / 0.07), 0 1px 2px rgb(0 0 0 / 0.5),
       0 16px 28px -14px rgb(0 0 0 / 0.7), 0 36px 60px -26px rgb(0 0 0 / 0.75);
@@ -1080,5 +1083,458 @@ body {
   .js .home-sections [data-rise],
   .js .home-sections [data-hotspot] {
     opacity: 0;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Asesor — lanzador flotante y escenario a pantalla completa
+   (AdvisorLauncher / AdvisorStage). Mismo lenguaje que el hero:
+   eyebrow en pill, Bricolage liviano, sombras en capas. Todo el
+   movimiento es transform/opacity/clip-path; con movimiento
+   reducido la regla global de abajo lo apaga.
+   ───────────────────────────────────────────────────────────── */
+.advisor-launcher {
+  position: fixed;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  z-index: 45;
+  display: grid;
+  place-items: center;
+  width: 4rem;
+  height: 4rem;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+  transition:
+    transform 160ms var(--ease-out),
+    box-shadow 200ms var(--ease-out);
+}
+.advisor-launcher[data-map="true"] {
+  bottom: calc(max(1rem, env(safe-area-inset-bottom)) + 5.25rem);
+}
+.advisor-launcher:active {
+  transform: scale(0.97);
+}
+.advisor-launcher:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--accent) 55%, transparent);
+  outline-offset: 3px;
+}
+.advisor-launcher .advisor-fallback {
+  border-radius: 50%;
+  overflow: hidden;
+}
+.advisor-launcher-tip {
+  position: absolute;
+  right: calc(100% + 0.625rem);
+  top: 50%;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  font-family: var(--font-manrope), system-ui, sans-serif;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--text);
+  opacity: 0;
+  transform: translate(6px, -50%);
+  pointer-events: none;
+  transition:
+    opacity 160ms var(--ease-out),
+    transform 160ms var(--ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  .advisor-launcher:hover {
+    transform: translateY(-2px);
+  }
+  .advisor-launcher:hover .advisor-launcher-tip,
+  .advisor-launcher:focus-visible .advisor-launcher-tip {
+    opacity: 1;
+    transform: translate(0, -50%);
+  }
+}
+
+/* Imagen u orbe que ocupa el lugar de la mascota mientras carga el 3D (o si no hay WebGL). */
+.advisor-mascot {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.advisor-mascot-host {
+  position: absolute;
+  inset: 0;
+}
+.advisor-fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.advisor-fallback-poster {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.advisor-orb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14%;
+  width: 56%;
+  aspect-ratio: 1;
+  border-radius: 44% 44% 48% 48%;
+  background: var(--accent-soft);
+  box-shadow: inset 0 -0.5rem 1rem color-mix(in oklab, var(--accent) 16%, transparent);
+}
+.advisor-orb-eye {
+  width: 11%;
+  height: 20%;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: advisor-blink 4.5s ease-in-out infinite;
+}
+.advisor-fallback[data-calm="true"] .advisor-orb-eye {
+  animation: none;
+}
+@keyframes advisor-blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  96% {
+    transform: scaleY(0.1);
+  }
+}
+
+/* ── Escenario ──────────────────────────────────────────────── */
+.advisor-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+  clip-path: var(--advisor-clip-from, inset(48% 38% 48% 38% round 32px));
+  opacity: 0;
+  transition:
+    clip-path 280ms var(--ease-in-out),
+    opacity 200ms var(--ease-out);
+}
+.advisor-stage[data-open="true"] {
+  clip-path: inset(0 0 0 0 round 0);
+  opacity: 1;
+  transition:
+    clip-path 460ms var(--ease-out),
+    opacity 220ms var(--ease-out);
+}
+
+.advisor-top {
+  position: relative;
+  z-index: 3;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: max(1rem, env(safe-area-inset-top)) var(--hero-gutter) 0.5rem;
+}
+.advisor-status {
+  margin-bottom: 0;
+}
+.advisor-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  color: var(--text);
+  transition:
+    transform 150ms var(--ease-out),
+    background-color 150ms var(--ease-out);
+}
+.advisor-icon-btn:active {
+  transform: scale(0.94);
+}
+.advisor-icon-btn:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--accent) 55%, transparent);
+}
+@media (hover: hover) and (pointer: fine) {
+  .advisor-icon-btn:hover {
+    background: var(--surface-2);
+  }
+}
+
+.advisor-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+@media (min-width: 1024px) {
+  .advisor-body {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    gap: clamp(1.5rem, 3vw, 3rem);
+    padding: 0 var(--hero-gutter) 1.5rem;
+  }
+}
+
+.advisor-hero {
+  position: relative;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  height: clamp(8rem, 26dvh, 17rem);
+  padding: 0 var(--hero-gutter);
+  opacity: 0;
+  transform: scale(0.96);
+  transition: height 280ms var(--ease-out);
+}
+.advisor-stage[data-open="true"] .advisor-hero {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 420ms var(--ease-out) 120ms,
+    transform 520ms var(--ease-out) 120ms,
+    height 280ms var(--ease-out);
+}
+.advisor-hero[data-compact="true"] {
+  height: 5rem;
+}
+.advisor-hero[data-compact="true"] .advisor-id {
+  display: none;
+}
+/* Un halo suave detrás de la mascota: sólo ambiente, no información. */
+.advisor-hero::before {
+  content: "";
+  position: absolute;
+  inset: 4% 4% 0;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--accent-soft), transparent 74%);
+  opacity: 0.9;
+  pointer-events: none;
+}
+.advisor-mascot-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.advisor-id {
+  position: relative;
+  display: none;
+}
+@media (min-width: 1024px) {
+  .advisor-hero {
+    height: auto;
+    padding: 0;
+    justify-content: flex-end;
+  }
+  .advisor-hero[data-compact="true"] {
+    height: auto;
+  }
+  .advisor-hero[data-compact="true"] .advisor-id {
+    display: block;
+  }
+  .advisor-mascot-wrap {
+    min-height: 18rem;
+  }
+  .advisor-id {
+    display: block;
+    padding: 0.5rem 0 0.25rem;
+  }
+}
+.advisor-name {
+  font-family: var(--font-display, var(--font-bricolage));
+  font-weight: 760;
+  font-size: clamp(1.75rem, 1rem + 1.8vw, 2.5rem);
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--text);
+}
+.advisor-desc {
+  max-width: 28rem;
+  margin-top: 0.5rem;
+  font-family: var(--font-manrope), system-ui, sans-serif;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.advisor-thread-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  transform: translateY(12px);
+}
+.advisor-stage[data-open="true"] .advisor-thread-wrap {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 420ms var(--ease-out) 200ms,
+    transform 520ms var(--ease-out) 200ms;
+}
+.advisor-thread {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.5rem var(--hero-gutter) 1.25rem;
+  scrollbar-width: thin;
+}
+@media (min-width: 1024px) {
+  .advisor-thread {
+    padding: 0.5rem 0.75rem 1.5rem 0;
+  }
+}
+.advisor-dock {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.5rem var(--hero-gutter) max(0.875rem, env(safe-area-inset-bottom));
+  background: var(--bg);
+}
+@media (min-width: 1024px) {
+  .advisor-dock {
+    padding: 0.5rem 0 0;
+  }
+}
+
+/* Texto principal de cada respuesta: Bricolage liviano como el titular del hero. */
+.advisor-lead {
+  max-width: 40rem;
+  font-family: var(--font-display, var(--font-bricolage));
+  font-weight: 400;
+  font-size: clamp(1.25rem, 1rem + 0.9vw, 1.75rem);
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+  text-wrap: pretty;
+  color: var(--text);
+}
+.advisor-lead-past {
+  font-family: var(--font-manrope), system-ui, sans-serif;
+  font-weight: 500;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  letter-spacing: 0;
+  color: var(--text-muted);
+}
+.advisor-word {
+  display: inline-block;
+}
+.advisor-ask {
+  align-self: flex-end;
+  max-width: 85%;
+  padding: 0.5rem 0.9rem;
+  border-radius: 1.25rem 1.25rem 0.35rem 1.25rem;
+  background: var(--accent-soft);
+  font-family: var(--font-manrope), system-ui, sans-serif;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+/* Chips: carrusel con bordes difuminados en el celular (como el marquee del hero), en renglones en desktop. */
+.advisor-chips {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0 calc(var(--hero-gutter) * -1);
+  padding: 0.25rem var(--hero-gutter);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+}
+.advisor-chips::-webkit-scrollbar {
+  display: none;
+}
+@media (min-width: 1024px) {
+  .advisor-chips {
+    flex-wrap: wrap;
+    margin: 0;
+    padding: 0.25rem 0;
+    overflow: visible;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+
+.advisor-thinking {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.advisor-dots {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+.advisor-dots i {
+  width: 0.3125rem;
+  height: 0.3125rem;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: advisor-dot 1.2s ease-in-out infinite;
+}
+.advisor-dots i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.advisor-dots i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes advisor-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+/* Tablas: en el celular cada fila se apila con su etiqueta. */
+@media (max-width: 639px) {
+  .advisor-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .advisor-table,
+  .advisor-table tbody,
+  .advisor-table tr,
+  .advisor-table td {
+    display: block;
+  }
+  .advisor-table tr {
+    padding: 0.5rem 0;
+  }
+  .advisor-table td {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.15rem 0;
+    text-align: right;
+  }
+  .advisor-table td::before {
+    content: attr(data-label);
+    flex: none;
+    text-align: left;
+    color: var(--text-muted);
+    font-weight: 500;
   }
 }

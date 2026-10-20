@@ -8,6 +8,8 @@ import { THEME_COOKIE_NAME } from "@/config/site";
 import { auth } from "@/auth";
 import { getFreshAccount } from "@/lib/auth/fresh-account";
 import { SessionProvider } from "@/components/providers/SessionProvider";
+import { AdvisorProvider } from "@/components/advisor/AdvisorProvider";
+import { getPublishedConfig, toPublicConfig } from "@/lib/advisor/config";
 
 // Bricolage Grotesque: títulos y precios — con carácter propio, no genérica.
 const bricolage = Bricolage_Grotesque({
@@ -79,6 +81,9 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     jwtSession && fresh
       ? { ...jwtSession, user: { ...jwtSession.user, role: fresh.role as typeof jwtSession.user.role, agencyId: fresh.agencyId } }
       : null;
+  // Lo que el asesor muestra (nombre, modelo, animaciones) es la configuración PUBLICADA; el borrador no sale del estudio.
+  const advisorConfig = toPublicConfig(await getPublishedConfig());
+  const advisorAccount = { signedIn: !!session, role: session?.user.role ?? null, agencyId: session?.user.agencyId ?? null };
   const themeCookie = cookieStore.get(THEME_COOKIE_NAME)?.value;
   const theme = themeCookie === "light" || themeCookie === "dark" ? themeCookie : undefined;
 
@@ -97,7 +102,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         />
       </head>
       <body className="min-h-full flex flex-col bg-bg text-text font-sans">
-        <SessionProvider session={session}>{children}</SessionProvider>
+        <SessionProvider session={session}>
+          <AdvisorProvider config={advisorConfig} account={advisorAccount}>
+            {children}
+          </AdvisorProvider>
+        </SessionProvider>
       </body>
     </html>
   );

@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { modeFor, openAdvisor, useAdvisorState } from "@/components/advisor/store";
 
 const BASE_LINKS = [
   { href: "/dashboard", label: "Resumen", exact: true },
@@ -18,6 +20,8 @@ const ADMIN_LINK = { href: "/admin", label: "Inmobiliarias", exact: false };
 export function DashboardNav({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
   const links = isAdmin ? [...BASE_LINKS, ADMIN_LINK] : BASE_LINKS;
+  const advisor = useAdvisorState();
+  const advisorOn = !!advisor.config?.enabled[modeFor(advisor.account)];
 
   return (
     <nav className="flex gap-1 overflow-x-auto lg:w-56 lg:shrink-0 lg:flex-col lg:overflow-visible">
@@ -36,6 +40,16 @@ export function DashboardNav({ isAdmin = false }: { isAdmin?: boolean }) {
           </Link>
         );
       })}
+      {advisorOn && (
+        <button
+          type="button"
+          onClick={(e) => openAdvisor({ origin: e.currentTarget.getBoundingClientRect() })}
+          className="flex shrink-0 items-center gap-1.5 rounded-pill px-4 py-2.5 text-sm font-medium text-accent transition-colors hover:bg-accent-soft lg:rounded-media"
+        >
+          <Sparkles className="h-4 w-4" aria-hidden />
+          {advisor.config?.displayName ?? "Asesor"}
+        </button>
+      )}
     </nav>
   );
 }
