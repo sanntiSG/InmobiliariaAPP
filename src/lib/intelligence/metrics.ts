@@ -106,6 +106,29 @@ export async function getPropertyMetrics(scope: MetricsScope, now = new Date()):
   return out;
 }
 
+/**
+ * Totales por propiedad en un rango arbitrario de días `[from, to)`. Sirve para
+ * ventanas que `getPropertyMetrics` no trae (mes pasado, antes/después de un
+ * cambio). Lee el mismo rollup diario, nunca `Interaction`.
+ */
+export async function getTotalsInRange(scope: MetricsScope, from: Date, to: Date): Promise<Map<string, Totals>> {
+  const accumulators: Record<string, unknown> = {};
+  for (const f of METRIC_FIELDS) accumulators[f] = { $sum: `$${f}` };
+
+  const rows = await PropertyDailyStat.aggregate([
+    { $match: { ...scopeMatch(scope), day: { $gte: from, $lt: to } } },
+    { $group: { _id: "$propertyId", ...accumulators } },
+  ]);
+
+  const out = new Map<string, Totals>();
+  for (const row of rows) {
+    const t = emptyTotals();
+    for (const f of METRIC_FIELDS) t[f] = row[f] ?? 0;
+    out.set(String(row._id), t);
+  }
+  return out;
+}
+
 /** Suma de las métricas de varias propiedades (KPIs de una inmobiliaria o de la plataforma). */
 export function sumMetrics(all: Iterable<PropertyMetrics>): { w7: Totals; p7: Totals; d30: Totals } {
   let w7 = emptyTotals();

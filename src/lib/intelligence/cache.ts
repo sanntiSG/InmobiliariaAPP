@@ -45,4 +45,5 @@ export function invalidateAgency(agencyId: string): void {
   invalidate("intelligence:all");
   invalidate("admin-intelligence");
   invalidate(`advisor:${agencyId}`);
+  invalidate("advisor:all");
 }
