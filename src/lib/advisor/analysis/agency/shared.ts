@@ -1,5 +1,4 @@
 /** Utilidades comunes a los handlers de inmobiliaria. */
-import { PROPERTY_TYPE_LABELS, type PropertyType } from "@/config/filters";
 import { THRESHOLDS, interestScore } from "@/lib/intelligence/diagnostics";
 import {
   consultas,
@@ -9,6 +8,7 @@ import {
   type Totals,
 } from "@/lib/intelligence/metrics";
 import { n0, money, plural } from "../../compose/format";
+import { typeLabel } from "../../compose/vocab";
 import type { PropertyRow } from "../../data/portfolio";
 import { periodRange } from "../../data/periods";
 import type { MetricId, PeriodId, PropertyRef, Slots, Tone } from "../../types";
@@ -83,27 +83,7 @@ export function filterRows(rows: PropertyRow[], slots: Slots): PropertyRow[] {
   );
 }
 
-const TYPE_INFO: Record<string, { sg: string; pl: string; f: boolean }> = {
-  casa: { sg: "casa", pl: "casas", f: true },
-  departamento: { sg: "departamento", pl: "departamentos", f: false },
-  ph: { sg: "PH", pl: "PH", f: false },
-  terreno: { sg: "terreno", pl: "terrenos", f: false },
-  local: { sg: "local", pl: "locales", f: false },
-  oficina: { sg: "oficina", pl: "oficinas", f: true },
-  galpon: { sg: "galpón", pl: "galpones", f: false },
-  quinta: { sg: "quinta", pl: "quintas", f: true },
-};
-
-/** "casas", "departamentos", "locales" (plural correcto) o el singular con `many = false`. */
-export const typeLabel = (type: string, many = true): string => {
-  const info = TYPE_INFO[type];
-  if (info) return many ? info.pl : info.sg;
-  return (PROPERTY_TYPE_LABELS[type as PropertyType] ?? type).toLowerCase();
-};
-
-/** Artículo y "cada uno/una" según el género del tipo ("las casas", "los departamentos"). */
-export const typeGender = (type: string): { the: string; each: string } =>
-  TYPE_INFO[type]?.f ? { the: "las", each: "cada una" } : { the: "los", each: "cada uno" };
+export { typeLabel, typeGender } from "../../compose/vocab";
 
 export const zoneOf = (r: PropertyRow): string => r.neighborhood ?? r.city;
 

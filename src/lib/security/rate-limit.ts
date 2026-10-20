@@ -34,6 +34,19 @@ export async function rateLimit(
   }
 }
 
+/** Cuántas veces se usó `key` en la ventana actual, SIN sumar un uso (para mostrar "te quedan N"). */
+export async function peekRateLimit(key: string, windowSec: number): Promise<number> {
+  const bucket = Math.floor(Date.now() / (windowSec * 1000));
+  try {
+    await connectDB();
+    const doc = await RateLimit.findOne({ key: `${key}:${bucket}` }).select("count").lean();
+    return doc?.count ?? 0;
+  } catch (err) {
+    console.error("peekRateLimit failed:", err);
+    return 0;
+  }
+}
+
 async function incrementBucket(key: string, expiresAt: Date) {
   const run = () =>
     RateLimit.findOneAndUpdate(

@@ -115,6 +115,19 @@ function run(intent: IntentId, env: Env): Promise<HandlerResult> | HandlerResult
   };
 }
 
+/**
+ * ¿Esta consulta consume una pregunta del cupo gratuito? Sí cuando es una pregunta real
+ * (escrita o tocada en un chip) que el asesor sabe resolver; el saludo, el agradecimiento,
+ * la ayuda y lo que no entiende o necesita aclarar no cuentan. Sólo clasifica: no toca datos.
+ */
+export async function willConsumeQuota(params: Pick<AskParams, "mode" | "input" | "context">): Promise<boolean> {
+  if (!("text" in params.input)) return !params.input.query.intent.startsWith("common.");
+  const ctx = sanitizeContext(params.context ?? { turn: 0 }, null);
+  const index = await loadMarketIndex();
+  const u = understand(params.input.text, params.mode, index, ctx);
+  return u.kind === "intent" && !u.intent.startsWith("common.");
+}
+
 export async function answer(params: AskParams): Promise<AdvisorAnswer> {
   const now = params.now ?? new Date();
   const mode = params.mode;

@@ -36,7 +36,7 @@ export type ImpactResult = {
 const totalsOf = (t: Totals | undefined): Rates => ({ views: t?.views ?? 0, consultas: t ? consultas(t) : 0, saves: t?.saves ?? 0 });
 const perDay = (r: Rates, days: number): Rates => ({ views: r.views / days, consultas: r.consultas / days, saves: r.saves / days });
 
-export async function measureImpact(env: AgencyEnv, row: PropertyRow, at: Date): Promise<ImpactResult> {
+export async function measureImpact(env: Pick<AgencyEnv, "now">, row: PropertyRow, at: Date): Promise<ImpactResult> {
   const changeDay = dayStart(at).getTime();
   const today = dayStart(env.now).getTime();
   const afterStart = changeDay + DAYS;

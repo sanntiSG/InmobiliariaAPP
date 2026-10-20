@@ -7,12 +7,9 @@ import { Interaction } from "@/lib/db/models/Interaction";
 import { auth } from "@/auth";
 import { clientIp, rateLimit } from "@/lib/security/rate-limit";
 import { dayStart, recordEvent } from "@/lib/tracking/record";
+import { readOrMintRid, setRidCookie } from "@/lib/tracking/visitor";
 
-/** Cookie de visitante anónimo (no identifica a nadie, sólo permite contar visitantes únicos). */
-const VISITOR_COOKIE = "rid";
-const VISITOR_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 const VIEW_DEDUPE_MS = 30 * 60_000;
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const BOT_RE = /bot|crawl|spider|slurp|preview|facebookexternalhit|headless|lighthouse|monitor/i;
 
 const bodySchema = z.object({
@@ -44,21 +41,11 @@ export async function POST(req: NextRequest) {
   }
   const body = parsed.data;
 
-  const existingRid = req.cookies.get(VISITOR_COOKIE)?.value;
-  const rid = existingRid && UUID_RE.test(existingRid) ? existingRid : crypto.randomUUID();
+  const { rid, minted } = readOrMintRid(req);
 
   const respond = () => {
     const res = new NextResponse(null, { status: 204 });
-    if (rid !== existingRid) {
-      res.cookies.set(VISITOR_COOKIE, rid, {
-        httpOnly: true,
-        sameSite: "lax",
-        secure: process.env.NODE_ENV === "production",
-        path: "/",
-        maxAge: VISITOR_COOKIE_MAX_AGE,
-      });
-    }
-    return res;
+    return minted ? setRidCookie(res, rid) : res;
   };
 
   const [byVisitor, byIp] = await Promise.all([

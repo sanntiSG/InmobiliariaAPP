@@ -30,14 +30,14 @@ import {
 const DAY_MS = 86_400_000;
 
 /** Qué campos de la bitácora corresponden a cada "tipo de cambio" que se puede nombrar. */
-const FIELD_KEYS: Record<ChangeField, string[]> = {
+export const FIELD_KEYS: Record<ChangeField, string[]> = {
   price: ["price"],
   photos: ["photos", "cover", "photos_order"],
   description: ["description", "title"],
   videos: ["videos"],
   tour360: ["tour360", "tour360_links", "virtualTour"],
 };
-const FIELD_LABEL: Record<ChangeField, string> = {
+export const FIELD_LABEL: Record<ChangeField, string> = {
   price: "el precio",
   photos: "las fotos",
   description: "la descripción",
@@ -52,7 +52,7 @@ const FIELD_NOUN: Record<ChangeField, string> = {
   tour360: "recorrido 360°",
 };
 
-const eventsOf = (entries: ActivityEntry[], keys: string[]) =>
+export const eventsOf = (entries: ActivityEntry[], keys: string[]) =>
   entries
     .filter((e) => (e.kind === "property_updated" || e.kind === "property_created") && e.propertyId)
     .flatMap((e) => e.changes.filter((c) => keys.includes(c.field)).map((c) => ({ entry: e, change: c })));
