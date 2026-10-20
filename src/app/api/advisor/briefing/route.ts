@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveAdvisorAccess } from "@/lib/advisor/access";
 import { agencyBriefing, explorerBriefing } from "@/lib/advisor/briefing";
+import { getPublishedConfig } from "@/lib/advisor/config";
 import { getPersona } from "@/lib/advisor/persona";
 import { peekAnonQuota } from "@/lib/advisor/quota";
 import { briefingBodySchema } from "@/lib/advisor/schema";
@@ -19,11 +20,16 @@ const NO_STORE = { "Cache-Control": "no-store" } as const;
 export async function POST(req: NextRequest) {
   const parsed = briefingBodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Consulta inválida." }, { status: 400, headers: NO_STORE });
-  const { mode, agencyId, focusPropertyId } = parsed.data;
+  const { mode, agencyId, focusPropertyId, preview } = parsed.data;
 
   const resolved = await resolveAdvisorAccess(mode, agencyId);
   if (!resolved.ok) return resolved.response;
   const access = resolved.access;
+
+  const usingDraft = !!preview && access.isAdmin;
+  if (!usingDraft && !(await getPublishedConfig()).enabled[mode]) {
+    return NextResponse.json({ error: "El asesor no está disponible por ahora." }, { status: 403, headers: NO_STORE });
+  }
 
   const limited = await limitOr429(req, "advisor-brief", access.userId ? 40 : 20, 60, { userId: access.userId ?? undefined });
   if (limited) return limited;
@@ -32,7 +38,7 @@ export async function POST(req: NextRequest) {
   const { rid, minted } = readOrMintRid(req);
 
   try {
-    const persona = await getPersona();
+    const persona = await getPersona({ draft: usingDraft });
     const briefing: AdvisorBriefing =
       mode === "agency"
         ? await agencyBriefing(access.agencyId, persona)

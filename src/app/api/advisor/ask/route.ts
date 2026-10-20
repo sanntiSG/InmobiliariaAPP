@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { resolveAdvisorAccess } from "@/lib/advisor/access";
 import { answer, willConsumeQuota } from "@/lib/advisor/engine";
+import { getPublishedConfig } from "@/lib/advisor/config";
 import { getPersona } from "@/lib/advisor/persona";
 import { ANON_LIMIT, consumeAnonQuota, peekAnonQuota } from "@/lib/advisor/quota";
 import { askBodySchema } from "@/lib/advisor/schema";
@@ -38,11 +39,17 @@ function quotaExhausted(quota: AdvisorQuota, context: AdvisorContext): AdvisorAn
 export async function POST(req: NextRequest) {
   const parsed = askBodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Consulta inválida." }, { status: 400, headers: NO_STORE });
-  const { mode, agencyId, input, context } = parsed.data;
+  const { mode, agencyId, input, context, preview } = parsed.data;
 
   const resolved = await resolveAdvisorAccess(mode, agencyId);
   if (!resolved.ok) return resolved.response;
   const access = resolved.access;
+
+  // El admin puede probar el borrador aunque el asesor esté apagado; el resto, sólo lo publicado.
+  const usingDraft = !!preview && access.isAdmin;
+  if (!usingDraft && !(await getPublishedConfig()).enabled[mode]) {
+    return NextResponse.json({ error: "El asesor no está disponible por ahora." }, { status: 403, headers: NO_STORE });
+  }
 
   const limited = await limitOr429(req, "advisor-ask", access.userId ? 60 : 20, 60, { userId: access.userId ?? undefined });
   if (limited) return limited;
@@ -72,7 +79,7 @@ export async function POST(req: NextRequest) {
       userId: access.userId,
       input,
       context,
-      persona: await getPersona(),
+      persona: await getPersona({ draft: usingDraft }),
     });
 
     // Lo que no se entendió (anónimo, enmascarado) ayuda al admin a mejorar el motor.

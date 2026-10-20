@@ -19,6 +19,7 @@ export { AgencyDeletionNotice } from "./AgencyDeletionNotice";
 export { SocialContent, SOCIAL_MODES } from "./SocialContent";
 export { ActivityLog, ACTIVITY_KINDS } from "./ActivityLog";
 export { AdvisorUnmatched } from "./AdvisorUnmatched";
+export { AdvisorConfig } from "./AdvisorConfig";
 
 export type { AgencyDoc } from "./Agency";
 export type { UserDoc } from "./User";
@@ -40,3 +41,4 @@ export type { PropertyDailyStatDoc } from "./PropertyDailyStat";
 export type { SocialContentDoc } from "./SocialContent";
 export type { ActivityLogDoc, ActivityKind } from "./ActivityLog";
 export type { AdvisorUnmatchedDoc } from "./AdvisorUnmatched";
+export type { AdvisorConfigDoc } from "./AdvisorConfig";
