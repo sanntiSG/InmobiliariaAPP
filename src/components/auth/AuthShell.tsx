@@ -30,8 +30,8 @@ export function AuthShell({
           <Logo href="/" />
         </div>
 
-        <div className={`w-full rounded-card bg-surface p-7 shadow-card ${wide ? "max-w-2xl" : "max-w-sm"}`}>
-          <h1 className="font-display text-2xl font-bold text-text">{title}</h1>
+        <div className={`rise w-full rounded-card bg-surface p-7 shadow-layer ${wide ? "max-w-2xl" : "max-w-sm"}`}>
+          <h1 className="page-title">{title}</h1>
           <p className="mt-1.5 text-sm text-text-muted">{subtitle}</p>
           <div className="mt-6">{children}</div>
         </div>

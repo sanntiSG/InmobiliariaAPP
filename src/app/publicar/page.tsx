@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { getFreshAccount, isAgencyRole } from "@/lib/auth/fresh-account";
 import { Logo } from "@/components/layout/Logo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { OnboardingAgencyForm } from "@/components/agency/OnboardingAgencyForm";
 import { connectDB } from "@/lib/db/connect";
@@ -44,14 +45,11 @@ export default async function PublicarPage() {
       </header>
 
       <div className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-10 sm:px-6">
-        <div>
-          <h1 className="font-display text-2xl font-bold text-text">Creá tu inmobiliaria</h1>
-          <p className="mt-1.5 text-sm text-text-muted">
-            El admin de {brand.name} te dio acceso para publicar. Completá estos datos para crear tu
-            perfil de inmobiliaria — después vas a poder cargar propiedades, fotos y recorridos 3D
-            desde tu panel.
-          </p>
-        </div>
+        <PageHeader
+          eyebrow="Tu inmobiliaria"
+          title="Creá tu inmobiliaria"
+          lead={`El admin de ${brand.name} te dio acceso para publicar. Completá estos datos para crear tu perfil de inmobiliaria — después vas a poder cargar propiedades, fotos y recorridos 3D desde tu panel.`}
+        />
 
         <OnboardingAgencyForm
           prefill={

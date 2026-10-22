@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { connectDB } from "@/lib/db/connect";
 import { Notification } from "@/lib/db/models/Notification";
 import { Navbar } from "@/components/layout/Navbar";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { NotificationsList, type NotificationRow } from "@/components/notifications/NotificationsList";
 import {
   NOTIFICATION_GROUP_LABELS,
@@ -54,7 +55,7 @@ export default async function NotificacionesPage({ searchParams }: PageProps<"/n
     <div className="min-h-dvh">
       <Navbar />
       <main className="mx-auto flex max-w-2xl flex-col gap-5 px-4 py-8 sm:px-6">
-        <h1 className="font-display text-2xl font-bold text-text">Notificaciones</h1>
+        <PageHeader eyebrow="Actividad" title="Notificaciones" />
 
         <nav aria-label="Filtrar notificaciones" className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
           {chips.map((chip) => {

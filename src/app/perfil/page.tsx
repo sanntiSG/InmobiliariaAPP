@@ -55,7 +55,7 @@ export default async function PerfilPage() {
             {initial}
           </div>
           <div>
-            <h1 className="font-display text-xl font-bold text-text">{session.user.name}</h1>
+            <h1 className="page-title">{session.user.name}</h1>
             <p className="text-sm text-text-muted">{session.user.email}</p>
             {session.user.role === "user" && (
               <Link href="/espacio" className="mt-1 inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline">

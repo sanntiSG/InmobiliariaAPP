@@ -15,10 +15,11 @@ export function PropertyGrid({ properties }: { properties: PropertyCardData[] })
 
   return (
     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-      {properties.map((property) => (
+      {properties.map((property, i) => (
         <PropertyCard
           key={property.id}
           property={property}
+          revealIndex={i % 8}
           onSelect={() => router.push(`/propiedades/${property.slug}`)}
         />
       ))}

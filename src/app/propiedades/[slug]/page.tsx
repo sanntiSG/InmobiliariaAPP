@@ -1,4 +1,4 @@
-import { cache } from "react";
+import { cache, type CSSProperties } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
@@ -13,6 +13,7 @@ import { toPropertyDetail } from "@/lib/db/property-detail-mapper";
 import { auth } from "@/auth";
 import { Navbar } from "@/components/layout/Navbar";
 import { Card } from "@/components/ui/Card";
+import { Reveal } from "@/components/ui/Reveal";
 import { PriceTag } from "@/components/property/PriceTag";
 import { PropertyMedia } from "@/components/property/PropertyMedia";
 import { PropertyFeaturesGrid } from "@/components/property/PropertyFeaturesGrid";
@@ -160,12 +161,15 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
             <div>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-medium text-accent">
+                  <p className="hero-eyebrow rise">
+                    <span className="hero-eyebrow-dot" aria-hidden="true" />
                     {OPERATION_LABELS[property.operation as Operation] ?? property.operation} ·{" "}
                     {PROPERTY_TYPE_LABELS[property.type as PropertyType] ?? property.type}
                   </p>
-                  <h1 className="mt-1 font-display text-2xl font-bold text-text sm:text-3xl">{property.title}</h1>
-                  {addressLine && <p className="mt-1 text-text-muted">{addressLine}</p>}
+                  <h1 className="page-title rise" style={{ "--rise-i": 1 } as CSSProperties}>
+                    {property.title}
+                  </h1>
+                  {addressLine && <p className="mt-2 text-text-muted">{addressLine}</p>}
                   {property.agency && (
                     <Link
                       href={`/inmobiliarias/${property.agency.slug}`}
@@ -219,28 +223,32 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
               </div>
             </div>
 
-            <PropertyFeaturesGrid features={property.features} />
+            <Reveal>
+              <PropertyFeaturesGrid features={property.features} />
+            </Reveal>
 
             {property.description && (
-              <section>
+              <Reveal as="section">
                 <h2 className="font-display text-lg font-semibold text-text">Descripción</h2>
                 <p className="mt-2 whitespace-pre-line text-text-muted">{property.description}</p>
-              </section>
+              </Reveal>
             )}
 
             {property.amenities.length > 0 && (
-              <section>
+              <Reveal as="section">
                 <h2 className="font-display text-lg font-semibold text-text">Comodidades</h2>
                 <div className="mt-2">
                   <AmenitiesList amenities={property.amenities} />
                 </div>
-              </section>
+              </Reveal>
             )}
 
             {/* Videos: información extra, a propósito más abajo que las fotos y el recorrido 360°. */}
-            <PropertyVideos videos={property.videos} />
+            <Reveal>
+              <PropertyVideos videos={property.videos} />
+            </Reveal>
 
-            <section>
+            <Reveal as="section">
               <h2 className="font-display text-lg font-semibold text-text">Ubicación</h2>
               <p className="mt-1 text-sm text-text-muted">
                 {property.address.showExact
@@ -260,41 +268,49 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
                   }}
                 />
               </div>
-            </section>
+            </Reveal>
 
-            <CommentsSection propertyId={property.id} initialComments={initialComments} initialTotal={commentsTotal} />
+            <Reveal>
+              <CommentsSection propertyId={property.id} initialComments={initialComments} initialTotal={commentsTotal} />
+            </Reveal>
           </div>
 
           <aside className="flex flex-col gap-4 lg:sticky lg:top-24 lg:self-start">
-            <Card className="p-5">
-              <PriceTag
-                amount={property.price.amount}
-                currency={property.price.currency}
-                period={property.price.period}
-                className="text-2xl"
-              />
-              {property.price.expenses > 0 && (
-                <p className="mt-1 text-sm text-text-muted">
-                  + expensas {property.price.currency === "USD" ? "US$" : "$"}
-                  {new Intl.NumberFormat("es-AR").format(property.price.expenses)}
-                </p>
-              )}
-            </Card>
+            <Reveal>
+              <Card className="p-5">
+                <PriceTag
+                  amount={property.price.amount}
+                  currency={property.price.currency}
+                  period={property.price.period}
+                  className="text-2xl"
+                />
+                {property.price.expenses > 0 && (
+                  <p className="mt-1 text-sm text-text-muted">
+                    + expensas {property.price.currency === "USD" ? "US$" : "$"}
+                    {new Intl.NumberFormat("es-AR").format(property.price.expenses)}
+                  </p>
+                )}
+              </Card>
+            </Reveal>
             {property.agency && (
-              <AgencyContactCard
-                agency={property.agency}
-                propertyId={property.id}
-                propertyTitle={property.title}
-                propertyUrl={`${siteOrigin}/propiedades/${property.slug}`}
-              />
+              <Reveal>
+                <AgencyContactCard
+                  agency={property.agency}
+                  propertyId={property.id}
+                  propertyTitle={property.title}
+                  propertyUrl={`${siteOrigin}/propiedades/${property.slug}`}
+                />
+              </Reveal>
             )}
             {isPublished && property.agency && (
-              <InquiryForm
-                propertyId={property.id}
-                propertyTitle={property.title}
-                defaultName={session?.user?.name ?? ""}
-                defaultEmail={session?.user?.email ?? ""}
-              />
+              <Reveal>
+                <InquiryForm
+                  propertyId={property.id}
+                  propertyTitle={property.title}
+                  defaultName={session?.user?.name ?? ""}
+                  defaultEmail={session?.user?.email ?? ""}
+                />
+              </Reveal>
             )}
           </aside>
         </div>

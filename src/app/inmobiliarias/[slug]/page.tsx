@@ -71,7 +71,7 @@ export default async function AgencyProfilePage({ params }: PageProps<"/inmobili
           )}
         </div>
 
-        <header className="relative -mt-12 flex flex-col gap-5 rounded-card bg-surface p-5 shadow-card sm:-mt-14 sm:p-7">
+        <header className="rise relative -mt-12 flex flex-col gap-5 rounded-card bg-surface p-5 shadow-layer sm:-mt-14 sm:p-7">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex min-w-0 items-start gap-4">
               <AgencyAvatar
@@ -81,7 +81,7 @@ export default async function AgencyProfilePage({ params }: PageProps<"/inmobili
                 className="-mt-14 ring-4 ring-surface sm:-mt-16"
               />
               <div className="min-w-0 pt-1">
-                <h1 className="font-display text-2xl font-bold text-text sm:text-3xl">{agency.name}</h1>
+                <h1 className="page-title">{agency.name}</h1>
                 {place && (
                   <p className="mt-1 flex items-center gap-1.5 text-sm text-text-muted">
                     <MapPin className="h-4 w-4 shrink-0" aria-hidden /> {place}

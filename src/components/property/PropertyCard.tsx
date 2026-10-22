@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState } from "react";
+import { memo, useState, type CSSProperties } from "react";
 import Image from "next/image";
 import { Heart, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
@@ -19,6 +19,7 @@ function PropertyCardImpl({
   onHoverChange,
   /** true para las primeras cards visibles (above the fold) — evita competir por ancho de banda con el resto. */
   priority = false,
+  revealIndex,
   className,
 }: {
   property: PropertyCardData;
@@ -26,6 +27,8 @@ function PropertyCardImpl({
   onSelect?: (id: string) => void;
   onHoverChange?: (id: string | null) => void;
   priority?: boolean;
+  /** Posición dentro de su lote: la card entra con un `rise` escalonado. Sin esto no anima (el mapa no lo usa). */
+  revealIndex?: number;
   className?: string;
 }) {
   // Favoritos requiere sesión (ver CLAUDE.md: modo "solo explorar" no persiste
@@ -37,10 +40,12 @@ function PropertyCardImpl({
       className={cn(
         "group bg-surface rounded-card shadow-card overflow-hidden cursor-pointer",
         "transition-[transform,box-shadow] duration-200 [transition-timing-function:var(--ease-out)]",
-        "hover:-translate-y-0.5 hover:shadow-float",
+        "hover:-translate-y-1 hover:shadow-layer-hover",
+        revealIndex != null && "rise",
         selected && "ring-2 ring-accent",
         className
       )}
+      style={revealIndex != null ? ({ "--rise-i": revealIndex } as CSSProperties) : undefined}
       onClick={() => onSelect?.(property.id)}
       onMouseEnter={() => onHoverChange?.(property.id)}
       onMouseLeave={() => onHoverChange?.(null)}

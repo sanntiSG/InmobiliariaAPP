@@ -8,6 +8,7 @@ import { MapFilters } from "@/components/map/MapFilters";
 import { FilterPill } from "@/components/ui/FilterPill";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { PropertyCard } from "@/components/property/PropertyCard";
 import { DEFAULT_FILTERS, type MapFiltersState } from "@/components/map/types";
 import { filtersToSearchParams } from "@/lib/filters/state";
@@ -90,6 +91,12 @@ export default function PropiedadesPage() {
       <Navbar />
 
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+        <PageHeader
+          eyebrow="Explorar"
+          title="Propiedades para recorrer antes de visitar"
+          lead="Filtrá por zona, precio y tipo. Las que tienen recorrido 360° se pueden caminar desde acá."
+          className="mb-6"
+        />
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <MapFilters value={filters} onChange={setFilters} resultCount={total} className="flex-1" />
           <div className="flex items-center gap-2">
@@ -122,10 +129,11 @@ export default function PropiedadesPage() {
         ) : (
           <>
             <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {items.map((property) => (
+              {items.map((property, i) => (
                 <PropertyCard
                   key={property.id}
                   property={property}
+                  revealIndex={i % 8}
                   onSelect={() => router.push(`/propiedades/${property.slug}`)}
                 />
               ))}

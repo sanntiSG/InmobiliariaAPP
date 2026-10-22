@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { connectDB } from "@/lib/db/connect";
 import { getRecommendedProperties } from "@/lib/recommendations/engine";
 import { Navbar } from "@/components/layout/Navbar";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { PropertyGrid } from "@/components/property/PropertyGrid";
 
 export const metadata = { title: "Recomendado para vos" };
@@ -19,13 +20,18 @@ export default async function RecomendacionesPage() {
     <div className="min-h-dvh">
       <Navbar />
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <h1 className="font-display text-2xl font-bold text-text">Recomendado para vos</h1>
-        <p className="mt-1 text-text-muted">
-          Basado en tus preferencias y tu actividad reciente.{" "}
-          <Link href="/perfil" className="font-medium text-accent hover:underline">
-            Ajustar preferencias
-          </Link>
-        </p>
+        <PageHeader
+          eyebrow="Para vos"
+          title="Recomendado para vos"
+          lead={
+            <>
+              Basado en tus preferencias y tu actividad reciente.{" "}
+              <Link href="/perfil" className="font-medium text-accent hover:underline">
+                Ajustar preferencias
+              </Link>
+            </>
+          }
+        />
 
         {recommendations.length === 0 ? (
           <div className="mt-10 flex flex-col items-center gap-2 py-16 text-center text-text-muted">

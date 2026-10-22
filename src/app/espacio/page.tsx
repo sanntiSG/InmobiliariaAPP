@@ -22,6 +22,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { PropertyGrid } from "@/components/property/PropertyGrid";
 import { AgencyAvatar } from "@/components/property/AgencyAvatar";
 import { DashboardReveal } from "@/components/dashboard/DashboardReveal";
+import { CountUp } from "@/components/ui/CountUp";
 import { notificationMeta } from "@/components/notifications/notification-meta";
 import type { PropertyCardData } from "@/components/property/types";
 import { OPERATION_LABELS, PROPERTY_TYPE_LABELS, type Operation, type PropertyType } from "@/config/filters";
@@ -146,8 +147,11 @@ export default async function EspacioPage() {
               {name.charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0">
-              <p className="text-sm text-text-muted">Mi espacio</p>
-              <h1 className="truncate font-display text-2xl font-bold text-text">Hola, {name.split(" ")[0]}</h1>
+              <p className="hero-eyebrow mb-1.5">
+                <span className="hero-eyebrow-dot" aria-hidden="true" />
+                Mi espacio
+              </p>
+              <h1 className="page-title truncate">Hola, {name.split(" ")[0]}</h1>
               <p className="truncate text-sm text-text-muted">{email}</p>
             </div>
           </div>
@@ -168,13 +172,13 @@ export default async function EspacioPage() {
               href={href}
               className={cn(
                 i === stats.length - 1 && "col-span-2 sm:col-span-1",
-                "group flex flex-col gap-2 rounded-card bg-surface p-4 shadow-card transition-[transform,box-shadow] duration-150 [transition-timing-function:var(--ease-out)] hover:-translate-y-0.5 active:scale-[0.98]"
+                "group flex flex-col gap-2 rounded-card bg-surface p-4 shadow-card transition-[transform,box-shadow] duration-200 [transition-timing-function:var(--ease-out)] hover:-translate-y-1 hover:shadow-layer-hover active:scale-[0.98]"
               )}
             >
               <span className="flex size-8 items-center justify-center rounded-full bg-accent-soft text-accent">
                 <Icon className="h-4 w-4" aria-hidden />
               </span>
-              <span className="font-display text-2xl font-semibold text-text">{nf.format(value)}</span>
+              <CountUp value={value} className="font-display text-2xl font-semibold text-text" />
               <span className="text-sm text-text-muted">{label}</span>
             </a>
           ))}

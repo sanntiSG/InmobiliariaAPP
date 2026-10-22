@@ -7,6 +7,7 @@ import { AgencyRequest } from "@/lib/db/models/AgencyRequest";
 import { AllowedEmail } from "@/lib/db/models/AllowedEmail";
 import { Logo } from "@/components/layout/Logo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { buttonClasses } from "@/components/ui/Button";
 import { AgencyRequestForm } from "@/components/agency/AgencyRequestForm";
@@ -55,13 +56,11 @@ export default async function SolicitarInmobiliariaPage() {
       </header>
 
       <div className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-10 sm:px-6">
-        <div>
-          <h1 className="font-display text-2xl font-bold text-text">Gestionar una inmobiliaria</h1>
-          <p className="mt-1.5 text-sm text-text-muted">
-            En {brand.name} cada inmobiliaria tiene su propio panel para publicar propiedades, subir recorridos
-            360° y ver cómo le va. Para activarlo, el equipo valida la solicitud hablando con vos.
-          </p>
-        </div>
+        <PageHeader
+          eyebrow="Para inmobiliarias"
+          title="Gestionar una inmobiliaria"
+          lead={`En ${brand.name} cada inmobiliaria tiene su propio panel para publicar propiedades, subir recorridos 360° y ver cómo le va. Para activarlo, el equipo valida la solicitud hablando con vos.`}
+        />
 
         {permissionLost && (
           <p className="rounded-card bg-accent-soft p-4 text-sm text-text">
