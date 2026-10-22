@@ -5,12 +5,12 @@
  * empieza y termina en este archivo.
  */
 export const brand = {
-  name: "Recor",
+  name: "Recorrr",
   tagline: "",
   description:
     "La plataforma donde las inmobiliarias publican sus propiedades y vos las recorrés antes de pisarlas.",
   shortDescription: "Portal inmobiliario con recorridos 3D.",
-  domainLabel: "recor.app",
+  domainLabel: "recorrr.app",
   accentColor: "#1853adff",
 } as const;
 
