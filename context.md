@@ -49,7 +49,7 @@ Roles del sistema:
 ### Propiedades
 - Publicación y administración con: fotos, descripción, precio, ubicación, características, ambientes, superficie, tipo de operación (venta/alquiler), estado, contacto.
 - Búsqueda y filtros avanzados (tipo, precio, ambientes, ubicación, superficie, etc.).
-- Vista detallada con galería de imágenes.
+- Vista detallada con galería de imágenes: carrusel con `scroll-snap` nativo (`components/property/Gallery.tsx` + `useSnapCarousel.ts`) que se desliza con el dedo, con miniaturas, contador y puntos, flechas al pasar el mouse y visor a pantalla completa también deslizable.
 - Ubicación en mapa por propiedad.
 - **Digital Twin / recorrido 3D opcional por propiedad** (puede tener o no tenerlo) — arquitectura preparada desde el inicio para esto, sin necesidad de rediseñar más adelante.
 
