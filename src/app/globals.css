@@ -189,6 +189,17 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* iOS Safari hace zoom al enfocar un campo con letra menor a 16 px y después no vuelve atrás (molesta
+   sobre todo al escribirle al asesor). En pantallas táctiles todos los campos de texto quedan en 16 px:
+   al estar fuera de @layer, esta regla le gana a las utilidades de Tailwind (text-[15px], text-sm). */
+@media (pointer: coarse) {
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="submit"], [type="button"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
 /* Respeta la preferencia de movimiento reducido en toda la app. */
 @media (prefers-reduced-motion: reduce) {
   *,
