@@ -1481,7 +1481,14 @@ body {
    Al deslizar, useHeroCollapse escala la mascota y sube el velo (sólo transform: el canvas 3D no
    cambia de tamaño y el layout no se mueve, por eso es continuo y sin saltos). */
 .advisor-stage {
-  --advisor-hero-h: clamp(8rem, 26dvh, 17rem);
+  --advisor-hero-h: clamp(8rem, 26vh, 17rem);
+}
+/* Una variable con `dvh` inválida no cae a un valor anterior: sin soporte, el relleno del hilo se perdería
+   y el texto quedaría debajo de la mascota. Por eso `vh` primero y `dvh` sólo donde existe. */
+@supports (height: 1dvh) {
+  .advisor-stage {
+    --advisor-hero-h: clamp(8rem, 26dvh, 17rem);
+  }
 }
 .advisor-hero {
   position: absolute;

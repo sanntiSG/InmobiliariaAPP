@@ -20,7 +20,6 @@ import { PropertyFeaturesGrid } from "@/components/property/PropertyFeaturesGrid
 import { AmenitiesList } from "@/components/property/AmenitiesList";
 import { AgencyContactCard } from "@/components/property/AgencyContactCard";
 import { SocialBar } from "@/components/property/SocialBar";
-import { AdvisorTrigger } from "@/components/advisor/AdvisorTrigger";
 import { ShareButton } from "@/components/property/ShareButton";
 import { InquiryForm } from "@/components/property/InquiryForm";
 import { AgencyAvatar } from "@/components/property/AgencyAvatar";
@@ -215,11 +214,6 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
                   initialMyRating={ratingDoc?.value ?? null}
                 />
                 {isPublished && <ShareButton propertyId={property.id} title={property.title} />}
-                {isPublished && (
-                  <AdvisorTrigger intent="explorer.price_check" slots={{ propertyIds: [property.id] }} focusPropertyId={property.id} label="¿Está bien de precio esta propiedad?">
-                    Preguntale al asesor
-                  </AdvisorTrigger>
-                )}
               </div>
             </div>
 
