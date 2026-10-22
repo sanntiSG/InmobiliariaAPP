@@ -1400,14 +1400,19 @@ body {
 }
 
 /* ── Escenario ──────────────────────────────────────────────── */
+/* El escenario ocupa exactamente lo que se VE: AdvisorStage copia la altura y el desplazamiento de
+   `visualViewport` en --vv-h / --vv-top. En el iPhone, al abrirse el teclado la pantalla visible se achica
+   y Safari la desplaza para mostrar el campo: con `100dvh` fijo, el escenario quedaba cortado arriba y
+   dejaba ver la página de atrás debajo del campo de pregunta. */
 .advisor-stage {
   position: fixed;
-  inset: 0;
+  inset: 0 0 auto 0;
+  top: var(--vv-top, 0px);
   z-index: 70;
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  height: 100dvh;
+  height: var(--vv-h, 100%);
+  overscroll-behavior: none;
   background: var(--bg);
   color: var(--text);
   outline: none;
@@ -1416,6 +1421,21 @@ body {
   transition:
     clip-path 280ms var(--ease-in-out),
     opacity 200ms var(--ease-out);
+}
+/* Red de seguridad: un fondo que cubre TODA la pantalla (no sólo la caja del escenario). Si alguna vez la
+   pantalla visible y la caja no coinciden, nunca se ve la página de atrás. Es hijo del escenario, así que el
+   recorte de la apertura/cierre también lo alcanza. */
+.advisor-stage::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--bg);
+}
+/* Terminada la apertura ya no hace falta recortar: un clip-path permanente sobre un elemento fijo es
+   lo que WebKit repinta mal cuando se mueve la pantalla visible. */
+.advisor-stage[data-open="true"][data-settled="true"] {
+  clip-path: none;
 }
 .advisor-stage[data-open="true"] {
   clip-path: inset(0 0 0 0 round 0);
@@ -1480,15 +1500,10 @@ body {
    deja un relleno del alto de la mascota grande, así que lo que pasa por debajo se tapa con el velo.
    Al deslizar, useHeroCollapse escala la mascota y sube el velo (sólo transform: el canvas 3D no
    cambia de tamaño y el layout no se mueve, por eso es continuo y sin saltos). */
+/* Sigue a la pantalla visible (--vv-h): con el teclado abierto la mascota grande se achica sola y le deja
+   lugar al texto. `100vh` sólo cubre el instante antes de que AdvisorStage escriba --vv-h. */
 .advisor-stage {
-  --advisor-hero-h: clamp(8rem, 26vh, 17rem);
-}
-/* Una variable con `dvh` inválida no cae a un valor anterior: sin soporte, el relleno del hilo se perdería
-   y el texto quedaría debajo de la mascota. Por eso `vh` primero y `dvh` sólo donde existe. */
-@supports (height: 1dvh) {
-  .advisor-stage {
-    --advisor-hero-h: clamp(8rem, 26dvh, 17rem);
-  }
+  --advisor-hero-h: clamp(7rem, calc(var(--vv-h, 100vh) * 0.26), 17rem);
 }
 .advisor-hero {
   position: absolute;

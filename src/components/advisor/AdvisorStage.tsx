@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { RotateCcw, X } from "lucide-react";
@@ -45,11 +45,14 @@ export default function AdvisorStage() {
   const router = useRouter();
   const pathname = usePathname();
   const { open, mode, config } = s;
+  const hasConfig = !!config;
   const thread = s.threads[mode];
 
   // Montaje y apertura sólo dentro de rAF/timeouts (nunca setState en el render: eso rompió `Sheet`).
   const [mounted, setMounted] = useState(false);
   const [shown, setShown] = useState(false);
+  // Terminada la apertura se quita el recorte (clip-path); al cerrar se vuelve a poner un cuadro antes de animar.
+  const [settled, setSettled] = useState(false);
   useEffect(() => {
     if (open) {
       let r2 = 0;
@@ -62,13 +65,24 @@ export default function AdvisorStage() {
         cancelAnimationFrame(r2);
       };
     }
-    const r = requestAnimationFrame(() => setShown(false));
+    let r2 = 0;
+    const r1 = requestAnimationFrame(() => {
+      setSettled(false);
+      r2 = requestAnimationFrame(() => setShown(false));
+    });
     const t = window.setTimeout(() => setMounted(false), EXIT_MS);
     return () => {
-      cancelAnimationFrame(r);
+      cancelAnimationFrame(r1);
+      cancelAnimationFrame(r2);
       window.clearTimeout(t);
     };
   }, [open]);
+
+  useEffect(() => {
+    if (!shown) return;
+    const t = window.setTimeout(() => setSettled(true), 520);
+    return () => window.clearTimeout(t);
+  }, [shown]);
 
   const root = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
@@ -90,6 +104,29 @@ export default function AdvisorStage() {
   const pending = turns.some((t) => t.role === "assistant" && t.status === "pending");
   const lastTurn = turns[turns.length - 1];
   const lastAnswer = lastTurn?.role === "assistant" && lastTurn.status === "done" ? lastTurn : null;
+
+  // El escenario copia la pantalla VISIBLE (alto y desplazamiento de `visualViewport`) a --vv-h / --vv-top:
+  // con el teclado del celular abierto la pantalla visible es más chica y Safari la desplaza, y así el
+  // escenario no queda cortado ni deja ver la página de atrás (ver globals.css).
+  useLayoutEffect(() => {
+    const el = root.current;
+    const vv = window.visualViewport;
+    if (!mounted || !hasConfig || !el || !vv) return;
+    const sync = () => {
+      const zoomed = vv.scale > 1.01; // con pellizco de zoom no se sigue a la pantalla visible
+      el.style.setProperty("--vv-h", `${zoomed ? window.innerHeight : vv.height}px`);
+      el.style.setProperty("--vv-top", `${zoomed ? 0 : vv.offsetTop}px`);
+    };
+    sync();
+    vv.addEventListener("resize", sync);
+    vv.addEventListener("scroll", sync);
+    return () => {
+      vv.removeEventListener("resize", sync);
+      vv.removeEventListener("scroll", sync);
+      el.style.removeProperty("--vv-h");
+      el.style.removeProperty("--vv-top");
+    };
+  }, [mounted, hasConfig]);
 
   // Foco, Esc, scroll bloqueado y foco de vuelta al cerrar.
   useEffect(() => {
@@ -241,6 +278,7 @@ export default function AdvisorStage() {
       tabIndex={-1}
       className="advisor-stage"
       data-open={shown ? "true" : "false"}
+      data-settled={settled ? "true" : "false"}
       style={clipFrom}
       onClickCapture={onClickCapture}
     >
