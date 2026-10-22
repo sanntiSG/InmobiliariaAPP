@@ -33,8 +33,8 @@ export function Sparkline({
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className={className} aria-hidden focusable="false">
       <polyline points={toPoints(0, split)} fill="none" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="stroke-text-muted/40" />
-      <polyline points={toPoints(split, values.length - 1)} fill="none" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="stroke-accent" />
-      <circle cx={lastX} cy={lastY} r={3} strokeWidth={2} className="fill-accent stroke-surface" />
+      <polyline points={toPoints(split, values.length - 1)} pathLength={1} fill="none" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="chart-draw stroke-accent" />
+      <circle cx={lastX} cy={lastY} r={3} strokeWidth={2} className="chart-fade fill-accent stroke-surface" />
     </svg>
   );
 }

@@ -141,7 +141,7 @@ export default async function DashboardOverviewPage({ searchParams }: PageProps<
         </p>
       )}
 
-      <section data-reveal aria-label="Indicadores de la semana">
+      <section aria-label="Indicadores de la semana">
         <div className="grid grid-cols-1 gap-4 min-[480px]:grid-cols-2 xl:grid-cols-3">
           <StatTile
             label="Propiedades publicadas"

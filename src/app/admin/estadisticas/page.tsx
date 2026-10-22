@@ -65,7 +65,7 @@ export default async function AdminStatsPage() {
         </p>
       </div>
 
-      <section data-reveal aria-label="Indicadores de la plataforma">
+      <section aria-label="Indicadores de la plataforma">
         <div className="grid grid-cols-1 gap-4 min-[480px]:grid-cols-2 xl:grid-cols-3">
           <StatTile label="Visitas" metric={asMetric(behavior("Visitas"))} trend={last14.map((p) => p.views)} />
           <StatTile label="Favoritos" metric={asMetric(behavior("Favoritos"))} trend={last14.map((p) => p.saves)} />

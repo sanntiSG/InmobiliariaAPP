@@ -1222,6 +1222,49 @@ body {
   }
 }
 
+/* Gráficos del panel: la línea se dibuja una vez (pathLength=1 normaliza el trazo, como en el landing),
+   el área aparece después y las barras crecen desde la izquierda. */
+@keyframes chart-draw {
+  from {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes chart-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes bar-grow {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+.chart-draw {
+  animation: chart-draw 900ms var(--ease-out) backwards;
+}
+.chart-fade {
+  animation: chart-fade 600ms ease-out 500ms backwards;
+}
+.bar-grow {
+  animation: bar-grow 700ms var(--ease-out) backwards;
+  animation-delay: calc(var(--rise-i, 0) * 55ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  .chart-draw,
+  .chart-fade,
+  .bar-grow {
+    animation: none;
+  }
+}
+
 /* ─────────────────────────────────────────────────────────────
    Asesor — lanzador flotante y escenario a pantalla completa
    (AdvisorLauncher / AdvisorStage). Mismo lenguaje que el hero:

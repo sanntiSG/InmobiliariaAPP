@@ -46,7 +46,7 @@ export function Meter({
       >
         {value != null && (
           <div
-            className="absolute inset-y-0 left-0 rounded-full bg-accent transition-[width] duration-500 [transition-timing-function:var(--ease-out)]"
+            className="bar-grow absolute inset-y-0 left-0 rounded-full bg-accent transition-[width] duration-500 [transition-timing-function:var(--ease-out)]"
             style={{ width: pct(value) }}
           />
         )}

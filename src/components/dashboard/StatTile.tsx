@@ -1,14 +1,10 @@
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { CountUp } from "@/components/ui/CountUp";
+import type { MetricFormat } from "@/lib/utils/metric-format";
 import { Sparkline } from "./charts/Sparkline";
 
 type Metric = { current: number; previous: number; deltaPct: number | null };
-
-const nf = new Intl.NumberFormat("es-AR");
-const FORMATS = {
-  int: (n: number) => nf.format(n),
-  seconds: (n: number) => (n >= 60 ? `${Math.floor(n / 60)} min ${n % 60 ? `${n % 60} s` : ""}`.trim() : `${n} s`),
-} as const;
 
 /**
  * Stat tile: etiqueta · valor (proporcional, no tabular) · variación contra la
@@ -28,7 +24,7 @@ export function StatTile({
   metric: Metric;
   /** Serie diaria para la miniatura (los últimos 7 puntos son el período actual). */
   trend?: number[];
-  format?: keyof typeof FORMATS;
+  format?: MetricFormat;
   hint?: string;
   upIsGood?: boolean;
 }) {
@@ -38,10 +34,12 @@ export function StatTile({
   const Arrow = up ? ArrowUpRight : ArrowDownRight;
 
   return (
-    <div className="flex flex-col rounded-card bg-surface p-5 shadow-card">
+    <div data-reveal className="flex flex-col rounded-card bg-surface p-5 shadow-card">
       <p className="text-sm text-text-muted">{label}</p>
       <div className="mt-1.5 flex items-end justify-between gap-3">
-        <p className="font-display text-3xl font-semibold text-text">{FORMATS[format](metric.current)}</p>
+        <p className="font-display text-3xl font-semibold text-text">
+          <CountUp value={metric.current} format={format} />
+        </p>
         {trend && <Sparkline values={trend} className="mb-1 h-7 w-24 shrink-0" />}
       </div>
       {delta != null ? (

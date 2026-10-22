@@ -106,8 +106,8 @@ export function TrendChart({ points, label, className }: { points: TrendPoint[];
               </g>
             ))}
 
-            {areaPath && <path d={areaPath} className="fill-accent/10" />}
-            <path d={linePath} fill="none" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="stroke-accent" />
+            {areaPath && <path d={areaPath} className="chart-fade fill-accent/10" />}
+            <path d={linePath} pathLength={1} fill="none" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="chart-draw stroke-accent" />
 
             {labelIdx.map((i) => (
               <text

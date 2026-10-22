@@ -107,7 +107,7 @@ export default async function PropertyStatsPage({ params }: PageProps<"/dashboar
         </p>
       ) : (
         <>
-          <section data-reveal aria-label="Indicadores de la semana">
+          <section aria-label="Indicadores de la semana">
             <div className="grid grid-cols-1 gap-4 min-[480px]:grid-cols-2 xl:grid-cols-3">
               <StatTile label="Visitas" metric={metric((t) => t.views)} trend={last14.map((p) => p.views)} />
               <StatTile label="Visitas únicas" metric={metric((t) => t.uniqueViews)} trend={last14.map((p) => p.uniqueViews)} />

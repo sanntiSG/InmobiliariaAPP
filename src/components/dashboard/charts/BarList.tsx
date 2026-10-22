@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils/cn";
 
@@ -41,8 +42,8 @@ export function BarList({ items, emptyText = "Sin datos todavía.", className }:
             </div>
             <div className="h-2 w-full rounded-full bg-surface-2" aria-hidden>
               <div
-                className="h-full rounded-r-[4px] rounded-l-full bg-accent transition-[width] duration-500 [transition-timing-function:var(--ease-out)]"
-                style={{ width: `${Math.max(2, (item.value / max) * 100)}%` }}
+                className="bar-grow h-full rounded-r-[4px] rounded-l-full bg-accent transition-[width] duration-500 [transition-timing-function:var(--ease-out)]"
+                style={{ width: `${Math.max(2, (item.value / max) * 100)}%`, "--rise-i": Math.min(i, 8) } as CSSProperties}
               />
             </div>
             {item.sublabel && <p className="text-xs text-text-muted">{item.sublabel}</p>}
