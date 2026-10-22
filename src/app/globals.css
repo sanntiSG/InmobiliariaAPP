@@ -1271,6 +1271,7 @@ body {
 }
 
 .advisor-body {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
@@ -1285,33 +1286,59 @@ body {
   }
 }
 
+/* Celular y tablet: la mascota va ARRIBA del hilo, superpuesta (no ocupa lugar en el flujo). El hilo
+   deja un relleno del alto de la mascota grande, así que lo que pasa por debajo se tapa con el velo.
+   Al deslizar, useHeroCollapse escala la mascota y sube el velo (sólo transform: el canvas 3D no
+   cambia de tamaño y el layout no se mueve, por eso es continuo y sin saltos). */
+.advisor-stage {
+  --advisor-hero-h: clamp(8rem, 26dvh, 17rem);
+}
 .advisor-hero {
-  position: relative;
-  flex: none;
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 2;
   display: flex;
   flex-direction: column;
-  height: clamp(8rem, 26dvh, 17rem);
+  height: var(--advisor-hero-h);
   padding: 0 var(--hero-gutter);
+  overflow: hidden;
+  pointer-events: none;
   opacity: 0;
   transform: scale(0.96);
-  transition: height 280ms var(--ease-out);
 }
 .advisor-stage[data-open="true"] .advisor-hero {
   opacity: 1;
   transform: none;
   transition:
     opacity 420ms var(--ease-out) 120ms,
-    transform 520ms var(--ease-out) 120ms,
-    height 280ms var(--ease-out);
+    transform 520ms var(--ease-out) 120ms;
 }
-.advisor-hero[data-compact="true"] {
-  height: 5rem;
+.advisor-hero-veil {
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+  pointer-events: auto;
+  will-change: transform;
 }
-.advisor-hero[data-compact="true"] .advisor-id {
-  display: none;
+.advisor-hero-veil::after {
+  content: "";
+  position: absolute;
+  inset: 100% 0 auto;
+  height: 1rem;
+  background: linear-gradient(var(--bg), transparent);
+  pointer-events: none;
 }
-/* Un halo suave detrás de la mascota: sólo ambiente, no información. */
-.advisor-hero::before {
+.advisor-mascot-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  transform-origin: 50% 0;
+  pointer-events: auto;
+  will-change: transform;
+}
+/* Un halo suave detrás de la mascota: sólo ambiente, no información. En el celular vive en el wrap
+   (escala junto con la mascota); en desktop, en el hero entero. */
+.advisor-mascot-wrap::before {
   content: "";
   position: absolute;
   inset: 4% 4% 0;
@@ -1320,29 +1347,37 @@ body {
   opacity: 0.9;
   pointer-events: none;
 }
-.advisor-mascot-wrap {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-}
 .advisor-id {
   position: relative;
   display: none;
 }
 @media (min-width: 1024px) {
   .advisor-hero {
+    position: relative;
+    inset: auto;
+    z-index: auto;
     height: auto;
     padding: 0;
     justify-content: flex-end;
+    overflow: visible;
+    pointer-events: auto;
   }
-  .advisor-hero[data-compact="true"] {
-    height: auto;
+  .advisor-hero::before {
+    content: "";
+    position: absolute;
+    inset: 4% 4% 0;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, var(--accent-soft), transparent 74%);
+    opacity: 0.9;
+    pointer-events: none;
   }
-  .advisor-hero[data-compact="true"] .advisor-id {
-    display: block;
+  .advisor-hero-veil,
+  .advisor-mascot-wrap::before {
+    display: none;
   }
   .advisor-mascot-wrap {
     min-height: 18rem;
+    will-change: auto;
   }
   .advisor-id {
     display: block;
@@ -1389,7 +1424,8 @@ body {
   gap: 1.5rem;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 0.5rem var(--hero-gutter) 1.25rem;
+  /* Arriba queda el lugar de la mascota grande (superpuesta): ver el bloque del hero más arriba. */
+  padding: calc(var(--advisor-hero-h) + 0.5rem) var(--hero-gutter) 1.25rem;
   scrollbar-width: thin;
 }
 @media (min-width: 1024px) {

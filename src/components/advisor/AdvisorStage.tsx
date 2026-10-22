@@ -11,8 +11,10 @@ import { Composer, SuggestionChips } from "./Composer";
 import { MascotCanvasLazy } from "./mascot/MascotCanvasLazy";
 import { StreamedText } from "./StreamedText";
 import { ask, closeAdvisor, loadBriefing, markStreamed, resetThread, useAdvisorState, type Turn } from "./store";
+import { useHeroCollapse } from "./useHeroCollapse";
 
 const EXIT_MS = 300;
+const SCROLL_KEYS = new Set(["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End", " "]);
 
 // Saludos ya escritos: un mismo briefing no se vuelve a "hablar" al reabrir el escenario.
 const greeted = new WeakSet<object>();
@@ -75,9 +77,9 @@ export default function AdvisorStage() {
   // Mascota: "habla" mientras aparece el texto; sorprendida si la respuesta trae algo fuera de lo común.
   const [talking, setTalking] = useState(false);
   const [surpriseKey, setSurpriseKey] = useState(0);
-  const [compact, setCompact] = useState(false);
   // La mascota se achica sólo cuando la PERSONA desliza el hilo, no cuando el escenario baja solo a una respuesta nueva.
   const userScrolled = useRef(false);
+  const { hero: heroRef, mascot: mascotRef, veil: veilRef, track, release } = useHeroCollapse(mounted && !!config);
   const onTalkStart = useCallback((mood: AdvisorAnswer["mood"]) => {
     setTalking(true);
     if (mood === "surprised") setSurpriseKey((k) => k + 1);
@@ -116,6 +118,8 @@ export default function AdvisorStage() {
         closeAdvisor();
         return;
       }
+      // Teclas de scroll fuera de los campos de texto (ahí no deslizan el hilo).
+      if (SCROLL_KEYS.has(e.key) && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) userScrolled.current = true;
       if (e.key !== "Tab" || !root.current) return;
       const nodes = [...root.current.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((n) => n.offsetParent !== null);
       if (nodes.length === 0) return;
@@ -134,18 +138,21 @@ export default function AdvisorStage() {
   }, [open]);
 
   // Al llegar una respuesta se muestra DESDE SU PRINCIPIO (el texto principal es lo primero que se lee);
-  // mientras se espera, se baja hasta el "Analizando…".
+  // mientras se espera, se baja hasta el "Analizando…". En el celular el hilo tiene un relleno arriba del
+  // alto de la mascota grande: el principio de la respuesta queda justo debajo de ella, y desde ahí
+  // (el "ancla") empieza a achicarse a medida que se desliza.
   useEffect(() => {
     const el = scroller.current;
     if (!el || !mounted) return;
     const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
     const target = pending ? null : el.querySelector<HTMLElement>('article[data-latest="true"]');
-    const top = target ? target.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop - 12 : el.scrollHeight;
+    const padTop = parseFloat(getComputedStyle(el).paddingTop) || 0;
+    const wanted = target ? target.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop - (padTop + 4) : el.scrollHeight;
+    const top = Math.max(0, Math.min(wanted, el.scrollHeight - el.clientHeight));
     userScrolled.current = false;
-    const raf = requestAnimationFrame(() => setCompact(false));
+    release(top);
     el.scrollTo({ top, behavior });
-    return () => cancelAnimationFrame(raf);
-  }, [turns.length, pending, mounted]);
+  }, [turns.length, pending, mounted, release]);
 
   // El saludo se escribe una sola vez por apertura de charla.
   const briefing = thread.briefing;
@@ -255,8 +262,9 @@ export default function AdvisorStage() {
       </header>
 
       <div className="advisor-body">
-        <aside className="advisor-hero" data-compact={compact ? "true" : "false"}>
-          <div className="advisor-mascot-wrap">
+        <aside ref={heroRef} className="advisor-hero">
+          <div ref={veilRef} className="advisor-hero-veil" aria-hidden />
+          <div ref={mascotRef} className="advisor-mascot-wrap">
             <MascotCanvasLazy
               modelUrl={config.modelUrl}
               roles={config.roles}
@@ -282,7 +290,7 @@ export default function AdvisorStage() {
             onWheel={() => (userScrolled.current = true)}
             onTouchMove={() => (userScrolled.current = true)}
             onScroll={(e) => {
-              if (userScrolled.current) setCompact(e.currentTarget.scrollTop > 24);
+              if (userScrolled.current) track(e.currentTarget.scrollTop);
             }}
           >
             {turns.length === 0 && (
