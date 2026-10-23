@@ -1,5 +1,6 @@
 import type { AgencyIntent } from "../../types";
 import type { AgencyHandler } from "../types";
+import { ambientCover } from "./ambient";
 import { compareZones, similarPrice, traits, typeInterest } from "./comparison";
 import { actions, incomplete, opportunities, photos, promote, staleInquiries } from "./improve";
 import {
@@ -39,4 +40,5 @@ export const AGENCY_HANDLERS: Record<AgencyIntent, AgencyHandler> = {
   "agency.change_impact": changeImpact,
   "agency.property_status": propertyStatus,
   "agency.leads": leads,
+  "agency.ambient_cover": ambientCover,
 };

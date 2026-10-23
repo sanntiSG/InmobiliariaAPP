@@ -36,6 +36,7 @@ export const FIELD_KEYS: Record<ChangeField, string[]> = {
   description: ["description", "title"],
   videos: ["videos"],
   tour360: ["tour360", "tour360_links", "virtualTour"],
+  ambient: ["ambientCover"],
 };
 export const FIELD_LABEL: Record<ChangeField, string> = {
   price: "el precio",
@@ -43,6 +44,7 @@ export const FIELD_LABEL: Record<ChangeField, string> = {
   description: "la descripción",
   videos: "los videos",
   tour360: "el recorrido 360°",
+  ambient: "la portada viva",
 };
 const FIELD_NOUN: Record<ChangeField, string> = {
   price: "precio",
@@ -50,6 +52,7 @@ const FIELD_NOUN: Record<ChangeField, string> = {
   description: "descripción",
   videos: "videos",
   tour360: "recorrido 360°",
+  ambient: "portada viva",
 };
 
 export const eventsOf = (entries: ActivityEntry[], keys: string[]) =>

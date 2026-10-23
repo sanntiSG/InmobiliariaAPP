@@ -46,6 +46,7 @@ export function describeSearch(slots: Slots): string {
   const withs = [
     ...(slots.amenities ?? []).map((a) => (AMENITY_LABELS[a as Amenity] ?? a).toLowerCase()),
     ...(slots.withTour ? ["recorrido 360°"] : []),
+    ...(slots.withAmbient ? ["portada viva"] : []),
   ];
   if (withs.length > 0) extras.push(`con ${list(withs)}`);
   return [parts[0], ...extras].join(" ");
@@ -63,6 +64,7 @@ export function filterCount(s: Slots): number {
     (s.amenities?.length ? 1 : 0) +
     (s.priceMax || s.priceMin ? 1 : 0) +
     (s.rooms != null || s.bedrooms != null ? 1 : 0) +
-    (s.withTour ? 1 : 0)
+    (s.withTour ? 1 : 0) +
+    (s.withAmbient ? 1 : 0)
   );
 }

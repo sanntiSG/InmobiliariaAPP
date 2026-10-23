@@ -30,6 +30,10 @@ export type DiagnosticProperty = {
   descriptionLength: number;
   videoCount: number;
   hasTour: boolean;
+  /** Tiene portada viva (la foto de portada que cambia de día a noche, con lluvia y viento). */
+  hasAmbientCover: boolean;
+  /** La inmobiliaria ya usa portada viva en alguna otra propiedad: ya conoce el servicio, así que vale sugerirlo en las demás. */
+  agencyUsesAmbient: boolean;
   hasArea: boolean;
   hasBedrooms: boolean;
 };
@@ -273,6 +277,22 @@ export function diagnoseProperty({ property: p, metrics, bench, leads, now = Dat
       action: "Sumá un recorrido en video desde la edición de la propiedad.",
       href: editHref(p.id),
       evidence: [{ label: "Videos", value: "0" }],
+    });
+  }
+
+  // 9b. Sin portada viva. Es un servicio aparte (la carpeta la prepara el proveedor), así que no se la ofrece a todas las
+  // publicaciones porque sí: sólo si ya hay visitas que la aprovechen, o si la inmobiliaria ya la usa en otra propiedad.
+  if (!p.hasAmbientCover && (views30 >= T.minViewsForRates || p.agencyUsesAmbient)) {
+    push({
+      rule: "no-ambient-cover",
+      kind: "opportunity",
+      severity: "low",
+      title: "No tiene portada viva",
+      explanation:
+        "Una portada viva muestra la misma foto de día, de noche, con lluvia y con viento: se destaca frente a una foto fija y deja ver la propiedad en distintos momentos.",
+      action: "Es un servicio aparte: pedile la carpeta al proveedor y cargala en la sección Portada al editar la propiedad.",
+      href: editHref(p.id),
+      evidence: [{ label: "Portada viva", value: "No" }],
     });
   }
 

@@ -47,6 +47,13 @@ export const LEXICON: Record<Concept, string[]> = {
   "d.type": ["tipo", "categoria", "clase de", "modalidad"],
   "d.area": ["superficie", "metros", "m2", "tamano", "metraje"],
   "d.rooms": ["ambiente", "amb", "dormitorio", "habitacion", "cuarto", "monoambiente", "dorm"],
+  // Portada viva: la foto de portada que cambia de día a noche, con lluvia y viento. "portada" sola ya es de `d.photos`;
+  // y NADA de "ambientada/ambientado" (su raíz es la de "ambiente", `d.rooms`): sólo la forma exacta "ambientacion".
+  "d.ambient": [
+    "portada viva", "portada animada", "portada reactiva", "portada dinamica", "portada interactiva", "portada con clima",
+    "foto viva", "foto animada", "=ambientacion", "=ambientaciones", "dia y noche", "dia noche", "de dia y de noche",
+    "estados del dia", "=lluvia", "=viento", "=clima", "atardecer",
+  ],
   "d.property": ["propiedad", "inmueble", "publicacion", "aviso", "anuncio", "ficha", "unidad", "casa", "departamento", "depto", "dpto", "depa", "ph"],
 
   // ─── Verbos / intenciones ──────────────────────────────────────────────────

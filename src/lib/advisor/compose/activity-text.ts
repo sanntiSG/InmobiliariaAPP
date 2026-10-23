@@ -127,6 +127,9 @@ export function describeChange(c: ActivityChange): { text: string; tone: Tone } 
       return { text: `Editaste los enlaces del recorrido 360° (de ${val(before)} a ${val(after)})`, tone: "neutral" };
     case "virtualTour":
       return { text: after ? "Activaste el recorrido navegable" : "Desactivaste el recorrido navegable", tone: after ? "good" : "neutral" };
+    case "ambientCover":
+      if (before && after) return { text: "Cambiaste la portada viva por otra", tone: "neutral" };
+      return { text: after ? "Activaste la portada viva" : "Quitaste la portada viva", tone: after ? "good" : "neutral" };
     case "agency":
       return { text: c.note ?? "Reasignaron la propiedad a otra inmobiliaria", tone: "neutral" };
     case "youtube":

@@ -20,6 +20,15 @@ import { AMBIENT_DISCLOSURE } from "../src/lib/ambient/constants";
 import { resolveStartState } from "../src/lib/ambient/start-state";
 import { validateManifest } from "../src/vendor/ambient/ambient-manifest";
 import type { AmbientAsset, AmbientManifest } from "../src/vendor/ambient";
+import { diffProperty, snapshotProperty } from "../src/lib/activity/diff";
+import { ambientCover } from "../src/lib/advisor/analysis/agency/ambient";
+import type { AgencyEnv } from "../src/lib/advisor/analysis/types";
+import { describeChange } from "../src/lib/advisor/compose/activity-text";
+import type { PropertyRow } from "../src/lib/advisor/data/portfolio";
+import { toPropertyCardData } from "../src/lib/db/property-card-mapper";
+import { diagnoseProperty, type DiagnosticProperty } from "../src/lib/intelligence/diagnostics";
+import type { Bench } from "../src/lib/intelligence/benchmarks";
+import { emptyTotals, type PropertyMetrics } from "../src/lib/intelligence/metrics";
 
 // ── Carpeta sintética ────────────────────────────────────────────────────────────────────────────────────────
 
@@ -190,6 +199,7 @@ async function main() {
     assert(resolveStartState(["day", "dusk"], "rain", at(12)) === "day", "fijo pero desactivado → según la hora");
   });
 
+  await panelAndAdvisor();
   await realSample();
 
   console.log(`\n${total - failed}/${total} pruebas correctas`);
@@ -241,6 +251,103 @@ async function rejectsCases(good: Built) {
   });
   await test("rechaza: una imagen que declara pesar más del tope", () =>
     rejects("too-big", () => validateFolder(entriesOf(good, "ambient/1/", tweak(good, (m) => ((m.layers as { masks: { desktop: { bytes: number } } }).masks.desktop.bytes = 5 * 1024 * 1024))))));
+}
+
+// ── Panel, asesor, tarjetas y bitácora (datos sintéticos, sin base) ─────────────────────────────────────────
+
+function diagProp(over: Partial<DiagnosticProperty> = {}): DiagnosticProperty {
+  return {
+    id: "p1", title: "Casa de prueba", type: "casa", operation: "venta", publishedAt: new Date(Date.now() - 40 * 86_400_000), priceChangedAt: null,
+    imageCount: 8, descriptionLength: 400, videoCount: 1, hasTour: true, hasAmbientCover: false, agencyUsesAmbient: false, hasArea: true, hasBedrooms: true,
+    ...over,
+  };
+}
+const metricsWith = (views: number) => ({ d30: { ...emptyTotals(), views }, w7: emptyTotals(), p7: emptyTotals() }) as unknown as PropertyMetrics;
+const hasRule = (p: DiagnosticProperty, views: number) =>
+  diagnoseProperty({ property: p, metrics: views ? metricsWith(views) : null, bench: {} as Bench, leads: null }).some((d) => d.id.startsWith("no-ambient-cover"));
+
+function row(over: Partial<PropertyRow>): PropertyRow {
+  const t = emptyTotals();
+  return {
+    id: "r", slug: "r", title: "Propiedad", status: "published", agencyId: "a", agencyName: null, type: "casa", operation: "venta", price: 100000, currency: "USD",
+    period: "total", neighborhood: "Palermo", city: "CABA", bedrooms: 3, rooms: 4, area: 100, amenities: [], images: 8, descriptionLength: 400, videos: 1, hasTour: false,
+    hasAmbientCover: false, scenes: 0, cover: null, publishedAt: new Date(), priceChangedAt: null, pricePerM2: 1000, w7: t, p7: t, d30: t, score: 0, diagnostics: [], place: "Palermo",
+    ...over,
+  };
+}
+function envOf(rows: PropertyRow[]): AgencyEnv {
+  return {
+    mode: "agency", scope: { agencyId: "a" }, isAdmin: false, userId: null, now: new Date(), slots: {}, context: { turn: 0 }, seed: 1, persona: { name: "Asesor" },
+    portfolio: { scope: { agencyId: "a" }, rows, drafts: [], byId: new Map(rows.map((r) => [r.id, r])), intel: {}, bench: {}, activity: [], loadedAt: 0 },
+  } as unknown as AgencyEnv;
+}
+const views = (n: number) => ({ ...emptyTotals(), views: n });
+
+async function panelAndAdvisor() {
+  await test("diagnóstico: no ofrece portada viva a quien no tiene tráfico ni la usa", () => {
+    assert(!hasRule(diagProp(), 0), "no debería sugerirla sin tráfico");
+    assert(!hasRule(diagProp(), 10), "con pocas visitas tampoco");
+  });
+  await test("diagnóstico: la ofrece con tráfico, o si la inmobiliaria ya la usa en otra propiedad", () => {
+    assert(hasRule(diagProp(), 45), "con ≥30 visitas sí");
+    assert(hasRule(diagProp({ agencyUsesAmbient: true }), 0), "si ya la usa en otra, sí");
+  });
+  await test("diagnóstico: nunca la ofrece a quien ya la tiene", () => {
+    assert(!hasRule(diagProp({ hasAmbientCover: true, agencyUsesAmbient: true }), 80), "ya la tiene");
+  });
+
+  await test("asesor: ninguna la tiene → lo dice, explica que es un servicio aparte y señala la de más visitas", async () => {
+    const rows = [row({ id: "a", title: "Casa A", d30: views(80) }), row({ id: "b", title: "Casa B", d30: views(5) })];
+    const r = await ambientCover(envOf(rows));
+    assert(/Ninguna/.test(r.lead) && /servicio aparte/.test(r.lead), `lead: ${r.lead}`);
+    assert(r.blocks.some((b) => b.type === "properties"), "falta el bloque de candidatas");
+    assert(r.actions?.[0]?.href.includes("/editar"), "falta la acción de editar");
+    assert(r.resultIds?.[0] === "a", "la de más visitas va primera");
+  });
+  await test("asesor: sin tráfico no inventa candidatas", async () => {
+    const r = await ambientCover(envOf([row({ id: "a" }), row({ id: "b" })]));
+    assert(!r.blocks.some((b) => b.type === "properties"), "no debería listar candidatas sin visitas");
+    assert(r.blocks.some((b) => b.type === "caveat"), "debería aclarar que hay pocas visitas");
+  });
+  await test("asesor: con algunas → cuenta cuántas, compara con aclaración y no promete causa", async () => {
+    const rows = [
+      row({ id: "a", title: "A", hasAmbientCover: true, d30: views(60) }), row({ id: "b", title: "B", hasAmbientCover: true, d30: views(40) }),
+      row({ id: "c", title: "C", d30: views(20) }), row({ id: "d", title: "D", d30: views(10) }),
+    ];
+    const r = await ambientCover(envOf(rows));
+    assert(/^2 de tus 4/.test(r.lead), `lead: ${r.lead}`);
+    assert(r.blocks.some((b) => b.type === "table"), "falta la comparación");
+    const caveat = r.blocks.find((b) => b.type === "caveat");
+    assert(caveat && /no prueban/.test((caveat as { text: string }).text), "falta la aclaración de que no prueba causa");
+  });
+  await test("asesor: si todas la tienen, lo dice sin ofrecer nada más", async () => {
+    const r = await ambientCover(envOf([row({ id: "a", hasAmbientCover: true }), row({ id: "b", hasAmbientCover: true })]));
+    assert(/Todas/.test(r.lead), `lead: ${r.lead}`);
+  });
+
+  await test("tarjetas: con portada viva muestran el póster y la marca; sin ella, la primera foto", () => {
+    const base = {
+      _id: "x", slug: "x", title: "X", price: { amount: 1, currency: "USD", period: "total" }, operation: "venta", type: "casa",
+      location: { coordinates: [-58.4, -34.6] }, address: { city: "CABA", showExact: true },
+    };
+    const withAmbient = toPropertyCardData({
+      ...base, media: { images: [{ url: "https://x/foto.jpg", order: 0 }], hasAmbientCover: true, ambient: { poster: { url: "https://x/poster.jpg" } } },
+    });
+    assert(withAmbient.image === "https://x/poster.jpg" && withAmbient.ambient === true, "debería usar el póster");
+    const plain = toPropertyCardData({ ...base, media: { images: [{ url: "https://x/foto.jpg", order: 0 }] } });
+    assert(plain.image === "https://x/foto.jpg" && plain.ambient === false, "debería usar la foto");
+    const flagOff = toPropertyCardData({ ...base, media: { images: [{ url: "https://x/foto.jpg", order: 0 }], hasAmbientCover: false, ambient: { poster: { url: "https://x/poster.jpg" } } } });
+    assert(flagOff.image === "https://x/foto.jpg", "si el flag está apagado, ignora el póster que quedara");
+  });
+
+  await test("bitácora: registra activar, reemplazar y quitar la portada viva, y la cuenta como cambio medible", () => {
+    const doc = (coverId?: string) => ({ title: "X", media: coverId ? { hasAmbientCover: true, ambient: { coverId } } : {} });
+    const change = (a?: string, b?: string) => diffProperty(snapshotProperty(doc(a)), snapshotProperty(doc(b))).find((c) => c.field === "ambientCover");
+    assert(describeChange(change(undefined, "c1")!).text === "Activaste la portada viva", "activar");
+    assert(describeChange(change("c1", "c2")!).text === "Cambiaste la portada viva por otra", "reemplazar");
+    assert(describeChange(change("c1", undefined)!).text === "Quitaste la portada viva", "quitar");
+    assert(change("c1", "c1") === undefined && change(undefined, undefined) === undefined, "sin cambios no registra nada");
+  });
 }
 
 async function realSample() {

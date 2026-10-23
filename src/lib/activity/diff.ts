@@ -39,6 +39,8 @@ export type PropertySnapshot = {
   videos: string[];
   scenes: { id: string; label: string | null; links: number }[];
   virtualTourEnabled: boolean;
+  /** Id de la portada viva (o `null` si la propiedad usa foto tradicional como portada). */
+  ambientCover: string | null;
 };
 
 const TEXT_MAX = 280;
@@ -117,6 +119,7 @@ export function snapshotProperty(raw: unknown): PropertySnapshot {
       links: arr(obj(t).links).length,
     })),
     virtualTourEnabled: obj(media.virtualTour).enabled === true,
+    ambientCover: media.hasAmbientCover === true ? str(obj(media.ambient).coverId) : null,
   };
 }
 
@@ -302,6 +305,16 @@ export function diffProperty(before: PropertySnapshot, after: PropertySnapshot):
   }
   if (before.virtualTourEnabled !== after.virtualTourEnabled) {
     out.push({ field: "virtualTour", before: before.virtualTourEnabled, after: after.virtualTourEnabled });
+  }
+
+  // Portada viva: se activó, se quitó o se reemplazó por otra (no se guarda el id, sólo si había o no).
+  if (before.ambientCover !== after.ambientCover) {
+    out.push({
+      field: "ambientCover",
+      before: before.ambientCover !== null,
+      after: after.ambientCover !== null,
+      note: before.ambientCover && after.ambientCover ? "reemplazada" : undefined,
+    });
   }
 
   return out;

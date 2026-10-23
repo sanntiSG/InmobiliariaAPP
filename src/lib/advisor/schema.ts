@@ -27,7 +27,8 @@ export const slotsSchema = z.object({
   amenities: z.array(z.enum(AMENITIES)).max(8).optional(),
   count: z.number().int().min(1).max(10).optional(),
   withTour: z.boolean().optional(),
-  field: z.enum(["price", "photos", "description", "videos", "tour360"]).optional(),
+  withAmbient: z.boolean().optional(),
+  field: z.enum(["price", "photos", "description", "videos", "tour360", "ambient"]).optional(),
   text: z.string().max(120).optional(),
 });
 

@@ -1,6 +1,6 @@
 import type { ExplorerIntent } from "../../types";
 import type { Handler } from "../types";
-import { agencies, compare, newest, popular, priceCheck, priceDrops, priceTypical, recommend, search, withTour } from "./handlers";
+import { agencies, compare, newest, popular, priceCheck, priceDrops, priceTypical, recommend, search, withAmbient, withTour } from "./handlers";
 
 /** Un handler por intención del explorador. */
 export const EXPLORER_HANDLERS: Record<ExplorerIntent, Handler> = {
@@ -11,6 +11,7 @@ export const EXPLORER_HANDLERS: Record<ExplorerIntent, Handler> = {
   "explorer.compare": compare,
   "explorer.price_check": priceCheck,
   "explorer.with_tour": withTour,
+  "explorer.with_ambient": withAmbient,
   "explorer.new": newest,
   "explorer.popular": popular,
   "explorer.agencies": agencies,

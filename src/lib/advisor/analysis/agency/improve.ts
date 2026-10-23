@@ -373,6 +373,10 @@ export const promote: AgencyHandler = (env) => {
         reasons.push("tiene recorrido 360°, que la diferencia");
       }
       if (r.videos > 0) score += 2;
+      if (r.hasAmbientCover) {
+        score += 3;
+        reasons.push("tiene portada viva, con la que se destaca");
+      }
       const isNew = r.publishedAt && now.getTime() - r.publishedAt.getTime() <= 14 * DAY_MS;
       if (isNew) {
         score += 4;

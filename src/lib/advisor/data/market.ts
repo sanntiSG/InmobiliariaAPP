@@ -58,6 +58,7 @@ export function buildSearchFilter(slots: Slots, relax: SearchRelax = {}): Record
   if (slots.bedrooms != null) f["features.bedrooms"] = { $gte: slots.bedrooms };
   if (slots.amenities?.length && !relax.dropAmenities) f.amenities = { $all: slots.amenities };
   if (slots.withTour) f["media.hasTour3d"] = true;
+  if (slots.withAmbient) f["media.hasAmbientCover"] = true;
 
   if (slots.priceMax || slots.priceMin) {
     const ref = slots.priceMax ?? slots.priceMin!;
@@ -153,7 +154,7 @@ export type PriceStats = {
 
 /** Precio típico del mercado público para un filtro, sin mezclar monedas. */
 export async function priceStats(slots: Slots, excludeId?: string): Promise<PriceStats> {
-  const filter = buildSearchFilter({ ...slots, priceMax: undefined, priceMin: undefined, amenities: undefined, withTour: undefined });
+  const filter = buildSearchFilter({ ...slots, priceMax: undefined, priceMin: undefined, amenities: undefined, withTour: undefined, withAmbient: undefined });
   if (excludeId && Types.ObjectId.isValid(excludeId)) filter._id = { $ne: new Types.ObjectId(excludeId) };
   const docs = await Property.find(filter).select("price.amount price.currency features.coveredArea features.totalArea").limit(800).lean();
 

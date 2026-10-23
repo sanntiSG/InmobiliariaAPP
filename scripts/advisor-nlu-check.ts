@@ -167,6 +167,24 @@ const CASES: Case[] = [
   E("recien publicadas en tigre", "explorer.new", { zones: ["Tigre"] }),
   E("gracias", "common.thanks"),
   E("cual es la mejor pizzeria", "unknown"),
+
+  // ── Portada viva ("portada" sola es sinónimo de foto; "ambientada" se parece a "ambiente") ──
+  A("que propiedades tienen portada viva", "agency.ambient_cover", { field: "ambient" }),
+  A("cuales no tienen portada reactiva", "agency.ambient_cover", { field: "ambient" }),
+  A("que es la portada viva", "agency.ambient_cover"),
+  A("me conviene usar portada animada", "agency.ambient_cover"),
+  A("tengo alguna propiedad con ambientacion dia y noche", "agency.ambient_cover"),
+  A("sirvio agregar la portada viva", "agency.change_impact", { field: "ambient" }),
+  A("desde que puse la portada viva mejoraron las visitas", "agency.change_impact", { field: "ambient" }),
+  A("funciono poner portada reactiva en la casa de alan", "agency.change_impact", { field: "ambient" }),
+  A("cuales necesitan mejores fotos de portada", "agency.photos"), // sigue siendo de fotos
+  A("que propiedades tienen pocas fotos", "agency.photos"),
+  A("que propiedades tienen 3 ambientes", "unknown|clarify|agency.metric|agency.property_status"), // "ambientes" no es portada viva
+  E("propiedades con portada viva", "explorer.with_ambient"),
+  E("quiero ver casas con portada animada", "explorer.with_ambient"),
+  E("mostrame las que tienen portada reactiva en palermo", "explorer.with_ambient|explorer.search", { zones: ["Palermo"] }),
+  E("hay casas que se vean de dia y de noche", "explorer.with_ambient|explorer.search"),
+  E("departamento de 2 ambientes en palermo", "explorer.search", { rooms: 2, zones: ["Palermo"] }), // no se confunde con "ambientacion"
 ];
 
 function matches(actual: string, expected: string): boolean {

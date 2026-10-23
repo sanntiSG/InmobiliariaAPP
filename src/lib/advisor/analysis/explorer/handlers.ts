@@ -267,6 +267,10 @@ export const compare: Handler = async (env) => {
     Object.fromEntries([["f", "Zona"], ...cards.map((c, i) => [`p${i}`, cell(c.neighborhood ?? c.city)])]),
     Object.fromEntries([["f", "Comodidades"], ...cards.map((c, i) => [`p${i}`, cell(String(extra.get(c.id)?.amenities?.length ?? 0))])]),
     Object.fromEntries([["f", "Recorrido 360°"], ...cards.map((c, i) => [`p${i}`, cell(c.tour3d ? "Sí" : "No", c.tour3d ? "good" : "neutral")])]),
+    // Sólo si alguna la tiene: si ninguna, la fila sería un "No" repetido que no ayuda a decidir.
+    ...(cards.some((c) => c.ambient)
+      ? [Object.fromEntries([["f", "Portada viva"], ...cards.map((c, i) => [`p${i}`, cell(c.ambient ? "Sí" : "No", c.ambient ? "good" : "neutral")])])]
+      : []),
     Object.fromEntries([["f", "Inmobiliaria"], ...cards.map((c, i) => [`p${i}`, cell(c.agencyName ?? "—")])]),
   ];
 
@@ -377,6 +381,17 @@ export const withTour: Handler = async (env) => {
   const result = await search({ ...env, slots: { ...env.slots, withTour: true } });
   if (result.blocks.length === 0) return result;
   return { ...result, lead: `${result.lead} Con el recorrido 360° podés caminarlas desde acá antes de visitarlas.` };
+};
+
+export const withAmbient: Handler = async (env) => {
+  const result = await search({ ...env, slots: { ...env.slots, withAmbient: true } });
+  if (result.blocks.length === 0) {
+    return {
+      ...result,
+      lead: `Por ahora no hay propiedades publicadas con portada viva${filterCount(env.slots) > 0 ? " con esos filtros" : ""}. Es una portada que se ve de día, de noche, con lluvia y con viento, y las inmobiliarias la van sumando.`,
+    };
+  }
+  return { ...result, lead: `${result.lead} Su portada cambia de día a noche, con lluvia y con viento: entrá a la ficha para verla en vivo.` };
 };
 
 export const newest: Handler = async (env) => {

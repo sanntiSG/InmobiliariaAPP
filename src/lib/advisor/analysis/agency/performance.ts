@@ -491,6 +491,18 @@ function investigateRow(r: PropertyRow, env: Parameters<AgencyHandler>[0]): { fi
     !r.hasTour && shareTour >= 0.5
   );
 
+  const shareAmbient = refs.filter((o) => o.hasAmbientCover).length / refs.length;
+  add(
+    {
+      factor: "Portada viva",
+      mine: r.hasAmbientCover ? "Sí" : "No",
+      ref: `${n0(shareAmbient * 100)} % la tienen`,
+      severity: 2,
+      text: `no tiene portada viva y ${n0(shareAmbient * 100)} % de ${refLabel} sí`,
+    },
+    !r.hasAmbientCover && shareAmbient >= 0.5
+  );
+
   const dwell = avgDwellSec(r.d30);
   if (dwell != null && bench.medianDwellSec != null && r.d30.dwellSamples >= THRESHOLDS.dwellMinSamples) {
     add(

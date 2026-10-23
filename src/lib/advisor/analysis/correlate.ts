@@ -21,7 +21,7 @@ export function recentChanges(portfolio: Portfolio, propertyId: string, days: nu
 }
 
 /** Los campos que se consideran "movimientos" que pueden mover las métricas. */
-export const IMPACT_FIELDS = ["price", "description", "photos", "cover", "videos", "tour360", "virtualTour", "status", "title"];
+export const IMPACT_FIELDS = ["price", "description", "photos", "cover", "videos", "tour360", "virtualTour", "ambientCover", "status", "title"];
 
 export type Note = { note?: string; tone?: Tone };
 

@@ -77,7 +77,7 @@ async function computeIntelligence(agencyId: string | null): Promise<Intelligenc
   const [docs, metricsMap, benchmarks, leadFunnels] = await Promise.all([
     Property.find({ status: "published", ...(agencyId ? { agencyId: new Types.ObjectId(agencyId) } : {}) })
       .select(
-        "title slug type operation publishedAt priceHistory media.images media.videos media.hasTour3d description address.neighborhood features.bedrooms features.totalArea features.coveredArea"
+        "title slug type operation publishedAt priceHistory media.images media.videos media.hasTour3d media.hasAmbientCover media.ambient.poster.url description address.neighborhood features.bedrooms features.totalArea features.coveredArea"
       )
       .limit(MAX_PROPERTIES)
       .lean(),
@@ -87,6 +87,7 @@ async function computeIntelligence(agencyId: string | null): Promise<Intelligenc
   ]);
 
   const now = Date.now();
+  const agencyUsesAmbient = docs.some((d) => !!d.media?.hasAmbientCover);
   const properties: PropertyInsight[] = docs.map((doc) => {
     const id = String(doc._id);
     const metrics: PropertyMetrics | null = metricsMap.get(id) ?? null;
@@ -106,6 +107,8 @@ async function computeIntelligence(agencyId: string | null): Promise<Intelligenc
         descriptionLength: (doc.description ?? "").trim().length,
         videoCount: doc.media?.videos?.length ?? 0,
         hasTour: !!doc.media?.hasTour3d,
+        hasAmbientCover: !!doc.media?.hasAmbientCover,
+        agencyUsesAmbient,
         hasArea: !!(doc.features?.totalArea || doc.features?.coveredArea),
         hasBedrooms: doc.features?.bedrooms != null,
       },
@@ -124,7 +127,8 @@ async function computeIntelligence(agencyId: string | null): Promise<Intelligenc
       id,
       title: doc.title,
       slug: doc.slug,
-      image: cover?.url ?? null,
+      // Con portada viva, su imagen de portada es el póster.
+      image: (doc.media?.hasAmbientCover && doc.media.ambient?.poster?.url) || cover?.url || null,
       neighborhood: doc.address?.neighborhood ?? null,
       d30,
       w7: metrics?.w7 ?? emptyTotals(),

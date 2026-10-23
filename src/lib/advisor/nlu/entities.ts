@@ -320,7 +320,9 @@ export function extractSlots(norm: string, tokens: string[], detected: Detected,
   else if (has(detected, "v.best")) slots.direction = "best";
 
   // Qué parte de la ficha se tocó (para medir el impacto de ese cambio puntual).
-  if (has(detected, "d.photos")) slots.field = "photos";
+  // "portada viva" va antes que las fotos: "portada" sola también es sinónimo de foto (`d.photos`).
+  if (has(detected, "d.ambient")) slots.field = "ambient";
+  else if (has(detected, "d.photos")) slots.field = "photos";
   else if (has(detected, "d.description")) slots.field = "description";
   else if (has(detected, "d.video")) slots.field = "videos";
   else if (has(detected, "m.tour")) slots.field = "tour360";

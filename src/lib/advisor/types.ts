@@ -35,6 +35,7 @@ export const AGENCY_INTENTS = [
   "agency.change_impact",
   "agency.property_status",
   "agency.leads",
+  "agency.ambient_cover",
 ] as const;
 
 export const EXPLORER_INTENTS = [
@@ -45,6 +46,7 @@ export const EXPLORER_INTENTS = [
   "explorer.compare",
   "explorer.price_check",
   "explorer.with_tour",
+  "explorer.with_ambient",
   "explorer.new",
   "explorer.popular",
   "explorer.agencies",
@@ -84,13 +86,15 @@ export type Slots = {
   /** "tres propiedades" → 3. */
   count?: number;
   withTour?: boolean;
+  /** Sólo propiedades con portada viva. */
+  withAmbient?: boolean;
   /** Qué parte de la publicación se cambió ("¿sirvió cambiar las fotos?"). */
   field?: ChangeField;
   /** Texto libre de búsqueda (nombre de zona no reconocida, etc.). */
   text?: string;
 };
 
-export type ChangeField = "price" | "photos" | "description" | "videos" | "tour360";
+export type ChangeField = "price" | "photos" | "description" | "videos" | "tour360" | "ambient";
 
 // ─── Contexto de la conversación (viaja del cliente al servidor en cada pregunta) ──
 

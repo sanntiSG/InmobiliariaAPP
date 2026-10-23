@@ -39,6 +39,8 @@ export type PropertyRow = {
   descriptionLength: number;
   videos: number;
   hasTour: boolean;
+  /** Tiene portada viva (la foto de portada que cambia de día a noche, con lluvia y viento). */
+  hasAmbientCover: boolean;
   scenes: number;
   cover: string | null;
   publishedAt: Date | null;
@@ -82,7 +84,7 @@ async function build(agencyId: string | null): Promise<Portfolio> {
   const [docs, intel, bench, activity] = await Promise.all([
     Property.find({ status: { $in: ["published", "draft"] }, ...agencyFilter })
       .select(
-        "agencyId slug title status type operation price priceHistory address features amenities media.images media.videos media.hasTour3d media.tours description publishedAt"
+        "agencyId slug title status type operation price priceHistory address features amenities media.images media.videos media.hasTour3d media.hasAmbientCover media.ambient.poster.url media.tours description publishedAt"
       )
       .sort({ updatedAt: -1 })
       .limit(MAX_ROWS)
@@ -139,8 +141,10 @@ async function build(agencyId: string | null): Promise<Portfolio> {
       descriptionLength: (doc.description ?? "").trim().length,
       videos: doc.media?.videos?.length ?? 0,
       hasTour: !!doc.media?.hasTour3d,
+      hasAmbientCover: !!doc.media?.hasAmbientCover,
       scenes: doc.media?.tours?.length ?? 0,
-      cover: cover?.url ?? null,
+      // Con portada viva, su imagen de portada es el póster.
+      cover: (doc.media?.hasAmbientCover && doc.media.ambient?.poster?.url) || cover?.url || null,
       publishedAt: doc.publishedAt ? new Date(doc.publishedAt) : null,
       priceChangedAt: lastChange ? new Date(lastChange) : null,
       pricePerM2: area && amount > 0 ? amount / area : null,

@@ -283,7 +283,8 @@ export const INTENTS: IntentDef[] = [
     id: "agency.photos",
     audience: "agency",
     signals: [any(6, "d.photos"), when(3, (c) => has(c.detected, "d.photos") && (has(c.detected, "v.review") || has(c.detected, "v.recommend") || has(c.detected, "v.incomplete")))],
-    negatives: [any(5, "v.simulate"), any(5, "v.i_changed"), any(4, "m.tour")],
+    // "portada" también es sinónimo de foto: "portada viva" es otra cosa (agency.ambient_cover).
+    negatives: [any(5, "v.simulate"), any(5, "v.i_changed"), any(4, "m.tour"), any(9, "d.ambient")],
     examples: [
       "que propiedades necesitan mejores fotografias",
       "cuales tienen pocas fotos",
@@ -324,7 +325,7 @@ export const INTENTS: IntentDef[] = [
       when(2, (c) => has(c.detected, "v.recommend") && has(c.detected, "q.neg")),
       when(6, (c) => has(c.detected, "q.neg", "q.less") && has(c.detected, "m.tour", "d.video")),
     ],
-    negatives: [any(4, "v.simulate")],
+    negatives: [any(4, "v.simulate"), any(9, "d.ambient")],
     examples: [
       "que oportunidades de mejora todavia no estoy aprovechando",
       "que me estoy perdiendo",
@@ -393,7 +394,7 @@ export const INTENTS: IntentDef[] = [
     id: "agency.change_impact",
     audience: "agency",
     signals: [
-      when(8, (c) => has(c.detected, "t.since") && (has(c.detected, "v.i_changed") || has(c.detected, "v.drop") || has(c.detected, "d.price") || has(c.detected, "d.photos") || has(c.detected, "d.description") || has(c.detected, "d.video"))),
+      when(8, (c) => has(c.detected, "t.since") && (has(c.detected, "v.i_changed") || has(c.detected, "v.drop") || has(c.detected, "d.price") || has(c.detected, "d.photos") || has(c.detected, "d.description") || has(c.detected, "d.video") || has(c.detected, "d.ambient"))),
       any(6, "v.effect"),
       when(3, (c) => has(c.detected, "t.since") && has(c.detected, ...METRICS)),
     ],
@@ -412,8 +413,23 @@ export const INTENTS: IntentDef[] = [
       when(8, (c) => has(c.detected, "v.status") && (c.slots.propertyIds?.length ?? 0) > 0),
       when(5, (c) => (c.slots.propertyIds?.length ?? 0) > 0),
     ],
-    negatives: [any(5, "v.simulate"), any(5, "v.activity"), any(4, "v.why"), any(6, "v.compare")],
+    // "¿funcionó poner portada viva en la casa de Alan?" nombra una propiedad pero pregunta por un cambio: es de agency.change_impact.
+    negatives: [any(5, "v.simulate"), any(5, "v.activity"), any(4, "v.why"), any(6, "v.compare"), when(4, (c) => has(c.detected, "v.effect") && has(c.detected, "d.ambient", "d.photos", "d.price", "d.description", "d.video", "m.tour"))],
     examples: ["como va esta propiedad", "como le fue a la casa de alan", "como esta funcionando la primera", "estado de esa propiedad"],
+  },
+  {
+    id: "agency.ambient_cover",
+    audience: "agency",
+    signals: [any(8, "d.ambient")],
+    // "¿sirvió agregar la portada viva?" y "desde que la puse…" son de agency.change_impact; las simulaciones, de su intención.
+    negatives: [any(7, "v.effect"), any(7, "t.since"), any(6, "v.i_changed"), any(5, "v.simulate")],
+    examples: [
+      "que propiedades tienen portada viva",
+      "cuales no tienen portada reactiva",
+      "que es la portada viva",
+      "me conviene usar portada animada",
+      "en cuales conviene poner portada viva",
+    ],
   },
   {
     id: "agency.leads",
@@ -493,6 +509,17 @@ export const INTENTS: IntentDef[] = [
     audience: "explorer",
     signals: [when(6, (c) => has(c.detected, "m.tour")), when(2, (c) => has(c.detected, "m.tour") && has(c.detected, "v.show", "d.property"))],
     examples: ["propiedades con recorrido 360", "quiero ver casas con tour virtual", "cuales tienen recorrido virtual", "mostrame las que tienen 360"],
+  },
+  {
+    id: "explorer.with_ambient",
+    audience: "explorer",
+    signals: [any(8, "d.ambient")],
+    examples: [
+      "propiedades con portada viva",
+      "quiero ver casas con portada animada",
+      "cuales se ven de dia y de noche",
+      "mostrame las que tienen portada reactiva",
+    ],
   },
   {
     id: "explorer.new",

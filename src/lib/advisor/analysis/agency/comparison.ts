@@ -196,6 +196,11 @@ function explainGap(a: Group, b: Group): string[] {
   if (tourA - tourB >= 0.3) {
     out.push({ score: (tourA - tourB) * 60, text: `${n0(tourB * 100)} % de las de ${zoneName(b.key)} tiene recorrido 360° contra ${n0(tourA * 100)} % en ${zoneName(a.key)}` });
   }
+  const ambientA = a.rows.filter((r) => r.hasAmbientCover).length / a.rows.length;
+  const ambientB = b.rows.filter((r) => r.hasAmbientCover).length / b.rows.length;
+  if (ambientA - ambientB >= 0.3) {
+    out.push({ score: (ambientA - ambientB) * 40, text: `${n0(ambientB * 100)} % de las de ${zoneName(b.key)} tiene portada viva contra ${n0(ambientA * 100)} % en ${zoneName(a.key)}` });
+  }
   const descA = mean(a.rows.map((r) => r.descriptionLength));
   const descB = mean(b.rows.map((r) => r.descriptionLength));
   if (descA != null && descB != null && descA > 0 && descB / descA < 0.7) {
@@ -308,6 +313,10 @@ export const traits: AgencyHandler = (env) => {
     { factor: "Largo de la descripción", a: avg(top, (r) => r.descriptionLength), b: avg(rest, (r) => r.descriptionLength), fmt: (v) => `${n0(v)} car.`, high: true },
     { factor: "Con recorrido 360°", a: shareOf(top, (r) => r.hasTour), b: shareOf(rest, (r) => r.hasTour), fmt: (v) => `${n0(v)} %`, high: true },
     { factor: "Con video", a: shareOf(top, (r) => r.videos > 0), b: shareOf(rest, (r) => r.videos > 0), fmt: (v) => `${n0(v)} %`, high: true },
+    // Sólo si alguna la usa: para una inmobiliaria sin portada viva la fila sería "0 % contra 0 %" y no dice nada.
+    ...(pool.some((r) => r.hasAmbientCover)
+      ? [{ factor: "Con portada viva", a: shareOf(top, (r) => r.hasAmbientCover), b: shareOf(rest, (r) => r.hasAmbientCover), fmt: (v: number) => `${n0(v)} %`, high: true }]
+      : []),
     { factor: "Comodidades", a: avg(top, (r) => r.amenities.length), b: avg(rest, (r) => r.amenities.length), fmt: n1, high: true },
     {
       factor: "Precio por m²",
@@ -428,6 +437,7 @@ export const similarPrice: AgencyHandler = (env) => {
     const diffs: string[] = [];
     if (hi.images - lo.images >= 3) diffs.push(`${hi.images} fotos contra ${lo.images}`);
     if (hi.hasTour && !lo.hasTour) diffs.push("tiene recorrido 360° y la otra no");
+    if (hi.hasAmbientCover && !lo.hasAmbientCover) diffs.push("tiene portada viva y la otra no");
     if (hi.videos > 0 && lo.videos === 0) diffs.push("tiene video y la otra no");
     if (lo.descriptionLength < THRESHOLDS.minDescription && hi.descriptionLength >= THRESHOLDS.minDescription) diffs.push("la otra tiene una descripción muy corta");
     const low = Math.min(...c.rows.map((r) => r.price));
