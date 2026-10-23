@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { v2 as cloudinary } from "cloudinary";
+import { isSafeFolder, isSafeFolderFileName } from "./index";
 import type {
   AssetInfo,
   DirectUploadTicket,
@@ -80,14 +81,17 @@ async function deleteAgencyAssets(agencyId: string): Promise<number> {
   const prefix = `umbral/agencies/${agencyId}/`;
   let deleted = 0;
   try {
-    // La API borra de a lotes (hasta 1000): se repite mientras diga que quedó algo.
-    for (let i = 0; i < 20; i++) {
-      const res = await cloudinary.api.delete_resources_by_prefix(prefix);
-      deleted += Object.values(res.deleted ?? {}).filter((v) => v === "deleted").length;
-      if (!res.partial) break;
+    // La API borra por tipo de recurso (sin indicarlo sólo toca las imágenes): los archivos `raw` de la portada viva
+    // quedarían huérfanos. Y borra de a lotes (hasta 1000): se repite mientras diga que quedó algo.
+    for (const resource_type of ["image", "raw"] as const) {
+      for (let i = 0; i < 20; i++) {
+        const res = await cloudinary.api.delete_resources_by_prefix(prefix, { resource_type });
+        deleted += Object.values(res.deleted ?? {}).filter((v) => v === "deleted").length;
+        if (!res.partial) break;
+      }
     }
     // Las carpetas vacías quedan en el panel de Cloudinary: se limpian (si ya no existen, no pasa nada).
-    for (const sub of ["properties", "branding", ""]) {
+    for (const sub of ["properties", "branding", "ambient", "ambient-posters", ""]) {
       await cloudinary.api
         .delete_folder(`umbral/agencies/${agencyId}${sub ? `/${sub}` : ""}`)
         .catch(() => {});
@@ -102,15 +106,20 @@ async function signDirectUpload(input: {
   folder: string;
   extension: string;
   resourceType: ResourceType;
+  fileName?: string;
 }): Promise<DirectUploadTicket | null> {
   if (!EXTENSION_RE.test(input.extension)) throw new Error("Extensión inválida");
+  if (input.fileName !== undefined && (!isSafeFolderFileName(input.fileName) || !input.fileName.endsWith(input.extension))) {
+    throw new Error("Nombre de archivo inválido");
+  }
   const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
   const apiKey = process.env.CLOUDINARY_API_KEY;
   const apiSecret = process.env.CLOUDINARY_API_SECRET;
   if (!cloudName || !apiKey || !apiSecret) return null;
 
-  // El `public_id` lo decide el servidor (carpeta + uuid): el cliente no elige dónde cae el archivo.
-  const publicId = `umbral/${input.folder}/${randomUUID()}${input.extension}`;
+  // El `public_id` lo decide el servidor (carpeta + uuid, o carpeta + el nombre fijo que pidió el llamador ya validado):
+  // el cliente no elige dónde cae el archivo.
+  const publicId = `umbral/${input.folder}/${input.fileName ?? `${randomUUID()}${input.extension}`}`;
   const timestamp = Math.floor(Date.now() / 1000);
   const signature = cloudinary.utils.api_sign_request({ public_id: publicId, timestamp }, apiSecret);
 
@@ -131,10 +140,55 @@ async function inspect(providerId: string, resourceType: ResourceType = "image")
   }
 }
 
+function folderUrl(folder: string): string {
+  if (!isSafeFolder(folder)) throw new Error("Carpeta inválida");
+  return `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/raw/upload/umbral/${folder}/`;
+}
+
+async function putFolderFile({ folder, fileName, buffer }: { folder: string; fileName: string; buffer: Buffer }): Promise<void> {
+  if (!isSafeFolder(folder) || !isSafeFolderFileName(fileName)) throw new Error("Ruta inválida");
+  await new Promise<void>((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { resource_type: "raw", public_id: `umbral/${folder}/${fileName}`, overwrite: true },
+      (error, result) => (error || !result ? reject(error ?? new Error("Upload sin resultado")) : resolve())
+    );
+    stream.end(buffer);
+  });
+}
+
+/** Se lee desde el CDN (lo mismo que va a pedir el navegador del visitante): así también se comprueba que la entrega funciona. */
+async function readFolderFile(folder: string, fileName: string, maxBytes: number): Promise<Buffer | null> {
+  if (!isSafeFolderFileName(fileName)) return null;
+  const res = await fetch(`${folderUrl(folder)}${fileName}`, { cache: "no-store" });
+  if (!res.ok) return null;
+  const declared = Number(res.headers.get("content-length"));
+  if (declared > maxBytes) throw new Error("Archivo demasiado grande");
+  const buffer = Buffer.from(await res.arrayBuffer());
+  if (buffer.length > maxBytes) throw new Error("Archivo demasiado grande");
+  return buffer;
+}
+
+async function deleteFolder(folder: string): Promise<void> {
+  if (!isSafeFolder(folder)) return;
+  try {
+    for (let i = 0; i < 20; i++) {
+      const res = await cloudinary.api.delete_resources_by_prefix(`umbral/${folder}/`, { resource_type: "raw" });
+      if (!res.partial) break;
+    }
+    await cloudinary.api.delete_folder(`umbral/${folder}`).catch(() => {});
+  } catch (err) {
+    console.error("cloudinary deleteFolder failed:", err);
+  }
+}
+
 export const cloudinaryStorage: StorageProvider = {
   upload,
   delete: del,
   deleteAgencyAssets,
   signDirectUpload,
   inspect,
+  folderUrl,
+  putFolderFile,
+  readFolderFile,
+  deleteFolder,
 };

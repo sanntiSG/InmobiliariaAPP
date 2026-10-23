@@ -12,6 +12,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "advisor:check": "tsx scripts/advisor-nlu-check.ts",
+    "ambient:check": "tsx scripts/ambient-check.ts",
     "seed": "tsx scripts/seed.ts",
     "fix-google-id-index": "tsx scripts/fix-google-id-index.ts",
     "migrate-tour3d-to-tours": "tsx scripts/migrate-tour3d-to-tours.ts",

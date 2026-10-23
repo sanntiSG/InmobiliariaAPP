@@ -40,6 +40,19 @@ export type DirectUploadTicket = {
 
 export type AssetInfo = { url: string; providerId: string; bytes: number };
 
+/** Carpeta lógica de un set de archivos "raw" (portada viva): segmentos simples separados por `/`, sin `..`. */
+const FOLDER_RE = /^[A-Za-z0-9_-]+(\/[A-Za-z0-9_-]+)*$/;
+/** Nombre de un archivo dentro de esa carpeta: sin separadores, sin `..`, sin empezar con punto. */
+const FOLDER_FILE_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$/;
+
+export function isSafeFolder(folder: string): boolean {
+  return FOLDER_RE.test(folder);
+}
+
+export function isSafeFolderFileName(name: string): boolean {
+  return FOLDER_FILE_RE.test(name) && !name.includes("..");
+}
+
 export interface StorageProvider {
   upload(input: UploadInput): Promise<UploadResult>;
   delete(providerId: string, resourceType?: ResourceType): Promise<void>;
@@ -59,9 +72,22 @@ export interface StorageProvider {
     /** Extensión con punto, ej. ".glb" (validada por el provider). */
     extension: string;
     resourceType: ResourceType;
+    /** Nombre fijo dentro de la carpeta (portada viva, cuyo reproductor pide los archivos por nombre). Sin él se usa un uuid. */
+    fileName?: string;
   }): Promise<DirectUploadTicket | null>;
   /** Tamaño y URL de un archivo ya subido, o `null` si no existe. Sirve para verificar antes de registrarlo. */
   inspect(providerId: string, resourceType?: ResourceType): Promise<AssetInfo | null>;
+
+  // Carpetas de archivos "raw" con nombre decidido por el servidor (portada viva). Los archivos se guardan tal cual,
+  // sin recomprimir ni renombrar: el reproductor los usa como datos y los verifica por hash.
+  /** URL pública de la carpeta, SIEMPRE con `/` final y sin versión (`new URL(archivo, url)` resuelve bien). */
+  folderUrl(folder: string): string;
+  /** Guarda un archivo de la carpeta (sólo para el respaldo local: en producción sube el navegador, firmado). */
+  putFolderFile(input: { folder: string; fileName: string; buffer: Buffer }): Promise<void>;
+  /** Lee un archivo de la carpeta, o `null` si no existe. Lanza si pesa más de `maxBytes`. */
+  readFolderFile(folder: string, fileName: string, maxBytes: number): Promise<Buffer | null>;
+  /** Borra la carpeta y todo lo que tiene. Mejor esfuerzo: nunca lanza. */
+  deleteFolder(folder: string): Promise<void>;
 }
 
 let cached: StorageProvider | null = null;
@@ -73,16 +99,20 @@ let cached: StorageProvider | null = null;
  * El resto de la app nunca importa cloudinary.ts/local.ts directamente,
  * siempre pasa por esta factory: cambiar de proveedor es reemplazar un archivo.
  */
+/** `true` cuando hay credenciales de Cloudinary (si no, el storage es el local de desarrollo). */
+export function cloudinaryConfigured(): boolean {
+  return (
+    !!process.env.CLOUDINARY_CLOUD_NAME &&
+    !!process.env.CLOUDINARY_API_KEY &&
+    !!process.env.CLOUDINARY_API_SECRET
+  );
+}
+
 export async function getStorageProvider(): Promise<StorageProvider> {
   if (cached) return cached;
 
-  const hasCloudinary =
-    !!process.env.CLOUDINARY_CLOUD_NAME &&
-    !!process.env.CLOUDINARY_API_KEY &&
-    !!process.env.CLOUDINARY_API_SECRET;
-
   // Import diferido: evita cargar el SDK de Cloudinary cuando no hace falta.
-  if (hasCloudinary) {
+  if (cloudinaryConfigured()) {
     const { cloudinaryStorage } = await import("./cloudinary");
     cached = cloudinaryStorage;
   } else {

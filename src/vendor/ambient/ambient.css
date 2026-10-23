@@ -1,0 +1,193 @@
+/* Ambient player. Style it with these custom properties, set on the player element, on any
+   ancestor or on :root (plain CSS, inline style or Tailwind arbitrary properties such as
+   [--ambient-accent:#0ea5e9]): --ambient-radius, -bg, -fg, -accent, -accent-fg, -chip-bg,
+   -control-bg, -control-fg, -control-border, -error-bg, -error-border, and -ratio (stage aspect
+   ratio, e.g. 4 / 5). The --_ names below are internal; they read the public ones with a default
+   so an override at any level wins. */
+.ambient {
+  --_radius: var(--ambient-radius, 14px);
+  --_bg: var(--ambient-bg, #0e1116);
+  --_fg: var(--ambient-fg, #f4f1ea);
+  --_accent: var(--ambient-accent, #f2b45a);
+  --_accent-fg: var(--ambient-accent-fg, #1b1306);
+  --_chip-bg: var(--ambient-chip-bg, rgb(14 17 22 / 0.7));
+  --_control-bg: var(--ambient-control-bg, #1a1f27);
+  --_control-fg: var(--ambient-control-fg, #e9e5db);
+  --_control-border: var(--ambient-control-border, rgb(255 255 255 / 0.14));
+  --_error-bg: var(--ambient-error-bg, #3a1717);
+  --_error-border: var(--ambient-error-border, #8a3434);
+  position: relative;
+  display: grid;
+  gap: 14px;
+  color: var(--_fg);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+.ambient__stage {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  /* --ambient-ratio is public (e.g. 4 / 5 on phones); the photo's own ratio is the default. */
+  aspect-ratio: var(--ambient-ratio, var(--ambient-native-ratio, 16 / 9));
+  border-radius: var(--_radius);
+  background: var(--_bg);
+}
+
+.ambient__poster,
+.ambient__canvas,
+.ambient__lights,
+.ambient__plate {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  user-select: none;
+}
+
+/* No scene to show yet (the manifest failed): the message replaces the empty stage. */
+.ambient[data-status='error']:not([data-scene]) .ambient__stage { display: none; }
+
+.ambient__canvas { opacity: 0; transition: opacity 0.35s ease; }
+.ambient__canvas.is-live { opacity: 1; }
+.ambient__poster.is-hidden { opacity: 0; transition: opacity 0.01s linear 0.4s; }
+.ambient__plate { opacity: 0; transition-property: opacity; transition-timing-function: ease-in-out; }
+.ambient__plate.is-front { opacity: 1; }
+.ambient__lights { opacity: 0; mix-blend-mode: screen; pointer-events: none; transition-property: opacity; transition-timing-function: ease-in-out; }
+@supports (mix-blend-mode: plus-lighter) { .ambient__lights { mix-blend-mode: plus-lighter; } }
+
+.ambient__badge,
+.ambient__status {
+  position: absolute;
+  z-index: 2;
+  margin: 0;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: var(--_chip-bg);
+  color: var(--_fg);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+}
+.ambient__badge { top: 12px; left: 12px; }
+.ambient__status { bottom: 12px; left: 12px; display: none; align-items: center; gap: 8px; }
+.ambient[data-status='loading'] .ambient__status { display: inline-flex; }
+.ambient__status:not(:empty) { display: inline-flex; }
+.ambient[data-status='loading'] .ambient__status::before {
+  content: '';
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgb(255 255 255 / 0.3);
+  border-top-color: var(--_accent);
+  border-radius: 50%;
+  animation: ambient-spin 0.8s linear infinite;
+}
+@keyframes ambient-spin { to { transform: rotate(360deg); } }
+
+.ambient__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.ambient__controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.ambient__control,
+.ambient__retry {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--_control-border);
+  border-radius: 999px;
+  background: var(--_control-bg);
+  color: var(--_control-fg);
+  font: 600 14px/1 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.12s ease;
+}
+.ambient__control:hover,
+.ambient__retry:hover { filter: brightness(1.25); }
+.ambient__control:active,
+.ambient__retry:active { transform: scale(0.97); }
+.ambient__control[aria-pressed='true'] {
+  background: var(--_accent);
+  border-color: transparent;
+  color: var(--_accent-fg);
+}
+.ambient__control[aria-busy='true'] { opacity: 0.7; cursor: progress; }
+.ambient__control:focus-visible,
+.ambient__retry:focus-visible { outline: 2px solid var(--_accent); outline-offset: 2px; }
+
+.ambient__error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--_error-border);
+  border-radius: 12px;
+  background: var(--_error-bg);
+  color: #ffe9e6;
+}
+.ambient__error[hidden] { display: none; }
+.ambient__error-text { margin: 0; font-size: 14px; line-height: 1.4; }
+
+/* Optional visitor sliders (weatherControls: true). */
+.ambient__weather { display: grid; justify-items: center; gap: 10px; }
+.ambient__weather-toggle {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--_control-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--_control-fg);
+  font: 600 13px/1 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.ambient__weather-toggle[aria-expanded='true'] { background: var(--_control-bg); }
+.ambient__weather-toggle:focus-visible,
+.ambient__slider input:focus-visible { outline: 2px solid var(--_accent); outline-offset: 2px; }
+.ambient__weather-panel {
+  display: grid;
+  gap: 12px;
+  width: min(380px, 100%);
+  padding: 14px 16px;
+  border: 1px solid var(--_control-border);
+  border-radius: 14px;
+  background: var(--_control-bg);
+  color: var(--_control-fg);
+}
+.ambient__weather-panel[hidden] { display: none; }
+.ambient__slider { display: grid; grid-template-columns: 64px 1fr 48px; align-items: center; gap: 12px; font-size: 13px; }
+.ambient__slider input { width: 100%; accent-color: var(--_accent); }
+.ambient__slider output { text-align: right; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 480px) {
+  .ambient__control { padding: 0 14px; font-size: 13px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient__canvas,
+  .ambient__plate,
+  .ambient__control { transition: none; }
+  .ambient[data-status='loading'] .ambient__status::before { animation: none; }
+}

@@ -20,6 +20,7 @@ export { SocialContent, SOCIAL_MODES } from "./SocialContent";
 export { ActivityLog, ACTIVITY_KINDS } from "./ActivityLog";
 export { AdvisorUnmatched } from "./AdvisorUnmatched";
 export { AdvisorConfig } from "./AdvisorConfig";
+export { AmbientCover, AMBIENT_COVER_STATUSES } from "./AmbientCover";
 
 export type { AgencyDoc } from "./Agency";
 export type { UserDoc } from "./User";
@@ -42,3 +43,4 @@ export type { SocialContentDoc } from "./SocialContent";
 export type { ActivityLogDoc, ActivityKind } from "./ActivityLog";
 export type { AdvisorUnmatchedDoc } from "./AdvisorUnmatched";
 export type { AdvisorConfigDoc } from "./AdvisorConfig";
+export type { AmbientCoverDoc } from "./AmbientCover";

@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     // (scripts/copy-maplibre-worker.mjs) — código de terceros, no nuestro.
     "public/maplibre-gl-worker.mjs",
     "public/maplibre-gl-shared.mjs",
+    // Reproductor de la portada viva: JS de terceros copiado tal cual (ver src/vendor/ambient/README.md).
+    "src/vendor/**",
   ]),
 ]);
 
