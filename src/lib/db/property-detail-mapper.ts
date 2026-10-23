@@ -80,6 +80,21 @@ export function toPropertyDetail(doc: any): PropertyDetail {
       enabled: !!doc.media?.virtualTour?.enabled,
       startId: doc.media?.virtualTour?.startId ?? undefined,
     },
+    ambient:
+      doc.media?.hasAmbientCover && doc.media.ambient?.manifest && doc.media.ambient.poster?.url
+        ? {
+            coverId: String(doc.media.ambient.coverId),
+            baseUrl: String(doc.media.ambient.baseUrl),
+            manifest: doc.media.ambient.manifest,
+            states: (doc.media.ambient.states ?? []).map(String),
+            start: doc.media.ambient.start ?? "auto",
+            poster: {
+              url: doc.media.ambient.poster.url,
+              width: doc.media.ambient.poster.width ?? undefined,
+              height: doc.media.ambient.poster.height ?? undefined,
+            },
+          }
+        : null,
 
     stats: {
       views: doc.stats?.views ?? 0,

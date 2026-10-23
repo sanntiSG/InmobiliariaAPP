@@ -36,4 +36,4 @@ export function buildPropertyQuery(filters: BaseFilters): Record<string, unknown
 }
 
 export const PROPERTY_CARD_PROJECTION =
-  "title slug price operation type address location features.bedrooms features.bathrooms features.totalArea features.coveredArea media.images media.hasTour3d publishedAt agencyId";
+  "title slug price operation type address location features.bedrooms features.bathrooms features.totalArea features.coveredArea media.images media.hasTour3d media.hasAmbientCover media.ambient.poster.url publishedAt agencyId";

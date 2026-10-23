@@ -1,4 +1,18 @@
 import type { TourScene, VirtualTourConfig } from "@/components/tour/tour-types";
+import type { AmbientManifest } from "@/vendor/ambient";
+
+/** Portada viva de una propiedad, lista para el reproductor de la ficha (el póster es la imagen de tarjetas). */
+export type PropertyAmbient = {
+  coverId: string;
+  /** Carpeta de archivos, con `/` final y sin versión. */
+  baseUrl: string;
+  manifest: AmbientManifest;
+  /** Estados activos, en el orden del manifest. */
+  states: string[];
+  /** `"auto"` (según la hora de quien mira) o el id de un estado. */
+  start: string;
+  poster: { url: string; width?: number; height?: number };
+};
 
 /** Forma liviana de propiedad usada por el mapa, el panel de resultados y sus cards. */
 export type PropertyCardData = {
@@ -17,6 +31,8 @@ export type PropertyCardData = {
   bathrooms?: number;
   area?: number;
   tour3d: boolean;
+  /** Tiene portada viva: `image` ya es su póster y las tarjetas muestran una insignia. */
+  ambient?: boolean;
   isNew: boolean;
   agencyName?: string;
   /** Para enlazar al perfil público de la inmobiliaria (`/inmobiliarias/[slug]`). */
@@ -76,6 +92,8 @@ export type PropertyDetail = {
   videos: { videoId: string; title?: string; orientation: "vertical" | "horizontal" }[];
   tours: Tour3DEntry[];
   virtualTour: VirtualTourConfig;
+  /** `null` = la propiedad usa foto tradicional como portada. */
+  ambient: PropertyAmbient | null;
 
   stats: { views: number; likes: number; saves: number; comments: number; ratingAvg: number; ratingCount: number };
 

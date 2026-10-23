@@ -16,7 +16,12 @@ export type LeanPropertyDoc = {
   features?:
     | { bedrooms?: number | null; bathrooms?: number | null; totalArea?: number | null; coveredArea?: number | null }
     | null;
-  media?: { images?: { url: string; order?: number | null }[]; hasTour3d?: boolean | null } | null;
+  media?: {
+    images?: { url: string; order?: number | null }[];
+    hasTour3d?: boolean | null;
+    hasAmbientCover?: boolean | null;
+    ambient?: { poster?: { url?: string | null } | null } | null;
+  } | null;
   publishedAt?: Date | string | null;
   agencyId?: unknown;
 };
@@ -32,6 +37,8 @@ export function toPropertyCardData(doc: LeanPropertyDoc, now: number = Date.now(
   const coverImage = doc.media?.images?.length
     ? [...doc.media.images].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))[0]
     : undefined;
+  // Con portada viva la tarjeta muestra su póster (el estado inicial como imagen común): el reproductor sólo vive en la ficha.
+  const ambientPoster = doc.media?.hasAmbientCover ? doc.media.ambient?.poster?.url || undefined : undefined;
 
   return {
     id: String(doc._id),
@@ -44,7 +51,8 @@ export function toPropertyCardData(doc: LeanPropertyDoc, now: number = Date.now(
     type: doc.type,
     neighborhood: doc.address?.neighborhood ?? undefined,
     city: doc.address?.city ?? "",
-    image: coverImage?.url ?? null,
+    image: ambientPoster ?? coverImage?.url ?? null,
+    ambient: !!ambientPoster,
     bedrooms: doc.features?.bedrooms ?? undefined,
     bathrooms: doc.features?.bathrooms ?? undefined,
     area: doc.features?.totalArea ?? doc.features?.coveredArea ?? undefined,

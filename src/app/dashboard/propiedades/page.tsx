@@ -29,7 +29,7 @@ export default async function DashboardPropertiesPage({
       : {}
     : { agencyId: access.agencyId };
   let propertiesQuery = Property.find(query)
-    .select("title slug status price stats media.images agencyId")
+    .select("title slug status price stats media.images media.hasAmbientCover media.ambient.poster.url agencyId")
     .sort({ updatedAt: -1 });
   if (access.isAdmin) {
     propertiesQuery = propertiesQuery.populate({ path: "agencyId", select: "name" });
@@ -73,15 +73,17 @@ export default async function DashboardPropertiesPage({
         <div className="overflow-hidden rounded-card bg-surface shadow-card">
           {properties.map((p, i) => {
             const agency = access.isAdmin ? (p.agencyId as unknown as { name?: string } | null) : null;
+            // Con portada viva la miniatura es su póster (es la imagen de portada de la propiedad).
+            const thumb = (p.media?.hasAmbientCover && p.media.ambient?.poster?.url) || p.media?.images?.[0]?.url;
             return (
               <div
                 key={String(p._id)}
                 className={`flex items-center gap-4 px-5 py-3.5 hover:bg-surface-2 ${i > 0 ? "border-t border-border" : ""}`}
               >
                 <div className="h-12 w-16 shrink-0 overflow-hidden rounded-media bg-surface-2">
-                  {p.media?.images?.[0] && (
+                  {thumb && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={p.media.images[0].url} alt="" className="h-full w-full object-cover" />
+                    <img src={thumb} alt="" className="h-full w-full object-cover" />
                   )}
                 </div>
                 <Link href={`/dashboard/propiedades/${p._id}/editar`} className="min-w-0 flex-1">

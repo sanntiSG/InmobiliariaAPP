@@ -9,6 +9,7 @@ import { Property } from "@/lib/db/models/Property";
 import { slugify } from "@/lib/utils/slugify";
 import { notifyNewPublication } from "@/lib/notifications/new-property";
 import { logActivity, touchAgencyData } from "@/lib/activity/log";
+import { AmbientSelectionError, markAmbientAttached, resolveAmbient, type StoredAmbient } from "@/lib/ambient/attach";
 
 const createSchema = propertyInputSchema.omit({ agencyId: true }).extend({
   // Solo se usa si quien publica es admin (sin inmobiliaria fija); para
@@ -47,14 +48,27 @@ export async function POST(req: Request) {
     const data = parsed.data;
     const slug = `${slugify(data.title)}-${Date.now().toString(36)}`;
 
+    // Portada viva: el navegador sólo manda cuál; el resto sale de la portada que el servidor ya verificó.
+    const { ambient: ambientSelection, ...mediaRest } = data.media;
+    let ambient: StoredAmbient | null;
+    try {
+      ambient = await resolveAmbient({ agencyId, selection: ambientSelection });
+    } catch (err) {
+      if (err instanceof AmbientSelectionError) return NextResponse.json({ error: err.message }, { status: 400 });
+      throw err;
+    }
+
     const property = await Property.create({
       ...data,
+      media: { ...mediaRest, ...(ambient ? { ambient } : {}), hasAmbientCover: !!ambient },
       agencyId,
       slug,
       location: { type: "Point", coordinates: data.location },
       priceHistory: [{ amount: data.price.amount, currency: data.price.currency, changedAt: new Date() }],
       publishedAt: data.status === "published" ? new Date() : undefined,
     });
+
+    if (ambient) await markAmbientAttached(ambient.coverId, String(property._id));
 
     if (property.status === "published") {
       after(() => notifyNewPublication(property));

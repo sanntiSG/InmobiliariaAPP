@@ -7,6 +7,7 @@ import {
   CURRENCIES,
 } from "@/config/filters";
 import { VIDEO_ID_RE, youtubeThumbnail, youtubeWatchUrl } from "@/lib/media/youtube";
+import { AMBIENT_COVER_ID_RE, AMBIENT_MAX_STATES, AMBIENT_START_AUTO, AMBIENT_STATE_ID_RE } from "@/lib/ambient/constants";
 
 /** Tope de videos por publicación. */
 export const MAX_VIDEOS = 8;
@@ -142,6 +143,16 @@ export const propertyInputSchema = z.object({
       floorPlans: z.array(imageSchema).default([]),
       tours: toursSchema,
       virtualTour: virtualTourSchema,
+      // Portada viva: el navegador sólo dice cuál (`coverId`), qué estados quedan y con cuál arranca. El manifest, la
+      // carpeta y el póster los pone el servidor a partir de la portada ya verificada (`lib/ambient/attach.ts`).
+      ambient: z
+        .object({
+          coverId: z.string().regex(AMBIENT_COVER_ID_RE, "Portada inválida"),
+          states: z.array(z.string().regex(AMBIENT_STATE_ID_RE)).min(1, "Dejá al menos un estado activo").max(AMBIENT_MAX_STATES),
+          start: z.string().regex(/^(auto|[a-z0-9-]{1,24})$/).default(AMBIENT_START_AUTO),
+        })
+        .nullable()
+        .optional(),
     })
     .default({
       images: [],

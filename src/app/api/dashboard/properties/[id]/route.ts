@@ -15,6 +15,8 @@ import { notifyNewPublication } from "@/lib/notifications/new-property";
 import { PropertyDailyStat } from "@/lib/db/models/PropertyDailyStat";
 import { diffProperty, snapshotProperty } from "@/lib/activity/diff";
 import { logActivity, touchAgencyData } from "@/lib/activity/log";
+import { AmbientSelectionError, markAmbientAttached, resolveAmbient, type StoredAmbient } from "@/lib/ambient/attach";
+import { releaseCover } from "@/lib/ambient/server";
 
 const updateSchema = propertyInputSchema.omit({ agencyId: true }).extend({
   // Solo tiene efecto para un admin (reasignar la propiedad a otra
@@ -62,7 +64,23 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     // Sólo cuenta como baja si la moneda no cambió: pasar de ARS a USD no es una rebaja.
     const priceDropped = priceChanged && sameCurrency && previousAmount != null && data.price.amount < previousAmount;
 
-    property.set({ ...data, location: { type: "Point", coordinates: data.location } });
+    // Portada viva: el navegador sólo manda cuál; el resto sale de la portada que el servidor ya verificó.
+    const previousCoverId = property.media?.ambient?.coverId ?? undefined;
+    const { ambient: ambientSelection, ...mediaRest } = data.media;
+    let ambient: StoredAmbient | null;
+    try {
+      ambient = await resolveAmbient({ agencyId: String(property.agencyId), propertyId: String(property._id), selection: ambientSelection });
+    } catch (err) {
+      if (err instanceof AmbientSelectionError) return NextResponse.json({ error: err.message }, { status: 400 });
+      throw err;
+    }
+
+    property.set({
+      ...data,
+      media: { ...mediaRest, ...(ambient ? { ambient } : {}), hasAmbientCover: !!ambient },
+      location: { type: "Point", coordinates: data.location },
+    });
+    if (!ambient) property.set("media.ambient", undefined);
 
     if (priceChanged) {
       property.priceHistory?.push({ amount: data.price.amount, currency: data.price.currency, changedAt: new Date() });
@@ -73,6 +91,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       property.publishedAt = new Date();
     }
     await property.save();
+
+    // La portada que ya no se usa (quitada o reemplazada) libera sus archivos; la nueva queda marcada como en uso.
+    if (ambient) await markAmbientAttached(ambient.coverId, String(property._id));
+    if (previousCoverId && previousCoverId !== ambient?.coverId) after(() => releaseCover(previousCoverId));
 
     if (priceDropped) {
       after(() => notifyPriceDrop(property));
@@ -139,8 +161,11 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   try {
     await connectDB();
     const scopeQuery = access.isAdmin ? { _id: id } : { _id: id, agencyId: access.agencyId };
-    const deleted = await Property.findOneAndDelete(scopeQuery).select("agencyId title").lean();
+    const deleted = await Property.findOneAndDelete(scopeQuery).select("agencyId title media.ambient.coverId").lean();
     if (!deleted) return NextResponse.json({ error: "No encontrada" }, { status: 404 });
+
+    // Su portada viva (si tenía) ya no tiene a quién pertenecer: se borran sus archivos.
+    after(() => releaseCover(deleted.media?.ambient?.coverId));
 
     // Sin esto quedaban Like/Favorite/Rating/Comment huérfanos apuntando a
     // un `propertyId` que ya no existe — nunca se limpiaban solos.

@@ -1,3 +1,4 @@
+import { connectDB } from "@/lib/db/connect";
 import { AmbientCover, type AmbientCoverDoc } from "@/lib/db/models/AmbientCover";
 import { getStorageProvider } from "@/lib/storage";
 import { AMBIENT_COVER_ID_RE, AMBIENT_UNATTACHED_TTL_MS, ambientFolder } from "./constants";
@@ -19,6 +20,17 @@ export async function deleteCover(coverId: string): Promise<void> {
   if (!AMBIENT_COVER_ID_RE.test(coverId)) return;
   const cover = await AmbientCover.findOneAndDelete({ coverId }).lean();
   if (cover) await deleteCoverFiles(cover);
+}
+
+/** Suelta la portada de una propiedad que ya no la usa (quitada, reemplazada o propiedad borrada). Nunca lanza. */
+export async function releaseCover(coverId: string | null | undefined): Promise<void> {
+  if (!coverId) return;
+  try {
+    await connectDB();
+    await deleteCover(coverId);
+  } catch (err) {
+    console.error("releaseCover failed:", err);
+  }
 }
 
 /**

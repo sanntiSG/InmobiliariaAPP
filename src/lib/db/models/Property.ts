@@ -151,6 +151,30 @@ const propertySchema = new Schema(
       },
       /** Desnormalizado a partir de `tours.length > 0` — evita inspeccionar el array en cada query/filtro (ver `property-query.ts`, `lib/intelligence`). */
       hasTour3d: { type: Boolean, default: false, index: true },
+      /**
+       * Portada viva (opcional): una foto en varios estados (día, noche, lluvia…) que se anima en la ficha. Es una COPIA
+       * de la portada verificada de `AmbientCover` (el navegador sólo manda `coverId`, `states` y `start`; ver
+       * `lib/ambient/attach.ts`). Las tarjetas muestran `poster`, nunca cargan el reproductor.
+       */
+      ambient: {
+        coverId: { type: String },
+        /** Carpeta de archivos, con `/` final y sin versión. */
+        baseUrl: { type: String },
+        /** Manifest saneado (≈10 KB): no entra en las proyecciones de tarjetas. */
+        manifest: { type: Schema.Types.Mixed },
+        /** Estados que la inmobiliaria dejó activos (subconjunto de los del manifest). */
+        states: [{ type: String }],
+        /** `"auto"` = según la hora de quien mira, o el id de un estado. */
+        start: { type: String, default: "auto" },
+        poster: {
+          url: { type: String },
+          providerId: { type: String },
+          width: { type: Number },
+          height: { type: Number },
+        },
+      },
+      /** Desnormalizado: hay portada viva. Igual que `hasTour3d`, para filtros, inteligencia y asesor. */
+      hasAmbientCover: { type: Boolean, default: false, index: true },
     },
 
     /** Contadores desnormalizados, actualizados a partir de `Interaction`. */

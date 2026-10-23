@@ -63,7 +63,12 @@ export async function generateMetadata({ params }: PageProps<"/propiedades/[slug
     openGraph: {
       title: property.title,
       description,
-      images: property.images[0] ? [{ url: property.images[0].url }] : undefined,
+      // Con portada viva, la imagen para compartir es su póster (la foto de portada que ve la gente).
+      images: property.ambient
+        ? [{ url: property.ambient.poster.url }]
+        : property.images[0]
+          ? [{ url: property.images[0].url }]
+          : undefined,
     },
   };
 }
