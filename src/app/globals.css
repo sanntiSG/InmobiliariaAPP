@@ -1786,3 +1786,15 @@ body {
     font-weight: 500;
   }
 }
+
+/* Portada viva (reproductor de src/vendor/ambient). Con la escena lista, el aviso "Mostrando <estado>" sólo lo anuncia
+   el lector de pantalla: los botones de abajo ya muestran qué estado se ve y no hace falta un cartel fijo sobre la foto. */
+.ambient[data-status="ready"] .ambient__status {
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

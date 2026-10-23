@@ -160,7 +160,7 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
         <div className="mt-4 grid grid-cols-1 gap-8 lg:grid-cols-3">
           <div className="flex flex-col gap-8 lg:col-span-2">
             <PropertyTracker propertyId={property.id} enabled={trackingEnabled} />
-            <PropertyMedia propertyId={property.id} trackingEnabled={trackingEnabled} images={property.images} tours={property.tours} virtualTour={property.virtualTour} title={property.title} />
+            <PropertyMedia propertyId={property.id} trackingEnabled={trackingEnabled} images={property.images} tours={property.tours} virtualTour={property.virtualTour} ambient={property.ambient} title={property.title} />
 
             <div>
               <div className="flex flex-wrap items-start justify-between gap-3">

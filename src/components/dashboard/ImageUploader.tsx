@@ -11,11 +11,14 @@ export function ImageUploader({
   images,
   onChange,
   agencyId,
+  showCoverBadge = true,
 }: {
   images: UploadedImage[];
   onChange: (images: UploadedImage[]) => void;
   /** Solo relevante para el admin: sube la foto a la carpeta de esta inmobiliaria. */
   agencyId?: string;
+  /** La primera foto lleva la insignia "Portada", salvo que la propiedad use una portada viva. */
+  showCoverBadge?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -80,7 +83,7 @@ export function ImageUploader({
                   <X className="h-3.5 w-3.5" aria-hidden />
                 </IconButton>
               </div>
-              {i === 0 && (
+              {i === 0 && showCoverBadge && (
                 <span className="absolute bottom-1.5 left-1.5 rounded-pill bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white">
                   Portada
                 </span>

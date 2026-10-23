@@ -259,9 +259,11 @@ export async function verifyFileBytes(ref: AmbientRef, data: Uint8Array): Promis
 export type ValidatedFolder = {
   /** Manifest tal cual vino (ya validado); para guardar usar `sanitizeManifest`. */
   manifest: AmbientManifest;
+  /** Texto original de `experience.json`: se le manda al servidor, que lo valida de nuevo. */
+  manifestText: string;
   refs: AmbientRef[];
-  /** Los archivos a subir, ya leídos y verificados. */
-  files: { ref: AmbientRef; entry: FolderEntry; sha256: string }[];
+  /** Los archivos a subir, ya leídos y verificados (`data` son sus bytes, para no volver a leerlos al subir). */
+  files: { ref: AmbientRef; entry: FolderEntry; sha256: string; data: Uint8Array }[];
 };
 
 /**
@@ -291,7 +293,8 @@ export async function validateFolder(
   if (manifestEntry.size > AMBIENT_MANIFEST_MAX_BYTES) {
     throw new AmbientValidationError("bad-manifest", "El archivo experience.json es demasiado grande para ser de una portada viva.");
   }
-  const manifest = parseManifestText(new TextDecoder().decode(await manifestEntry.read()));
+  const manifestText = new TextDecoder().decode(await manifestEntry.read());
+  const manifest = parseManifestText(manifestText);
   const refs = referencedFiles(manifest);
 
   const dir = dirName(manifestEntry.path);
@@ -310,8 +313,9 @@ export async function validateFolder(
     if (entry.size !== ref.bytes) {
       throw new AmbientValidationError("bad-size", `La imagen ${ref.name} no coincide con la carpeta: puede estar incompleta o ser de otra portada.`);
     }
-    files.push({ ref, entry, sha256: await verifyFileBytes(ref, await entry.read()) });
+    const data = await entry.read();
+    files.push({ ref, entry, sha256: await verifyFileBytes(ref, data), data });
     onProgress?.(files.length, refs.length);
   }
-  return { manifest, refs, files };
+  return { manifest, manifestText, refs, files };
 }

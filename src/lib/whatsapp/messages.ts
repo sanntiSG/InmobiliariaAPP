@@ -49,6 +49,11 @@ export function providerRequestMessage(d: {
   ].join("\n");
 }
 
+/** Cartel de la portada viva — "No tengo la carpeta": pide el servicio al proveedor. */
+export function providerAmbientMessage(): string {
+  return `Hola! Quisiera una portada viva (la foto que cambia de día a noche, con lluvia y viento) para una de mis propiedades en ${brand.name}.`;
+}
+
 /** Aviso de inmobiliaria eliminada — "Contactar con el admin". */
 export function providerDeletedMessage(agencyName: string): string {
   return `Hola! Vi que se eliminó mi inmobiliaria "${clean(agencyName)}" en ${brand.name}. Quisiera saber qué pasó.`;

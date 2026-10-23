@@ -5,6 +5,7 @@ import { connectDB } from "@/lib/db/connect";
 import { Agency } from "@/lib/db/models/Agency";
 import { Property } from "@/lib/db/models/Property";
 import { PropertyForm, type PropertyFormValues } from "@/components/dashboard/PropertyForm";
+import type { AmbientManifest } from "@/vendor/ambient";
 
 export const metadata = { title: "Editar propiedad" };
 
@@ -27,6 +28,23 @@ export default async function EditPropertyPage({ params }: PageProps<"/dashboard
   }
 
   const [lng, lat] = doc.location.coordinates as [number, number];
+
+  // Portada viva ya guardada (si tiene): el formulario recibe la copia verificada que vive en la propiedad.
+  const stored = doc.media?.hasAmbientCover ? doc.media.ambient : null;
+  const ambient: PropertyFormValues["ambient"] =
+    stored?.coverId && stored.baseUrl && stored.manifest && stored.poster?.url
+      ? {
+          cover: {
+            coverId: stored.coverId,
+            baseUrl: stored.baseUrl,
+            manifest: stored.manifest as AmbientManifest,
+            poster: { url: stored.poster.url, width: stored.poster.width ?? undefined, height: stored.poster.height ?? undefined },
+          },
+          states: (stored.states ?? []).map(String),
+          start: stored.start ?? "auto",
+          fresh: false,
+        }
+      : null;
 
   const initialValues: PropertyFormValues = {
     agencyId: String(doc.agencyId),
@@ -57,6 +75,8 @@ export default async function EditPropertyPage({ params }: PageProps<"/dashboard
     floor: doc.features?.floor != null ? String(doc.features.floor) : "",
     orientation: doc.features?.orientation ?? "",
     amenities: (doc.amenities ?? []) as PropertyFormValues["amenities"],
+    coverMode: ambient ? "ambient" : "photo",
+    ambient,
     images: (doc.media?.images ?? []).map((img, i) => ({
       url: img.url,
       alt: img.alt ?? "",

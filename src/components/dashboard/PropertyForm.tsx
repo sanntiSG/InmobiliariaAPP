@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { FilterPill } from "@/components/ui/FilterPill";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ImageUploader, type UploadedImage } from "./ImageUploader";
+import { AmbientCoverField, toAmbientPayload, type AmbientFormState, type CoverMode } from "./AmbientCoverField";
 import { PropertyVideosField, type VideoFormRow } from "./PropertyVideosField";
 import { IconButton } from "@/components/ui/IconButton";
 import {
@@ -80,6 +81,10 @@ export type PropertyFormValues = {
   floor: string;
   orientation: string;
   amenities: Amenity[];
+  /** Qué es la portada: la primera foto o la portada viva (ver `AmbientCoverField`). */
+  coverMode: CoverMode;
+  /** Portada viva ya verificada por el servidor, o `null` si todavía no se subió ninguna. */
+  ambient: AmbientFormState | null;
   images: UploadedImage[];
   /** Videos de YouTube de la publicación (se muestran en la ficha, debajo de la descripción). */
   videos: VideoFormRow[];
@@ -129,6 +134,8 @@ export const emptyPropertyForm: PropertyFormValues = {
   floor: "",
   orientation: "",
   amenities: [],
+  coverMode: "photo",
+  ambient: null,
   images: [],
   videos: [],
   tours: [],
@@ -188,6 +195,7 @@ function toPayload(v: PropertyFormValues) {
       floorPlans: [],
       tours: buildToursPayload(v),
       virtualTour: v.virtualTour,
+      ambient: toAmbientPayload(v.coverMode, v.ambient),
     },
   };
 }
@@ -302,8 +310,15 @@ export function PropertyForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setSaving(true);
     setError(null);
+
+    // Eligió "Portada viva" pero todavía no subió la carpeta: se avisa en vez de guardar sin ella en silencio.
+    if (values.coverMode === "ambient" && !values.ambient) {
+      setError("Subí la carpeta de la portada viva o elegí «Foto tradicional» en la sección Portada.");
+      document.getElementById("portada")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    setSaving(true);
 
     const url = mode === "create" ? "/api/dashboard/properties" : `/api/dashboard/properties/${propertyId}`;
     const method = mode === "create" ? "POST" : "PATCH";
@@ -442,12 +457,23 @@ export function PropertyForm({
         </div>
       </section>
 
+      <AmbientCoverField
+        mode={values.coverMode}
+        onModeChange={(coverMode) => set("coverMode", coverMode)}
+        ambient={values.ambient}
+        onAmbientChange={(ambient) => set("ambient", ambient)}
+        agencyId={agencies ? values.agencyId : undefined}
+        title={values.title}
+      />
+
       <section className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
         <h2 className="font-display text-lg font-semibold text-text">Fotos</h2>
         <ImageUploader
           images={values.images}
           onChange={(images) => set("images", images)}
           agencyId={agencies ? values.agencyId : undefined}
+          // Con portada viva la imagen principal es la portada viva, no la primera foto.
+          showCoverBadge={!(values.coverMode === "ambient" && values.ambient)}
         />
       </section>
 

@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/Badge";
 import { PriceTag } from "@/components/property/PriceTag";
 import { PropertyFeatures } from "@/components/property/PropertyFeatures";
 import { TourBadge } from "@/components/property/TourBadge";
+import { AmbientBadge } from "@/components/property/AmbientBadge";
 import { AgencyAvatar } from "@/components/property/AgencyAvatar";
 import { OPERATION_LABELS } from "@/config/filters";
 import { cn } from "@/lib/utils/cn";
@@ -74,7 +75,12 @@ export function PropertyPopupCard({
             <X className="h-3.5 w-3.5" aria-hidden />
           </IconButton>
 
-          {property.tour3d && <TourBadge compact className="absolute bottom-2.5 left-2.5" />}
+          {(property.tour3d || property.ambient) && (
+            <div className="absolute bottom-2.5 left-2.5 flex gap-1.5">
+              {property.tour3d && <TourBadge compact />}
+              {property.ambient && <AmbientBadge compact />}
+            </div>
+          )}
 
           <IconButton
             size={30}

@@ -8,6 +8,7 @@ import { IconButton } from "@/components/ui/IconButton";
 import { PriceTag } from "./PriceTag";
 import { PropertyFeatures } from "./PropertyFeatures";
 import { TourBadge } from "./TourBadge";
+import { AmbientBadge } from "./AmbientBadge";
 import { OPERATION_LABELS } from "@/config/filters";
 import { cn } from "@/lib/utils/cn";
 import type { PropertyCardData } from "./types";
@@ -98,7 +99,12 @@ function PropertyCardImpl({
           />
         </IconButton>
 
-        {property.tour3d && <TourBadge className="absolute bottom-3 left-3" />}
+        {(property.tour3d || property.ambient) && (
+          <div className="absolute bottom-3 left-3 flex flex-wrap gap-1.5">
+            {property.tour3d && <TourBadge />}
+            {property.ambient && <AmbientBadge />}
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col gap-2 p-4">
