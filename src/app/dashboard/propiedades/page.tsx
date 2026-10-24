@@ -46,7 +46,7 @@ export default async function DashboardPropertiesPage({
           {access.isAdmin ? "Todas las propiedades" : "Mis propiedades"}{" "}
           <span className="text-text-muted">({properties.length})</span>
         </h1>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {access.isAdmin && agencies && (
             <AgencyFilterSelect
               agencies={agencies.map((a) => ({ id: String(a._id), name: a.name }))}

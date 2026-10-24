@@ -128,7 +128,7 @@ export default async function PropertyStatsPage({ params }: PageProps<"/dashboar
           </section>
 
           <div className="grid gap-4 lg:grid-cols-3">
-            <section data-reveal className="rounded-card bg-surface p-5 shadow-card lg:col-span-2">
+            <section data-reveal className="min-w-0 rounded-card bg-surface p-5 shadow-card lg:col-span-2">
               <div className="mb-3 flex items-baseline justify-between gap-3">
                 <h2 className="font-display text-lg font-semibold text-text">Visitas de los últimos 30 días</h2>
                 <span className="text-sm text-text-muted">{nf.format(insight.d30.views)} en total</span>
@@ -136,7 +136,7 @@ export default async function PropertyStatsPage({ params }: PageProps<"/dashboar
               <TrendChart points={series} label="Visitas por día" />
             </section>
 
-            <section data-reveal className="flex flex-col gap-5 rounded-card bg-surface p-5 shadow-card">
+            <section data-reveal className="min-w-0 flex flex-col gap-5 rounded-card bg-surface p-5 shadow-card">
               <h2 className="font-display text-lg font-semibold text-text">Conversión</h2>
               <Meter
                 label="Visitas → favoritos"
@@ -176,7 +176,7 @@ export default async function PropertyStatsPage({ params }: PageProps<"/dashboar
           </section>
 
           {tours.length > 0 && (
-            <section data-reveal className="rounded-card bg-surface p-5 shadow-card">
+            <section data-reveal className="min-w-0 rounded-card bg-surface p-5 shadow-card">
               <h2 className="font-display text-lg font-semibold text-text">Ambientes más visitados</h2>
               <p className="mb-4 text-sm text-text-muted">Fotos del recorrido 360° que más se miraron en los últimos 30 días.</p>
               <BarList items={sceneItems} emptyText="Todavía nadie recorrió el 360° de esta propiedad." />

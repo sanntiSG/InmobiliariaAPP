@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils/cn";
 
 /**
- * Encabezado de página con el lenguaje del hero en voz baja: eyebrow en pastilla, título de Bricolage
+ * Encabezado de página con el lenguaje del hero en voz baja: eyebrow en pastilla, título
  * liviano y bajada. Entra con un `rise` escalonado (CSS, sin JS: no parpadea al hidratar). Sirve en
  * componentes de servidor y de cliente.
  */

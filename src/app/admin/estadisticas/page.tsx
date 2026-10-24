@@ -85,7 +85,7 @@ export default async function AdminStatsPage() {
       </section>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <section data-reveal className="rounded-card bg-surface p-5 shadow-card lg:col-span-2">
+        <section data-reveal className="min-w-0 rounded-card bg-surface p-5 shadow-card lg:col-span-2">
           <div className="mb-3 flex items-baseline justify-between gap-3">
             <h2 className="font-display text-lg font-semibold text-text">Visitas de los últimos 30 días</h2>
             <span className="text-sm text-text-muted">{nf.format(intel.totals.d30.views)} en total</span>
@@ -93,7 +93,7 @@ export default async function AdminStatsPage() {
           <TrendChart points={series} label="Visitas por día en toda la plataforma" />
         </section>
 
-        <section data-reveal className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
+        <section data-reveal className="min-w-0 flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
           <h2 className="font-display text-lg font-semibold text-text">Requiere atención</h2>
           {intel.attention.length === 0 ? (
             <p className="flex items-start gap-2 rounded-media bg-success-soft p-4 text-sm text-text">
@@ -165,7 +165,7 @@ export default async function AdminStatsPage() {
       </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <section data-reveal className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
+        <section data-reveal className="flex min-w-0 flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
           <div>
             <h2 className="font-display text-lg font-semibold text-text">Propiedades con más interés</h2>
             <p className="text-sm text-text-muted">Visitas, favoritos y consultas de los últimos 30 días.</p>
@@ -182,7 +182,7 @@ export default async function AdminStatsPage() {
           />
         </section>
 
-        <section data-reveal className="flex flex-col gap-5 rounded-card bg-surface p-5 shadow-card">
+        <section data-reveal className="flex min-w-0 flex-col gap-5 rounded-card bg-surface p-5 shadow-card">
           <div>
             <h2 className="font-display text-lg font-semibold text-text">¿Qué está creciendo?</h2>
             <p className="text-sm text-text-muted">Esta semana contra la anterior.</p>

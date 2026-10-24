@@ -48,7 +48,7 @@
   top: 0;
   z-index: 39;
   height: var(--safe-top);
-  background: color-mix(in oklab, var(--bg) 88%, transparent);
+  background: color-mix(in oklab, var(--bg) 96%, transparent);
   pointer-events: none;
 }
 
@@ -256,10 +256,12 @@
   --shadow-float: var(--shadow-float);
   --shadow-pop: var(--shadow-pop);
 
-  /* Bricolage Grotesque para títulos y precios (con carácter, protagonista);
-     Manrope para UI/cuerpo (muy legible en tamaños chicos). Ver .impeccable.md */
-  --font-sans: var(--font-manrope);
-  --font-display: var(--font-bricolage);
+  /* Syne para la interfaz, los títulos y los precios; Instrument Serif (cursiva) como acento editorial y DM Mono
+     para etiquetas y cifras. Ver .impeccable.md */
+  --font-sans: var(--font-syne), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-syne), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-instrument), Georgia, serif;
+  --font-mono: var(--font-dm-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 * {
@@ -268,6 +270,9 @@
 
 html {
   color-scheme: light;
+  /* Instrument Serif y DM Mono no tienen todos los pesos: sin esto un `font-bold` descuidado dibujaría una negrita
+     falsa y borrosa. Syne es variable (400–800) y no la necesita. */
+  font-synthesis-weight: none;
 }
 html[data-theme="dark"] {
   color-scheme: dark;
@@ -531,9 +536,9 @@ body {
   border: 1px solid var(--border);
   background: var(--surface);
   box-shadow: var(--shadow-pop);
-  font-family: var(--font-manrope), system-ui, sans-serif;
+  font-family: var(--font-mono), ui-monospace, monospace;
   font-size: 0.6875rem;
-  font-weight: 700;
+  font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -550,8 +555,8 @@ body {
   display: flex;
   flex-direction: column;
   max-width: 100%;
-  font-family: var(--font-display, var(--font-bricolage));
-  font-weight: 380;
+  font-family: var(--font-display), system-ui, sans-serif;
+  font-weight: 400;
   font-size: clamp(2.25rem, 1rem + 3.9vw, 4.5rem);
   line-height: 0.98;
   letter-spacing: -0.04em;
@@ -575,7 +580,7 @@ body {
 .hero-sub {
   max-width: 34rem;
   margin-top: clamp(0.875rem, 2vh, 1.5rem);
-  font-family: var(--font-manrope), system-ui, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
   font-size: clamp(0.9375rem, 0.85rem + 0.4vw, 1.125rem);
   line-height: 1.55;
   color: var(--text-muted);
@@ -591,7 +596,7 @@ body {
   align-items: center;
   gap: 0.5rem 0.875rem;
   margin-top: clamp(1rem, 2.4vh, 1.5rem);
-  font-family: var(--font-manrope), system-ui, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
   font-size: 0.8125rem;
   color: var(--text-muted);
 }
@@ -772,7 +777,7 @@ body {
   border-radius: 1.5em;
   background: var(--surface);
   box-shadow: var(--shadow-layer);
-  font-family: var(--font-manrope), system-ui, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
   color: var(--text);
   transition:
     transform 220ms var(--ease-out),
@@ -893,7 +898,7 @@ body {
   gap: 1.25rem;
   padding: 0.875rem 0 0.875rem var(--hero-gutter);
   border-top: 1px solid var(--border);
-  font-family: var(--font-manrope), system-ui, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
   font-size: 0.875rem;
   color: var(--text-muted);
 }
@@ -991,7 +996,7 @@ body {
   position: relative;
   overflow: hidden;
   background: var(--bg);
-  font-family: var(--font-manrope), system-ui, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
 }
 .home-section {
   max-width: 1180px;
@@ -1004,7 +1009,7 @@ body {
 .home-title {
   max-width: 18em;
   margin-top: 1rem;
-  font-family: var(--font-display, var(--font-bricolage));
+  font-family: var(--font-display), system-ui, sans-serif;
   font-weight: 420;
   font-size: clamp(1.875rem, 1rem + 3.2vw, 3.5rem);
   line-height: 1.02;
@@ -1086,7 +1091,7 @@ body {
 .home-frame-copy h3,
 .home-card h3 {
   margin-top: 0.75rem;
-  font-family: var(--font-display, var(--font-bricolage));
+  font-family: var(--font-display), system-ui, sans-serif;
   font-size: 1.25rem;
   font-weight: 650;
   letter-spacing: -0.02em;
@@ -1152,7 +1157,7 @@ body {
   padding: 1.25rem 0;
 }
 .home-signal strong {
-  font-family: var(--font-display, var(--font-bricolage));
+  font-family: var(--font-display), system-ui, sans-serif;
   font-size: clamp(2.5rem, 2rem + 2vw, 3.75rem);
   font-weight: 500;
   letter-spacing: -0.04em;
@@ -1249,7 +1254,7 @@ body {
 }
 .home-closing-title {
   position: relative;
-  font-family: var(--font-display, var(--font-bricolage));
+  font-family: var(--font-display), system-ui, sans-serif;
   font-weight: 560;
   font-size: clamp(2.5rem, 1rem + 6vw, 5.5rem);
   line-height: 1;
@@ -1283,7 +1288,7 @@ body {
 
 /* ─────────────────────────────────────────────────────────────
    Resto del sitio — el lenguaje del hero, en voz baja: eyebrow en
-   pastilla, títulos de Bricolage liviano, apariciones cortas y
+   pastilla, títulos livianos en Syne, apariciones cortas y
    subrayado en la navegación. Sólo transform/opacity; el desenfoque
    queda para los títulos y sólo con puntero fino. Todo se apaga con
    prefers-reduced-motion. Ver Reveal / CountUp / PageHeader.
@@ -1348,7 +1353,7 @@ body {
   margin-bottom: 0.75rem;
 }
 .page-title {
-  font-family: var(--font-display, var(--font-bricolage));
+  font-family: var(--font-display), system-ui, sans-serif;
   font-weight: 560;
   font-size: clamp(1.625rem, 1.2rem + 1.6vw, 2.375rem);
   line-height: 1.04;
@@ -1431,7 +1436,7 @@ body {
 /* ─────────────────────────────────────────────────────────────
    Asesor — lanzador flotante y escenario a pantalla completa
    (AdvisorLauncher / AdvisorStage). Mismo lenguaje que el hero:
-   eyebrow en pill, Bricolage liviano, sombras en capas. Todo el
+   eyebrow en pill, Syne liviano, sombras en capas. Todo el
    movimiento es transform/opacity/clip-path; con movimiento
    reducido la regla global de abajo lo apaga.
    ───────────────────────────────────────────────────────────── */
@@ -1474,7 +1479,7 @@ body {
   border-radius: 999px;
   background: var(--surface);
   box-shadow: var(--shadow-pop);
-  font-family: var(--font-manrope), system-ui, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
   font-size: 0.8125rem;
   font-weight: 600;
   white-space: nowrap;
@@ -1749,7 +1754,7 @@ body {
   }
 }
 .advisor-name {
-  font-family: var(--font-display, var(--font-bricolage));
+  font-family: var(--font-display), system-ui, sans-serif;
   font-weight: 760;
   font-size: clamp(1.75rem, 1rem + 1.8vw, 2.5rem);
   letter-spacing: -0.04em;
@@ -1759,7 +1764,7 @@ body {
 .advisor-desc {
   max-width: 28rem;
   margin-top: 0.5rem;
-  font-family: var(--font-manrope), system-ui, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
   font-size: 0.9375rem;
   line-height: 1.5;
   color: var(--text-muted);
@@ -1811,10 +1816,10 @@ body {
   }
 }
 
-/* Texto principal de cada respuesta: Bricolage liviano como el titular del hero. */
+/* Texto principal de cada respuesta: Syne liviano como el titular del hero. */
 .advisor-lead {
   max-width: 40rem;
-  font-family: var(--font-display, var(--font-bricolage));
+  font-family: var(--font-display), system-ui, sans-serif;
   font-weight: 400;
   font-size: clamp(1.25rem, 1rem + 0.9vw, 1.75rem);
   line-height: 1.2;
@@ -1823,7 +1828,7 @@ body {
   color: var(--text);
 }
 .advisor-lead-past {
-  font-family: var(--font-manrope), system-ui, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
   font-weight: 500;
   font-size: 0.9375rem;
   line-height: 1.55;
@@ -1839,7 +1844,7 @@ body {
   padding: 0.5rem 0.9rem;
   border-radius: 1.25rem 1.25rem 0.35rem 1.25rem;
   background: var(--accent-soft);
-  font-family: var(--font-manrope), system-ui, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
   font-size: 0.9375rem;
   font-weight: 600;
   color: var(--accent);

@@ -20,7 +20,7 @@ export function DiagnosticCard({ diagnostic: d, compact = false }: { diagnostic:
   const { icon: Icon, label, tone } = KIND[d.kind];
 
   return (
-    <article className="flex gap-4 rounded-card bg-surface p-5 shadow-card">
+    <article className="flex min-w-0 gap-4 rounded-card bg-surface p-5 shadow-card">
       <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full", tone)}>
         <Icon className="h-5 w-5" aria-hidden />
       </span>

@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { cookies } from "next/headers";
-import { Bricolage_Grotesque, Manrope } from "next/font/google";
+import { Syne, Instrument_Serif, DM_Mono } from "next/font/google";
 import "./globals.css";
 import { brand } from "@/config/brand";
 import { THEME_COOKIE_NAME } from "@/config/site";
@@ -13,18 +13,33 @@ import { SessionProvider } from "@/components/providers/SessionProvider";
 import { AdvisorProvider } from "@/components/advisor/AdvisorProvider";
 import { getPublishedConfig, toPublicConfig } from "@/lib/advisor/config";
 
-// Bricolage Grotesque: títulos y precios — con carácter propio, no genérica.
-const bricolage = Bricolage_Grotesque({
-  variable: "--font-bricolage",
-  subsets: ["latin"],
+// Syne (variable, 400–800): UI, titulares y precios — geométrica y ancha, con carácter propio. `latin-ext` cubre
+// la ñ, las tildes y los signos de apertura (¿ ¡) del español.
+const syne = Syne({
+  variable: "--font-syne",
+  subsets: ["latin", "latin-ext"],
   display: "swap",
 });
 
-// Manrope: UI y cuerpo — muy legible en tamaños chicos (direcciones, chips).
-const manrope = Manrope({
-  variable: "--font-manrope",
-  subsets: ["latin"],
+// Instrument Serif (cursiva): sólo acento editorial — una palabra de un título, una cita. No tiene negrita: nunca
+// se combina con `font-bold` (`font-synthesis-weight: none` en globals.css evita la falsa).
+const instrumentSerif = Instrument_Serif({
+  variable: "--font-instrument",
+  weight: "400",
+  style: ["normal", "italic"],
+  subsets: ["latin", "latin-ext"],
   display: "swap",
+  preload: false,
+});
+
+// DM Mono: etiquetas en mayúsculas (eyebrows), metadatos y cifras. No se precarga: no está en la primera pantalla
+// de casi ninguna ruta y el texto se ve igual de legible con la de reserva mientras baja.
+const dmMono = DM_Mono({
+  variable: "--font-dm-mono",
+  weight: ["400", "500"],
+  subsets: ["latin", "latin-ext"],
+  display: "swap",
+  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -101,7 +116,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="es"
       data-theme={theme}
-      className={`${bricolage.variable} ${manrope.variable} h-full antialiased`}
+      className={`${syne.variable} ${instrumentSerif.variable} ${dmMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>
