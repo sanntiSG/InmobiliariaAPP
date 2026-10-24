@@ -196,7 +196,9 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
               </div>
 
               <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-text-muted">
-                <span>{formatCompactNumber(property.stats.views)} visualizaciones</span>
+                <span>
+                  <span className="font-mono">{formatCompactNumber(property.stats.views)}</span> visualizaciones
+                </span>
                 {property.stats.ratingCount > 0 && (
                   <span className="inline-flex items-center gap-1">
                     <Star className="h-3.5 w-3.5 text-warning" fill="currentColor" aria-hidden />

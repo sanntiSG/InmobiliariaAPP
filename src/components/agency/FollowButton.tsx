@@ -59,7 +59,7 @@ export function FollowButton({
         {following ? "Siguiendo" : "Seguir"}
       </Button>
       <span className="text-sm text-text-muted" aria-live="polite">
-        {followers} {followers === 1 ? "seguidor" : "seguidores"}
+        <span className="font-mono">{followers}</span> {followers === 1 ? "seguidor" : "seguidores"}
       </span>
     </div>
   );
