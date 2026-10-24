@@ -93,6 +93,12 @@
   --info: oklch(49% 0.14 255);
   --info-soft: color-mix(in oklab, var(--info) 12%, var(--surface));
 
+  /* Brillo de 1 px en el borde de arriba de superficies elevadas y botones "levantados". */
+  --highlight: rgb(255 255 255 / 0.7);
+  --shadow-btn: inset 0 1px 0 rgb(255 255 255 / 0.2), 0 1px 2px rgb(40 30 15 / 0.28);
+  /* Sombra del hover de las tarjetas (se dibuja en un ::after y sólo cambia su opacidad: no se anima box-shadow). */
+  --shadow-lift: 0 0 0 1px var(--border-hi), 0 6px 16px rgb(40 30 15 / 0.1), 0 22px 44px -14px rgb(40 30 15 / 0.24);
+
   --radius-card: 20px;
   --radius-media: 14px;
   --radius-pill: 12px;
@@ -154,6 +160,10 @@
     --info: oklch(71.4% 0.1434 255);
     --info-soft: color-mix(in oklab, var(--info) 14%, var(--surface));
 
+    --highlight: rgb(255 255 255 / 0.05);
+    --shadow-btn: inset 0 1px 0 rgb(255 255 255 / 0.35), 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-lift: 0 0 0 1px var(--border-hi), 0 6px 20px rgb(0 0 0 / 0.45), 0 26px 52px -14px rgb(0 0 0 / 0.65);
+
     --shadow-pop: 0 0 0 1px var(--border), inset 0 1px 0 rgb(255 255 255 / 0.05), 0 2px 8px rgb(0 0 0 / 0.35);
     --shadow-card:
       0 0 0 1px var(--border), inset 0 1px 0 rgb(255 255 255 / 0.05), 0 1px 2px rgb(0 0 0 / 0.3),
@@ -200,6 +210,10 @@
   --danger-contrast: oklch(16.8% 0.0045 264);
   --info: oklch(71.4% 0.1434 255);
   --info-soft: color-mix(in oklab, var(--info) 14%, var(--surface));
+
+  --highlight: rgb(255 255 255 / 0.05);
+  --shadow-btn: inset 0 1px 0 rgb(255 255 255 / 0.35), 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-lift: 0 0 0 1px var(--border-hi), 0 6px 20px rgb(0 0 0 / 0.45), 0 26px 52px -14px rgb(0 0 0 / 0.65);
 
   --shadow-pop: 0 0 0 1px var(--border), inset 0 1px 0 rgb(255 255 255 / 0.05), 0 2px 8px rgb(0 0 0 / 0.35);
   --shadow-card:
@@ -255,6 +269,8 @@
   --shadow-card: var(--shadow-card);
   --shadow-float: var(--shadow-float);
   --shadow-pop: var(--shadow-pop);
+  --shadow-btn: var(--shadow-btn);
+  --shadow-lift: var(--shadow-lift);
 
   /* Syne para la interfaz, los títulos y los precios; Instrument Serif (cursiva) como acento editorial y DM Mono
      para etiquetas y cifras. Ver .impeccable.md */
@@ -339,6 +355,89 @@ body {
 }
 .umbral-popup .maplibregl-popup-tip {
   display: none;
+}
+
+/* Tarjeta que se "levanta" al pasar el puntero. La sombra fuerte vive en un ::after y sólo cambia su opacidad
+   (animar box-shadow repinta en cada fotograma); la tarjeta sube 3 px con transform. Sólo con puntero fino: en
+   el celular un hover pegajoso tras el toque se ve roto. El contenedor no puede tener overflow: hidden (cortaría
+   la sombra): el recorte de las esquinas va en un hijo. */
+.lift {
+  position: relative;
+  transition: transform var(--t-base) var(--ease-out);
+}
+.lift::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: var(--shadow-lift);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--t-base) var(--ease-out);
+}
+.lift:active {
+  transform: scale(0.99);
+}
+@media (hover: hover) and (pointer: fine) {
+  .lift:hover,
+  .lift.is-lifted {
+    transform: translateY(-3px);
+  }
+  .lift:hover::after,
+  .lift.is-lifted::after {
+    opacity: 1;
+  }
+}
+.lift:focus-visible::after {
+  opacity: 1;
+}
+
+/* Navegación lateral del panel (escritorio): el ítem activo muestra un punto de acento que crece. El lugar del
+   punto está siempre reservado, así que el texto no se corre al cambiar de sección. En el celular (fila de
+   píldoras) no hay punto: alcanza con el fondo. */
+@media (min-width: 1024px) {
+  .nav-dot {
+    position: relative;
+    padding-left: 1.75rem;
+  }
+  .nav-dot::before {
+    content: "";
+    position: absolute;
+    left: 0.8125rem;
+    top: 50%;
+    width: 6px;
+    height: 6px;
+    margin-top: -3px;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0;
+    transform: scale(0.3);
+    transition:
+      transform var(--t-base) var(--ease-out),
+      opacity var(--t-base) var(--ease-out);
+  }
+  .nav-dot[aria-current="page"]::before {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Control segmentado (Segmented): una capa de acento del tamaño de toda la fila, recortada a la opción elegida.
+   Mover la ventana del clip-path desliza el indicador sin animar el tamaño ni la posición de ningún elemento. */
+.seg-indicator {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: var(--shadow-btn);
+  clip-path: inset(0 var(--seg-r, 100%) 0 var(--seg-l, 0px) round 999px);
+  transition: clip-path var(--t-base) var(--ease-out);
+  pointer-events: none;
+}
+/* Hasta que se mide la fila no se dibuja (así no nace desde un extremo). */
+.seg-track:not([data-ready]) .seg-indicator {
+  opacity: 0;
+  transition: none;
 }
 
 /* Fila que se desliza con degradé sólo en el borde que tiene más contenido (ver useScrollEdges). */
@@ -1303,18 +1402,6 @@ body {
     transform: none;
   }
 }
-@keyframes rise-in-blur {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 14px, 0);
-    filter: blur(8px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-    filter: blur(0);
-  }
-}
 /* `backwards`: durante el retraso ya se ve el estado inicial, y al terminar no queda nada fijo (no pisa el hover). */
 .rise,
 .rise-group > * {
@@ -1332,11 +1419,6 @@ body {
 }
 .rise-group > :nth-child(5) {
   --rise-i: 4.2;
-}
-@media (pointer: fine) {
-  .rise-group > .page-title {
-    animation-name: rise-in-blur;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
   .rise,

@@ -21,7 +21,7 @@ export const FilterPill = forwardRef<HTMLButtonElement, FilterPillProps>(
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
           active
             ? "bg-accent-soft border-accent/30 text-accent"
-            : "bg-surface border-border text-text hover:bg-surface-2",
+            : "bg-surface border-border-hi text-text hover:bg-surface-2",
           className
         )}
         {...props}

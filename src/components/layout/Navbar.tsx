@@ -43,5 +43,5 @@ export function Navbar({ variant = "default" }: { variant?: "default" | "immersi
   // conserva el header pegado arriba de siempre. Ver ScrollHeader.
   if (variant === "immersive") return <ScrollHeader>{bar}</ScrollHeader>;
 
-  return <header className="sticky top-0 z-40 border-b border-border bg-surface/80 backdrop-blur-md">{bar}</header>;
+  return <header className="sticky top-0 z-40 border-b border-border bg-surface/95">{bar}</header>;
 }

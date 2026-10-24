@@ -39,9 +39,8 @@ function PropertyCardImpl({
   return (
     <article
       className={cn(
-        "group bg-surface rounded-card shadow-card overflow-hidden cursor-pointer",
-        "transition-[transform,box-shadow] duration-200 [transition-timing-function:var(--ease-out)]",
-        "hover:-translate-y-1 hover:shadow-layer-hover",
+        // El contenedor no recorta (la sombra del hover vive en su ::after, ver .lift); el recorte va en el hijo.
+        "lift group rounded-card cursor-pointer",
         revealIndex != null && "rise",
         selected && "ring-2 ring-accent",
         className
@@ -60,7 +59,8 @@ function PropertyCardImpl({
         }
       }}
     >
-      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-t-card bg-surface-2">
+      <div className="overflow-hidden rounded-card bg-surface shadow-card">
+      <div className="relative aspect-[4/3] w-full overflow-hidden bg-surface-2">
         {property.image ? (
           <Image
             src={property.image}
@@ -119,6 +119,7 @@ function PropertyCardImpl({
             {property.reason}
           </p>
         )}
+      </div>
       </div>
     </article>
   );

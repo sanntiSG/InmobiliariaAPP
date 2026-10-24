@@ -31,8 +31,9 @@ export function DashboardNav({ isAdmin = false }: { isAdmin?: boolean }) {
           <Link
             key={link.href}
             href={link.href}
+            aria-current={active ? "page" : undefined}
             className={cn(
-              "shrink-0 rounded-pill px-4 py-2.5 text-sm font-medium transition-colors lg:rounded-media",
+              "nav-dot shrink-0 rounded-pill px-4 py-2.5 text-sm font-medium transition-colors lg:rounded-media",
               active ? "bg-accent-soft text-accent" : "text-text-muted hover:bg-surface-2 hover:text-text"
             )}
           >

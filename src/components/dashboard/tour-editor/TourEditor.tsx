@@ -285,7 +285,7 @@ export function TourEditor({
           )}
 
           <div className="absolute left-3 top-3 z-10 flex flex-wrap gap-2">
-            <span className="rounded-pill bg-surface/85 px-3.5 py-2.5 text-xs font-semibold text-text shadow-pop backdrop-blur">
+            <span className="rounded-pill bg-surface/92 px-3.5 py-2.5 text-xs font-semibold text-text shadow-pop">
               {sceneName(scene, sceneIndex)}
             </span>
             <button
@@ -298,10 +298,10 @@ export function TourEditor({
               }}
               aria-pressed={mode === "add"}
               className={cn(
-                "inline-flex min-h-11 items-center gap-1.5 rounded-pill px-4 text-xs font-medium shadow-pop backdrop-blur",
+                "inline-flex min-h-11 items-center gap-1.5 rounded-pill px-4 text-xs font-medium shadow-pop",
                 "transition-[transform,background-color] duration-150 [transition-timing-function:var(--ease-out)] active:scale-[0.97]",
                 "disabled:pointer-events-none disabled:opacity-50",
-                mode === "add" ? "bg-accent text-accent-contrast" : "bg-surface/85 text-text hover:bg-surface"
+                mode === "add" ? "bg-accent text-accent-contrast" : "bg-surface/92 text-text hover:bg-surface"
               )}
             >
               {mode === "add" ? <X className="h-3.5 w-3.5" aria-hidden /> : <Plus className="h-3.5 w-3.5" aria-hidden />}
@@ -312,7 +312,7 @@ export function TourEditor({
           {(mode === "add" || mode === "relocate") && !draft && (
             <div
               role="status"
-              className="pointer-events-none absolute inset-x-0 bottom-3 z-10 mx-auto flex w-fit max-w-[90%] items-center gap-1.5 rounded-pill bg-surface/90 px-3.5 py-2 text-xs font-medium text-text shadow-pop backdrop-blur"
+              className="pointer-events-none absolute inset-x-0 bottom-3 z-10 mx-auto flex w-fit max-w-[90%] items-center gap-1.5 rounded-pill bg-surface/92 px-3.5 py-2 text-xs font-medium text-text shadow-pop"
             >
               <Crosshair className="h-3.5 w-3.5 text-accent" aria-hidden />
               {mode === "add" ? "Tocá en la foto donde va el marcador" : "Tocá la nueva posición del marcador"}

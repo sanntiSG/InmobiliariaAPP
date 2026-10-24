@@ -177,7 +177,7 @@ function Lightbox({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[60] flex flex-col bg-black/90 backdrop-blur-sm"
+      className="fixed inset-0 z-[60] flex flex-col bg-black/92"
       role="dialog"
       aria-modal="true"
       aria-label="Galería de fotos"
@@ -223,7 +223,7 @@ function NavButton({ direction, disabled, onClick }: { direction: "prev" | "next
       disabled={disabled}
       aria-label={direction === "prev" ? "Foto anterior" : "Foto siguiente"}
       className={cn(
-        "absolute top-1/2 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-sm hover:bg-white/20",
+        "absolute top-1/2 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20",
         "transition-[transform,background-color,opacity] duration-150 active:scale-95 disabled:pointer-events-none disabled:opacity-30",
         direction === "prev" ? "left-2 sm:left-6" : "right-2 sm:right-6"
       )}

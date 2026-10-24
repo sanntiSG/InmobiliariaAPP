@@ -35,9 +35,9 @@ export function StatTile({
 
   return (
     <div data-reveal className="flex flex-col rounded-card bg-surface p-5 shadow-card">
-      <p className="text-sm text-text-muted">{label}</p>
-      <div className="mt-1.5 flex items-end justify-between gap-3">
-        <p className="font-display text-3xl font-semibold text-text">
+      <p className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-text-subtle">{label}</p>
+      <div className="mt-2 flex items-end justify-between gap-3">
+        <p className="font-mono text-3xl font-medium tracking-tight text-text">
           <CountUp value={metric.current} format={format} />
         </p>
         {trend && <Sparkline values={trend} className="mb-1 h-7 w-24 shrink-0" />}

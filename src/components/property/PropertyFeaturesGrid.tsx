@@ -1,4 +1,5 @@
 import { formatArea } from "@/lib/utils/format";
+import { cn } from "@/lib/utils/cn";
 import type { PropertyDetail } from "./types";
 
 export function PropertyFeaturesGrid({ features }: { features: PropertyDetail["features"] }) {
@@ -16,12 +17,20 @@ export function PropertyFeaturesGrid({ features }: { features: PropertyDetail["f
 
   if (items.length === 0) return null;
 
+  // Mosaico de 1 px: el color del grupo se ve sólo en las juntas. Para que no queden celdas vacías (que dejarían un
+  // hueco del color de las juntas), la última se estira lo que haga falta en cada cantidad de columnas.
+  const n = items.length;
+  const lastSpan = cn(
+    n % 2 === 1 && "col-span-2",
+    n % 3 === 1 ? "sm:col-span-3" : n % 3 === 2 ? "sm:col-span-2" : n % 2 === 1 ? "sm:col-span-1" : ""
+  );
+
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-      {items.map((item) => (
-        <div key={item.label} className="rounded-media bg-surface-2 p-3.5">
-          <p className="text-xs text-text-muted">{item.label}</p>
-          <p className="mt-0.5 font-display text-base font-semibold tabular-nums text-text">{item.value}</p>
+    <div className="grid grid-cols-2 gap-px overflow-hidden rounded-media bg-border-hi shadow-[0_0_0_1px_var(--border-hi)] sm:grid-cols-3">
+      {items.map((item, i) => (
+        <div key={item.label} className={cn("bg-surface p-3.5", i === n - 1 && lastSpan)}>
+          <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-text-subtle">{item.label}</p>
+          <p className="mt-1 font-mono text-base font-medium text-text">{item.value}</p>
         </div>
       ))}
     </div>

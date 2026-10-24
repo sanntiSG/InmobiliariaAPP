@@ -4,7 +4,7 @@ import { useState } from "react";
 import dynamicImport from "next/dynamic";
 import { Orbit, Route } from "lucide-react";
 import { AmbientIcon } from "@/components/icons/AmbientIcon";
-import { useScrollEdges } from "@/components/ui/useScrollEdges";
+import { Segmented, type SegmentedItem } from "@/components/ui/Segmented";
 import { Gallery } from "./Gallery";
 import { AmbientCoverLazy } from "./AmbientCoverLazy";
 import { cn } from "@/lib/utils/cn";
@@ -84,7 +84,6 @@ export function PropertyMedia({
     if (trackingEnabled) track({ propertyId, event: "tour_scene", sceneId });
   }
 
-  const [barRef, barEdges] = useScrollEdges<HTMLDivElement>();
   const active = tours[selectedIndex];
   const hasVirtualTour = virtualTour.enabled && tours.length > 1 && tours.some((t) => t.links.length > 0);
 
@@ -96,46 +95,66 @@ export function PropertyMedia({
   const showPhotosTab = !ambient || images.length > 0;
   const tabCount = [!!ambient, showPhotosTab, hasTours, hasVirtualTour].filter(Boolean).length;
 
+  // En pantallas chicas las etiquetas se acortan ("Portada", "360°", "Recorrido"); `label` conserva el nombre completo.
+  const tabItems: SegmentedItem<Tab>[] = [];
+  if (ambient) {
+    tabItems.push({
+      id: "ambient",
+      label: "Portada viva",
+      content: (
+        <>
+          <AmbientIcon className="h-3.5 w-3.5 shrink-0" />
+          <span>
+            Portada<span className="max-sm:hidden"> viva</span>
+          </span>
+        </>
+      ),
+    });
+  }
+  if (showPhotosTab) {
+    tabItems.push({
+      id: "fotos",
+      content: (
+        <>
+          <span>Fotos</span>
+          {images.length > 0 && <span className="tabular-nums opacity-70">{images.length}</span>}
+        </>
+      ),
+    });
+  }
+  if (hasTours) {
+    tabItems.push({
+      id: "vista360",
+      label: "Vista 360°",
+      content: (
+        <>
+          <Orbit className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span>
+            <span className="max-sm:hidden">Vista </span>360°
+          </span>
+        </>
+      ),
+    });
+  }
+  if (hasVirtualTour) {
+    tabItems.push({
+      id: "recorrido360",
+      label: "Recorrido 360°",
+      content: (
+        <>
+          <Route className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span>
+            Recorrido<span className="max-sm:hidden"> 360°</span>
+          </span>
+        </>
+      ),
+    });
+  }
+
   return (
     <div>
       <div className={cn("mb-3 flex-wrap items-center gap-2", tabCount > 1 ? "flex" : "hidden")}>
-        <div
-          ref={barRef}
-          data-edge-start={barEdges.start || undefined}
-          data-edge-end={barEdges.end || undefined}
-          className="scroll-fade-x inline-flex min-w-0 max-w-full overflow-x-auto rounded-pill bg-surface-2 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        >
-          {ambient && (
-            <TabButton label="Portada viva" active={tab === "ambient"} onClick={() => setTab("ambient")}>
-              <AmbientIcon className="h-3.5 w-3.5 shrink-0" />
-              <span>
-                Portada<span className="max-sm:hidden"> viva</span>
-              </span>
-            </TabButton>
-          )}
-          {showPhotosTab && (
-            <TabButton active={tab === "fotos"} onClick={() => setTab("fotos")}>
-              <span>Fotos</span>
-              {images.length > 0 && <span className="tabular-nums opacity-70">{images.length}</span>}
-            </TabButton>
-          )}
-          {hasTours && (
-            <TabButton label="Vista 360°" active={tab === "vista360"} onClick={() => setTab("vista360")}>
-              <Orbit className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              <span>
-                <span className="max-sm:hidden">Vista </span>360°
-              </span>
-            </TabButton>
-          )}
-          {hasVirtualTour && (
-            <TabButton label="Recorrido 360°" active={tab === "recorrido360"} onClick={() => setTab("recorrido360")}>
-              <Route className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              <span>
-                Recorrido<span className="max-sm:hidden"> 360°</span>
-              </span>
-            </TabButton>
-          )}
-        </div>
+        <Segmented items={tabItems} value={tab} onChange={setTab} />
 
         {tab === "vista360" && tours.length > 1 && (
           <div className="inline-flex flex-wrap gap-1.5">
@@ -186,32 +205,3 @@ export function PropertyMedia({
   );
 }
 
-function TabButton({
-  active,
-  onClick,
-  label,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  /** Nombre completo para lectores de pantalla cuando, en pantallas chicas, el texto visible se acorta. */
-  label?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      aria-label={label}
-      className={cn(
-        // Nunca se parte en dos líneas ni se encoge: si no entran todas, la barra se desliza.
-        "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill px-3 py-2 text-sm font-medium sm:px-4",
-        "transition-colors duration-150",
-        active ? "bg-accent text-accent-contrast" : "text-text-muted hover:text-text"
-      )}
-    >
-      {children}
-    </button>
-  );
-}

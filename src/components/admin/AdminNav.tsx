@@ -24,8 +24,9 @@ export function AdminNav({ pendingRequests = 0 }: { pendingRequests?: number }) 
           <Link
             key={link.href}
             href={link.href}
+            aria-current={active ? "page" : undefined}
             className={cn(
-              "flex shrink-0 items-center justify-between gap-2 rounded-pill px-4 py-2.5 text-sm font-medium transition-colors lg:rounded-media",
+              "nav-dot flex shrink-0 items-center justify-between gap-2 rounded-pill px-4 py-2.5 text-sm font-medium transition-colors lg:rounded-media",
               active ? "bg-accent-soft text-accent" : "text-text-muted hover:bg-surface-2 hover:text-text"
             )}
           >

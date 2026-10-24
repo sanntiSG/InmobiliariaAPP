@@ -3,10 +3,10 @@ import { cn } from "@/lib/utils/cn";
 
 const VARIANTS = {
   /** Sobre imagen: chip oscuro translúcido, alto contraste sobre cualquier foto. */
-  overlay: "bg-black/55 text-white backdrop-blur-sm",
+  overlay: "bg-black/60 text-white",
   accent: "bg-accent text-accent-contrast",
-  success: "bg-success text-accent-contrast",
-  neutral: "bg-surface-2 text-text-muted",
+  success: "bg-success-soft text-success",
+  neutral: "bg-surface-3 text-text-muted",
   soft: "bg-accent-soft text-accent",
 } as const;
 

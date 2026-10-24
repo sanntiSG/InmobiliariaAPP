@@ -235,14 +235,14 @@ export default function MapaClient({ agency, panelLink = null }: { agency: MapAg
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           {/* En mobile el logo y el atajo al panel comparten fila; desde `sm` el wrapper desaparece (contents). */}
           <div className="flex items-center justify-between gap-2 sm:contents">
-            <div className="pointer-events-auto flex shrink-0 items-center gap-2 rounded-pill bg-surface/90 px-3.5 py-2.5 shadow-pop backdrop-blur-md">
+            <div className="pointer-events-auto flex shrink-0 items-center gap-2 rounded-pill bg-surface/95 px-3.5 py-2.5 shadow-pop">
               <Logo href="/" />
             </div>
             {panelLink && (
               <PanelLinkButton
                 link={panelLink}
                 iconOnly
-                className="pointer-events-auto bg-surface/90 shadow-pop backdrop-blur-md sm:hidden"
+                className="pointer-events-auto bg-surface/95 shadow-pop sm:hidden"
               />
             )}
           </div>
@@ -256,7 +256,7 @@ export default function MapaClient({ agency, panelLink = null }: { agency: MapAg
               }
             />
           </div>
-          <div className="pointer-events-auto hidden shrink-0 items-center gap-2 rounded-pill bg-surface/90 p-1 shadow-pop backdrop-blur-md sm:flex">
+          <div className="pointer-events-auto hidden shrink-0 items-center gap-2 rounded-pill bg-surface/95 p-1 shadow-pop sm:flex">
             {panelLink && <PanelLinkButton link={panelLink} />}
             <div className="pl-1.5">
               <UserMenu compact hidePanel />

@@ -1,11 +1,13 @@
 import { type ButtonHTMLAttributes, forwardRef } from "react";
 import { cn } from "@/lib/utils/cn";
 
+// Primario: acento "levantado" (brillo arriba + sombra corta). Secundario: superficie con anillo fino. Fantasma: sin
+// nada hasta el hover, cuando aparece el borde. Todos con borde de 1 px para que no cambie la medida al pasar el puntero.
 const VARIANTS = {
-  primary: "bg-accent text-accent-contrast hover:bg-accent-hover",
-  secondary: "bg-surface text-text border border-border hover:bg-surface-2",
-  ghost: "bg-transparent text-text hover:bg-surface-2",
-  danger: "bg-danger text-danger-contrast hover:brightness-95",
+  primary: "border border-transparent bg-accent text-accent-contrast shadow-btn hover:bg-accent-hover",
+  secondary: "border border-border-hi bg-surface-2 text-text shadow-[inset_0_1px_0_var(--highlight)] hover:bg-surface-3",
+  ghost: "border border-transparent bg-transparent text-text hover:border-border hover:bg-surface-2",
+  danger: "border border-transparent bg-danger text-danger-contrast hover:brightness-95",
 } as const;
 
 const SIZES = {
@@ -25,7 +27,7 @@ export type ButtonSize = keyof typeof SIZES;
 export function buttonClasses(variant: ButtonVariant = "primary", size: ButtonSize = "md", className?: string) {
   return cn(
     "inline-flex items-center justify-center rounded-pill font-medium",
-    "transition-[transform,background-color,box-shadow] duration-150 [transition-timing-function:var(--ease-out)]",
+    "transition-[transform,background-color,border-color,box-shadow] duration-150 [transition-timing-function:var(--ease-out)]",
     "active:scale-[0.97]",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-bg",
     "disabled:opacity-50 disabled:pointer-events-none",

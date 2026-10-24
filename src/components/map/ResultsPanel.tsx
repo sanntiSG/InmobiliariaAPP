@@ -87,7 +87,7 @@ export function ResultsPanel({
           onSelect={onSelect}
           onHoverChange={onHoverChange}
           priority={i < 4}
-          className={hoveredId === p.id ? "-translate-y-0.5 shadow-float" : undefined}
+          className={hoveredId === p.id ? "is-lifted" : undefined}
         />
       ))}
       {truncatedCount > 0 && (
