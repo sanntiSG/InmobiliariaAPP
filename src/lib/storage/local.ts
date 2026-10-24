@@ -57,20 +57,19 @@ function folderUrl(folder: string): string {
   return `/uploads/${folder}/`;
 }
 
+// Las rutas se arman inline con `UPLOADS_DIR` (constante) como raíz: así Turbopack las acota a `public/uploads` en vez de
+// empaquetar todo el proyecto en la ruta que las usa. `folderDir` sólo valida (carpeta y nombre ya pasaron sus regex).
 async function putFolderFile({ folder, fileName, buffer }: { folder: string; fileName: string; buffer: Buffer }): Promise<void> {
-  const dir = folderDir(folder);
-  if (!dir || !isSafeFolderFileName(fileName)) throw new Error("Ruta inválida");
-  await mkdir(dir, { recursive: true });
-  await writeFile(path.join(dir, fileName), buffer);
+  if (!folderDir(folder) || !isSafeFolderFileName(fileName)) throw new Error("Ruta inválida");
+  await mkdir(path.join(UPLOADS_DIR, folder), { recursive: true });
+  await writeFile(path.join(UPLOADS_DIR, folder, fileName), buffer);
 }
 
 async function readFolderFile(folder: string, fileName: string, maxBytes: number): Promise<Buffer | null> {
-  const dir = folderDir(folder);
-  if (!dir || !isSafeFolderFileName(fileName)) return null;
+  if (!folderDir(folder) || !isSafeFolderFileName(fileName)) return null;
   try {
-    const file = path.join(dir, fileName);
-    if ((await stat(file)).size > maxBytes) throw new Error("Archivo demasiado grande");
-    return await readFile(file);
+    if ((await stat(path.join(UPLOADS_DIR, folder, fileName))).size > maxBytes) throw new Error("Archivo demasiado grande");
+    return await readFile(path.join(UPLOADS_DIR, folder, fileName));
   } catch (err) {
     if (err instanceof Error && err.message === "Archivo demasiado grande") throw err;
     return null;
