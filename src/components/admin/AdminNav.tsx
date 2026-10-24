@@ -32,7 +32,7 @@ export function AdminNav({ pendingRequests = 0 }: { pendingRequests?: number }) 
             {link.label}
             {link.badge && pendingRequests > 0 && (
               <span
-                className="flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-bold text-white"
+                className="flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-bold text-danger-contrast"
                 aria-label={`${pendingRequests} pendientes`}
               >
                 {pendingRequests > 9 ? "9+" : pendingRequests}

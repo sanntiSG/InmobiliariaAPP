@@ -4,6 +4,6 @@
  * comparten `layout.tsx` (lo escribe en el HTML) y `ThemeColorSync` (lo corrige al cambiar el tema a mano).
  */
 export const THEME_COLORS = {
-  light: "#f2f4f7",
-  dark: "#0b0d12",
+  light: "#f6f3ed",
+  dark: "#0e0f11",
 } as const;

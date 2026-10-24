@@ -53,128 +53,167 @@
 }
 
 /* ─────────────────────────────────────────────────────────────
-   Design tokens — derivados del análisis de /UIreference:
-   fondos casi blancos, cards blancas puras, sombras muy suaves,
-   acento azul usado con moderación, radios grandes y consistentes.
-   En OKLCH para que los pasos de luminosidad se vean parejos y los
-   neutros queden sutilmente teñidos hacia el hue del acento (259°),
-   en vez de grises puros que no pertenecen a ninguna paleta.
-   Definidos una sola vez en :root y redefinidos bajo tema oscuro.
+   Design tokens — identidad "Strata" (referencia visual: index2.html).
+   Oscuro: rampa de grises casi neutros con un matiz azul-frío apenas perceptible, bordes finos en alfa y acento
+   arena. Claro: la misma identidad como "papel cálido" (neutros teñidos hacia el tostado del acento).
+   En OKLCH para que los pasos de luminosidad se vean parejos. Contraste verificado con script (texto ≥ 4,5:1,
+   controles ≥ 3:1): `--text-subtle` es el último nivel de texto legible, nunca se baja más para leer.
+   Definidos una sola vez en :root (claro) y redefinidos bajo tema oscuro (preferencia del SO o botón).
+   Las superficies suben de nivel con --surface → --surface-2 → --surface-3; --surface-sunken es el fondo
+   "hundido" de los campos de texto.
    ───────────────────────────────────────────────────────────── */
 :root {
-  --bg: oklch(96.6% 0.0045 258);
-  --surface: oklch(100% 0 0);
-  --surface-2: oklch(97.6% 0.0029 264);
-  --text: oklch(20.8% 0.0153 262);
-  --text-muted: oklch(55.1% 0.0234 264);
-  --border: oklch(93.1% 0.0058 264);
+  --bg: oklch(96.4% 0.0085 85);
+  --surface: oklch(98.9% 0.0045 85);
+  --surface-2: oklch(93.9% 0.0105 84);
+  --surface-3: oklch(91.2% 0.0125 83);
+  --surface-sunken: oklch(95.2% 0.009 85);
 
-  --accent: oklch(61.9% 0.2067 259);
-  --accent-hover: oklch(56.3% 0.2125 260);
-  --accent-soft: oklch(95.9% 0.0195 260);
-  --accent-contrast: oklch(100% 0 0);
+  --text: oklch(21% 0.012 70);
+  --text-muted: oklch(44.5% 0.016 72);
+  --text-subtle: oklch(50.5% 0.014 72);
 
-  --success: oklch(62.7% 0.1699 149);
-  --success-soft: oklch(96.5% 0.0214 159);
-  --warning: oklch(66.6% 0.1574 58);
-  --warning-soft: oklch(96.8% 0.0254 79);
-  --danger: oklch(58.6% 0.222 17.5);
-  --danger-soft: oklch(95.7% 0.0188 5);
+  /* Bordes en alfa de tinta cálida: se adaptan a cualquier superficie. */
+  --border: rgb(40 30 15 / 0.09);
+  --border-hi: rgb(40 30 15 / 0.14);
+  --border-act: rgb(40 30 15 / 0.26);
+
+  --accent: oklch(48.5% 0.072 72);
+  --accent-hover: oklch(42.5% 0.068 70);
+  --accent-soft: color-mix(in oklab, var(--accent) 12%, var(--surface));
+  --accent-contrast: oklch(98.9% 0.0045 85);
+
+  --success: oklch(47.5% 0.12 152);
+  --success-soft: color-mix(in oklab, var(--success) 12%, var(--surface));
+  --warning: oklch(50% 0.115 68);
+  --warning-soft: color-mix(in oklab, var(--warning) 12%, var(--surface));
+  --danger: oklch(50.5% 0.18 25);
+  --danger-soft: color-mix(in oklab, var(--danger) 12%, var(--surface));
+  --danger-contrast: oklch(98.9% 0.0045 85);
+  --info: oklch(49% 0.14 255);
+  --info-soft: color-mix(in oklab, var(--info) 12%, var(--surface));
 
   --radius-card: 20px;
   --radius-media: 14px;
   --radius-pill: 12px;
   --radius-sm: 8px;
 
-  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px -8px rgba(16, 24, 40, 0.1);
-  --shadow-float: 0 4px 12px rgba(16, 24, 40, 0.08), 0 16px 40px -12px rgba(16, 24, 40, 0.18);
-  --shadow-pop: 0 2px 6px rgba(16, 24, 40, 0.06);
+  /* Sombras con borde de luz (anillo de 1 px + brillo interior arriba) y caída cálida. */
+  --shadow-pop: 0 0 0 1px var(--border), inset 0 1px 0 rgb(255 255 255 / 0.8), 0 2px 6px rgb(40 30 15 / 0.08);
+  --shadow-card:
+    0 0 0 1px var(--border), inset 0 1px 0 rgb(255 255 255 / 0.8), 0 1px 2px rgb(40 30 15 / 0.05),
+    0 8px 24px -8px rgb(40 30 15 / 0.12);
+  --shadow-float:
+    0 0 0 1px var(--border-hi), inset 0 1px 0 rgb(255 255 255 / 0.9), 0 4px 12px rgb(40 30 15 / 0.08),
+    0 16px 40px -12px rgb(40 30 15 / 0.2);
+  /* Sombras en capas (las del hero) disponibles en todo el sitio. */
+  --shadow-layer:
+    inset 0 1px 0 rgb(255 255 255 / 0.9), 0 0 0 1px rgb(40 30 15 / 0.06), 0 1px 2px rgb(40 30 15 / 0.06),
+    0 14px 26px -14px rgb(40 30 15 / 0.2), 0 34px 56px -26px rgb(40 30 15 / 0.24);
+  --shadow-layer-hover:
+    inset 0 1px 0 rgb(255 255 255 / 0.95), 0 0 0 1px color-mix(in oklab, var(--accent) 30%, transparent),
+    0 2px 4px rgb(40 30 15 / 0.06), 0 22px 36px -16px rgb(40 30 15 / 0.26), 0 44px 70px -28px rgb(40 30 15 / 0.3);
 
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  /* Movimiento: salida exponencial (decidida, sin rebote) y tres duraciones. */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --t-fast: 120ms;
+  --t-base: 220ms;
+  --t-slow: 400ms;
 }
 
 /* Tema oscuro: automático por preferencia del SO... */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: oklch(15.9% 0.0111 268);
-    --surface: oklch(20.1% 0.0124 271);
-    --surface-2: oklch(23.1% 0.0143 267);
-    --text: oklch(96.6% 0.0045 258);
-    --text-muted: oklch(70.7% 0.0192 261);
-    --border: oklch(28.5% 0.0175 266);
+    --bg: oklch(16.8% 0.0045 264);
+    --surface: oklch(20.2% 0.0068 262);
+    --surface-2: oklch(23.4% 0.0085 264);
+    --surface-3: oklch(26.6% 0.0115 264);
+    --surface-sunken: oklch(14.6% 0.004 264);
 
-    --accent: oklch(66.9% 0.1757 260);
-    --accent-hover: oklch(71.1% 0.1506 261);
-    --accent-soft: oklch(25.9% 0.0524 263);
-    --accent-contrast: oklch(15.9% 0.0111 268);
+    --text: oklch(95.6% 0.0027 286);
+    --text-muted: oklch(71% 0.013 268);
+    --text-subtle: oklch(64% 0.013 268);
 
-    --success: oklch(75.7% 0.1847 151);
-    --success-soft: oklch(29% 0.0514 159);
-    --warning: oklch(77.9% 0.1453 72);
-    --warning-soft: oklch(29.7% 0.0462 77);
-    --danger: oklch(68.1% 0.2039 11);
-    --danger-soft: oklch(25.5% 0.0618 3);
+    --border: rgb(255 255 255 / 0.06);
+    --border-hi: rgb(255 255 255 / 0.1);
+    --border-act: rgb(255 255 255 / 0.2);
 
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -8px rgba(0, 0, 0, 0.5);
-    --shadow-float: 0 4px 16px rgba(0, 0, 0, 0.4), 0 20px 48px -12px rgba(0, 0, 0, 0.6);
-    --shadow-pop: 0 2px 8px rgba(0, 0, 0, 0.35);
+    --accent: oklch(82.8% 0.0414 83);
+    --accent-hover: oklch(89.9% 0.0298 81);
+    --accent-soft: color-mix(in oklab, var(--accent) 14%, var(--surface));
+    --accent-contrast: oklch(16.8% 0.0045 264);
+
+    --success: oklch(80% 0.17 152);
+    --success-soft: color-mix(in oklab, var(--success) 14%, var(--surface));
+    --warning: oklch(83.7% 0.15 84);
+    --warning-soft: color-mix(in oklab, var(--warning) 14%, var(--surface));
+    --danger: oklch(72.5% 0.16 22);
+    --danger-soft: color-mix(in oklab, var(--danger) 14%, var(--surface));
+    --danger-contrast: oklch(16.8% 0.0045 264);
+    --info: oklch(71.4% 0.1434 255);
+    --info-soft: color-mix(in oklab, var(--info) 14%, var(--surface));
+
+    --shadow-pop: 0 0 0 1px var(--border), inset 0 1px 0 rgb(255 255 255 / 0.05), 0 2px 8px rgb(0 0 0 / 0.35);
+    --shadow-card:
+      0 0 0 1px var(--border), inset 0 1px 0 rgb(255 255 255 / 0.05), 0 1px 2px rgb(0 0 0 / 0.3),
+      0 8px 24px -8px rgb(0 0 0 / 0.5);
+    --shadow-float:
+      0 0 0 1px var(--border-hi), inset 0 1px 0 rgb(255 255 255 / 0.07), 0 4px 16px rgb(0 0 0 / 0.4),
+      0 20px 48px -12px rgb(0 0 0 / 0.6);
+    --shadow-layer:
+      inset 0 1px 0 rgb(255 255 255 / 0.08), 0 0 0 1px rgb(255 255 255 / 0.07), 0 1px 2px rgb(0 0 0 / 0.5),
+      0 16px 28px -14px rgb(0 0 0 / 0.7), 0 36px 60px -26px rgb(0 0 0 / 0.75);
+    --shadow-layer-hover:
+      inset 0 1px 0 rgb(255 255 255 / 0.14), 0 0 0 1px color-mix(in oklab, var(--accent) 34%, transparent),
+      0 2px 4px rgb(0 0 0 / 0.5), 0 24px 40px -16px rgb(0 0 0 / 0.8), 0 46px 72px -28px rgb(0 0 0 / 0.85);
   }
 }
 
 /* ...o explícito vía el toggle (gana en ambas direcciones). */
 :root[data-theme="dark"] {
-  --bg: oklch(15.9% 0.0111 268);
-  --surface: oklch(20.1% 0.0124 271);
-  --surface-2: oklch(23.1% 0.0143 267);
-  --text: oklch(96.6% 0.0045 258);
-  --text-muted: oklch(70.7% 0.0192 261);
-  --border: oklch(28.5% 0.0175 266);
+  --bg: oklch(16.8% 0.0045 264);
+  --surface: oklch(20.2% 0.0068 262);
+  --surface-2: oklch(23.4% 0.0085 264);
+  --surface-3: oklch(26.6% 0.0115 264);
+  --surface-sunken: oklch(14.6% 0.004 264);
 
-  --accent: oklch(66.9% 0.1757 260);
-  --accent-hover: oklch(71.1% 0.1506 261);
-  --accent-soft: oklch(25.9% 0.0524 263);
-  --accent-contrast: oklch(15.9% 0.0111 268);
+  --text: oklch(95.6% 0.0027 286);
+  --text-muted: oklch(71% 0.013 268);
+  --text-subtle: oklch(64% 0.013 268);
 
-  --success: oklch(75.7% 0.1847 151);
-  --success-soft: oklch(29% 0.0514 159);
-  --warning: oklch(77.9% 0.1453 72);
-  --warning-soft: oklch(29.7% 0.0462 77);
-  --danger: oklch(68.1% 0.2039 11);
-  --danger-soft: oklch(25.5% 0.0618 3);
+  --border: rgb(255 255 255 / 0.06);
+  --border-hi: rgb(255 255 255 / 0.1);
+  --border-act: rgb(255 255 255 / 0.2);
 
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -8px rgba(0, 0, 0, 0.5);
-  --shadow-float: 0 4px 16px rgba(0, 0, 0, 0.4), 0 20px 48px -12px rgba(0, 0, 0, 0.6);
-  --shadow-pop: 0 2px 8px rgba(0, 0, 0, 0.35);
-}
+  --accent: oklch(82.8% 0.0414 83);
+  --accent-hover: oklch(89.9% 0.0298 81);
+  --accent-soft: color-mix(in oklab, var(--accent) 14%, var(--surface));
+  --accent-contrast: oklch(16.8% 0.0045 264);
 
-/* Sombras en capas (las del hero) disponibles en todo el sitio: se usan en cards grandes y en el hover
-   de las tarjetas. Los bloques del hero las redefinen con los mismos valores. */
-:root {
-  --shadow-layer:
-    inset 0 1px 0 rgb(255 255 255 / 0.9), 0 0 0 1px rgb(16 24 40 / 0.05), 0 1px 2px rgb(16 24 40 / 0.06),
-    0 14px 26px -14px rgb(16 24 40 / 0.2), 0 34px 56px -26px rgb(16 24 40 / 0.24);
-  --shadow-layer-hover:
-    inset 0 1px 0 rgb(255 255 255 / 0.95), 0 0 0 1px rgb(24 83 173 / 0.18), 0 2px 4px rgb(16 24 40 / 0.06),
-    0 22px 36px -16px rgb(16 24 40 / 0.26), 0 44px 70px -28px rgb(16 24 40 / 0.3);
-}
-:root[data-theme="dark"] {
+  --success: oklch(80% 0.17 152);
+  --success-soft: color-mix(in oklab, var(--success) 14%, var(--surface));
+  --warning: oklch(83.7% 0.15 84);
+  --warning-soft: color-mix(in oklab, var(--warning) 14%, var(--surface));
+  --danger: oklch(72.5% 0.16 22);
+  --danger-soft: color-mix(in oklab, var(--danger) 14%, var(--surface));
+  --danger-contrast: oklch(16.8% 0.0045 264);
+  --info: oklch(71.4% 0.1434 255);
+  --info-soft: color-mix(in oklab, var(--info) 14%, var(--surface));
+
+  --shadow-pop: 0 0 0 1px var(--border), inset 0 1px 0 rgb(255 255 255 / 0.05), 0 2px 8px rgb(0 0 0 / 0.35);
+  --shadow-card:
+    0 0 0 1px var(--border), inset 0 1px 0 rgb(255 255 255 / 0.05), 0 1px 2px rgb(0 0 0 / 0.3),
+    0 8px 24px -8px rgb(0 0 0 / 0.5);
+  --shadow-float:
+    0 0 0 1px var(--border-hi), inset 0 1px 0 rgb(255 255 255 / 0.07), 0 4px 16px rgb(0 0 0 / 0.4),
+    0 20px 48px -12px rgb(0 0 0 / 0.6);
   --shadow-layer:
     inset 0 1px 0 rgb(255 255 255 / 0.08), 0 0 0 1px rgb(255 255 255 / 0.07), 0 1px 2px rgb(0 0 0 / 0.5),
     0 16px 28px -14px rgb(0 0 0 / 0.7), 0 36px 60px -26px rgb(0 0 0 / 0.75);
   --shadow-layer-hover:
-    inset 0 1px 0 rgb(255 255 255 / 0.14), 0 0 0 1px rgb(255 255 255 / 0.16), 0 2px 4px rgb(0 0 0 / 0.5),
-    0 24px 40px -16px rgb(0 0 0 / 0.8), 0 46px 72px -28px rgb(0 0 0 / 0.85);
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --shadow-layer:
-      inset 0 1px 0 rgb(255 255 255 / 0.08), 0 0 0 1px rgb(255 255 255 / 0.07), 0 1px 2px rgb(0 0 0 / 0.5),
-      0 16px 28px -14px rgb(0 0 0 / 0.7), 0 36px 60px -26px rgb(0 0 0 / 0.75);
-    --shadow-layer-hover:
-      inset 0 1px 0 rgb(255 255 255 / 0.14), 0 0 0 1px rgb(255 255 255 / 0.16), 0 2px 4px rgb(0 0 0 / 0.5),
-      0 24px 40px -16px rgb(0 0 0 / 0.8), 0 46px 72px -28px rgb(0 0 0 / 0.85);
-  }
+    inset 0 1px 0 rgb(255 255 255 / 0.14), 0 0 0 1px color-mix(in oklab, var(--accent) 34%, transparent),
+    0 2px 4px rgb(0 0 0 / 0.5), 0 24px 40px -16px rgb(0 0 0 / 0.8), 0 46px 72px -28px rgb(0 0 0 / 0.85);
 }
 
 @theme inline {
@@ -184,9 +223,14 @@
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-sunken: var(--surface-sunken);
   --color-text: var(--text);
   --color-text-muted: var(--text-muted);
+  --color-text-subtle: var(--text-subtle);
   --color-border: var(--border);
+  --color-border-hi: var(--border-hi);
+  --color-border-act: var(--border-act);
 
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
@@ -199,6 +243,9 @@
   --color-warning-soft: var(--warning-soft);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
+  --color-danger-contrast: var(--danger-contrast);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
 
   --radius-card: var(--radius-card);
   --radius-media: var(--radius-media);
@@ -419,12 +466,6 @@ body {
 .home-sections,
 .advisor-stage {
   --hero-gutter: clamp(1.25rem, 0.5rem + 3.2vw, 3.5rem);
-  --shadow-layer:
-    inset 0 1px 0 rgb(255 255 255 / 0.9), 0 0 0 1px rgb(16 24 40 / 0.05), 0 1px 2px rgb(16 24 40 / 0.06),
-    0 14px 26px -14px rgb(16 24 40 / 0.2), 0 34px 56px -26px rgb(16 24 40 / 0.24);
-  --shadow-layer-hover:
-    inset 0 1px 0 rgb(255 255 255 / 0.95), 0 0 0 1px rgb(24 83 173 / 0.18), 0 2px 4px rgb(16 24 40 / 0.06),
-    0 22px 36px -16px rgb(16 24 40 / 0.26), 0 44px 70px -28px rgb(16 24 40 / 0.3);
 }
 .hero-main {
   position: relative;
@@ -434,28 +475,6 @@ body {
   min-height: 100svh;
   overflow: hidden;
   background: var(--bg);
-}
-:root[data-theme="dark"] .hero-main,
-:root[data-theme="dark"] .home-sections,
-:root[data-theme="dark"] .advisor-stage {
-  --shadow-layer:
-    inset 0 1px 0 rgb(255 255 255 / 0.08), 0 0 0 1px rgb(255 255 255 / 0.07), 0 1px 2px rgb(0 0 0 / 0.5),
-    0 16px 28px -14px rgb(0 0 0 / 0.7), 0 36px 60px -26px rgb(0 0 0 / 0.75);
-  --shadow-layer-hover:
-    inset 0 1px 0 rgb(255 255 255 / 0.14), 0 0 0 1px rgb(255 255 255 / 0.16), 0 2px 4px rgb(0 0 0 / 0.5),
-    0 24px 40px -16px rgb(0 0 0 / 0.8), 0 46px 72px -28px rgb(0 0 0 / 0.85);
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .hero-main,
-  :root:not([data-theme="light"]) .home-sections,
-  :root:not([data-theme="light"]) .advisor-stage {
-    --shadow-layer:
-      inset 0 1px 0 rgb(255 255 255 / 0.08), 0 0 0 1px rgb(255 255 255 / 0.07), 0 1px 2px rgb(0 0 0 / 0.5),
-      0 16px 28px -14px rgb(0 0 0 / 0.7), 0 36px 60px -26px rgb(0 0 0 / 0.75);
-    --shadow-layer-hover:
-      inset 0 1px 0 rgb(255 255 255 / 0.14), 0 0 0 1px rgb(255 255 255 / 0.16), 0 2px 4px rgb(0 0 0 / 0.5),
-      0 24px 40px -16px rgb(0 0 0 / 0.8), 0 46px 72px -28px rgb(0 0 0 / 0.85);
-  }
 }
 
 .hero-header {

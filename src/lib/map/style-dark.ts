@@ -13,7 +13,8 @@ export function applyDarkBrandTint(map: MapLibreMap) {
       map.setPaintProperty(layerId, "fill-color", color);
     }
   };
-  setIfExists("water", "#0f1b2d");
-  setIfExists("building", "#1c1f26");
-  setIfExists("park", "#10241a");
+  if (map.getLayer("background")) map.setPaintProperty("background", "background-color", "#0c0d0f");
+  setIfExists("water", "#12181e");
+  setIfExists("building", "#1a1c20");
+  setIfExists("park", "#12201a");
 }

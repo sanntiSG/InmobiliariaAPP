@@ -29,7 +29,7 @@ export function DeletePropertyButton({ propertyId, title }: { propertyId: string
           type="button"
           onClick={handleDelete}
           disabled={deleting}
-          className="rounded-pill bg-danger px-2.5 py-1 text-xs font-semibold text-white"
+          className="rounded-pill bg-danger px-2.5 py-1 text-xs font-semibold text-danger-contrast"
         >
           {deleting ? "…" : "Sí"}
         </button>

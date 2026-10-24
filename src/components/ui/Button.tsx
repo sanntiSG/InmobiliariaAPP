@@ -5,7 +5,7 @@ const VARIANTS = {
   primary: "bg-accent text-accent-contrast hover:bg-accent-hover",
   secondary: "bg-surface text-text border border-border hover:bg-surface-2",
   ghost: "bg-transparent text-text hover:bg-surface-2",
-  danger: "bg-danger text-white hover:brightness-95",
+  danger: "bg-danger text-danger-contrast hover:brightness-95",
 } as const;
 
 const SIZES = {

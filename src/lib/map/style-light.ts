@@ -19,7 +19,10 @@ export function applyLightBrandTint(map: MapLibreMap) {
       map.setPaintProperty(layerId, "fill-color", color);
     }
   };
-  setIfExists("water", "#dbe9ff");
-  setIfExists("building", "#e7e9ee");
-  setIfExists("park", "#e3f0e3");
+  // Papel cálido: el fondo y los edificios siguen los neutros del tema; el agua queda fría y suave para que se lea
+  // como agua sobre el tostado; los parques, un verde apagado.
+  if (map.getLayer("background")) map.setPaintProperty("background", "background-color", "#f1eee7");
+  setIfExists("water", "#d5dee1");
+  setIfExists("building", "#e6e1d9");
+  setIfExists("park", "#dde5d3");
 }
