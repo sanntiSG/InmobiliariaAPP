@@ -58,7 +58,11 @@ export default async function SolicitarInmobiliariaPage() {
       <div className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-10 sm:px-6">
         <PageHeader
           eyebrow="Para inmobiliarias"
-          title="Gestionar una inmobiliaria"
+          title={
+            <>
+              Gestionar una <em>inmobiliaria</em>
+            </>
+          }
           lead={`En ${brand.name} cada inmobiliaria tiene su propio panel para publicar propiedades, subir recorridos 360° y ver cómo le va. Para activarlo, el equipo valida la solicitud hablando con vos.`}
         />
 

@@ -668,6 +668,18 @@ body {
 .hero-line-strong {
   font-weight: 760;
 }
+/* Segunda línea del titular: acento editorial en Instrument Serif cursiva (más angosta que Syne: se agranda un poco
+   para igualar el peso visual) y en el color de acento. Sólo cambia la tipografía; el recorte letra a letra y las
+   animaciones son los mismos. */
+.hero-line:not(.hero-line-strong) {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 1.16em;
+  line-height: 0.96;
+  letter-spacing: -0.02em;
+  color: var(--accent);
+}
 .hero-word {
   display: inline-block;
   white-space: nowrap;
@@ -1442,6 +1454,15 @@ body {
   letter-spacing: -0.035em;
   text-wrap: balance;
   color: var(--text);
+}
+/* Palabra(s) de acento del título: Instrument Serif cursiva en el color de acento (no existe en negrita). */
+.page-title em {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 1.1em;
+  letter-spacing: -0.01em;
+  color: var(--accent);
 }
 .page-lead {
   max-width: 36rem;

@@ -93,7 +93,11 @@ export default function PropiedadesPage() {
       <div className="mx-auto max-w-7xl py-6 pl-[max(1rem,var(--safe-left))] pr-[max(1rem,var(--safe-right))] sm:pl-[max(1.5rem,var(--safe-left))] sm:pr-[max(1.5rem,var(--safe-right))]">
         <PageHeader
           eyebrow="Explorar"
-          title="Propiedades para recorrer antes de visitar"
+          title={
+            <>
+              Propiedades para recorrer <em>antes de visitar</em>
+            </>
+          }
           lead="Filtrá por zona, precio y tipo. Las que tienen recorrido 360° se pueden caminar desde acá."
           className="mb-6"
         />

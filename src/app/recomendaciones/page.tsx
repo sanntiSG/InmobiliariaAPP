@@ -22,7 +22,11 @@ export default async function RecomendacionesPage() {
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         <PageHeader
           eyebrow="Para vos"
-          title="Recomendado para vos"
+          title={
+            <>
+              Recomendado <em>para vos</em>
+            </>
+          }
           lead={
             <>
               Basado en tus preferencias y tu actividad reciente.{" "}

@@ -47,7 +47,11 @@ export default async function PublicarPage() {
       <div className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-10 sm:px-6">
         <PageHeader
           eyebrow="Tu inmobiliaria"
-          title="Creá tu inmobiliaria"
+          title={
+            <>
+              Creá tu <em>inmobiliaria</em>
+            </>
+          }
           lead={`El admin de ${brand.name} te dio acceso para publicar. Completá estos datos para crear tu perfil de inmobiliaria — después vas a poder cargar propiedades, fotos y recorridos 3D desde tu panel.`}
         />
 
