@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Sparkles } from "lucide-react";
+import { NubiIcon } from "@/components/icons/NubiIcon";
 import { cn } from "@/lib/utils/cn";
 import type { IntentId, Slots } from "@/lib/advisor/types";
 import { modeFor, openAdvisor, useAdvisorState } from "./store";
@@ -45,7 +45,7 @@ export function AdvisorTrigger({
         className
       )}
     >
-      <Sparkles className="h-3.5 w-3.5" aria-hidden />
+      <NubiIcon className="h-3.5 w-3.5" />
       {children ?? label}
     </button>
   );

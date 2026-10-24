@@ -7,9 +7,10 @@ import { useTourViewer, type SpherePosition } from "@/components/tour/useTourVie
 import { useViewerChrome } from "@/components/tour/useViewerChrome";
 import { sceneName, type TourScene } from "@/components/tour/tour-types";
 
+// Botones de la barra del visor: 40 px en un visor angosto y 44 px desde 28rem de ancho (el contenedor, no la pantalla).
 const btn = cn(
-  "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-pill px-3.5 text-xs font-medium",
-  "backdrop-blur shadow-pop transition-[transform,background-color,box-shadow] duration-150",
+  "inline-flex h-10 min-w-10 shrink-0 items-center justify-center gap-1.5 rounded-pill px-2.5 text-xs font-medium @md:h-11 @md:min-w-11 @md:px-3.5",
+  "shadow-pop transition-[transform,background-color,box-shadow] duration-150",
   "[transition-timing-function:var(--ease-out)] active:scale-[0.97]",
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
 );
@@ -117,7 +118,7 @@ export function VirtualTourViewer({
   return (
     <div
       ref={wrapperRef}
-      className={cn("relative h-full w-full bg-surface-2", chrome.isMaximized && "fixed inset-0 z-50 h-[100dvh] w-screen")}
+      className={cn("@container relative h-full w-full bg-surface-2", chrome.isMaximized && "fixed inset-0 z-50 h-[100dvh] w-screen")}
     >
       <div ref={containerRef} className="h-full w-full" />
 
@@ -127,48 +128,58 @@ export function VirtualTourViewer({
         </div>
       )}
 
-      <div className="absolute left-3 top-3 z-10 flex max-w-[60%] items-center gap-2">
-        {history.length > 0 && (
-          <button type="button" onClick={goBack} aria-label="Volver a la foto anterior" className={cn(btn, "bg-surface/85 text-text hover:bg-surface")}>
-            <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-          </button>
+      {/* Una sola barra: a la izquierda "volver" + nombre de la foto (se acorta con "…"), a la derecha los controles,
+          que nunca se encogen. Así no se pueden pisar, sea cual sea el ancho. */}
+      <div
+        className={cn(
+          "absolute inset-x-3 top-3 z-10 flex items-center gap-2",
+          chrome.isMaximized && "left-[max(0.75rem,var(--safe-left))] right-[max(0.75rem,var(--safe-right))] top-[max(0.75rem,var(--safe-top))]"
         )}
-        <span className="truncate rounded-pill bg-surface/85 px-3.5 py-2.5 text-xs font-semibold text-text shadow-pop backdrop-blur">
-          {sceneName(current, currentIndex)}
-        </span>
-      </div>
+      >
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          {history.length > 0 && (
+            <button type="button" onClick={goBack} aria-label="Volver a la foto anterior" className={cn(btn, "bg-surface/92 text-text hover:bg-surface")}>
+              <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
+            </button>
+          )}
+          <span className="min-w-0 truncate rounded-pill bg-surface/92 px-3 py-2.5 text-xs font-semibold text-text shadow-pop @md:px-3.5">
+            {sceneName(current, currentIndex)}
+          </span>
+        </div>
 
-      <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
-        {sceneId !== firstId && (
-          <button type="button" onClick={goHome} aria-label="Volver al inicio del recorrido" className={cn(btn, "bg-surface/85 text-text hover:bg-surface")}>
-            <Home className="h-3.5 w-3.5" aria-hidden />
-          </button>
-        )}
-        {chrome.canImmerse && (
+        <div className="flex shrink-0 items-center gap-2">
+          {sceneId !== firstId && (
+            <button type="button" onClick={goHome} aria-label="Volver al inicio del recorrido" className={cn(btn, "bg-surface/92 text-text hover:bg-surface")}>
+              <Home className="h-3.5 w-3.5" aria-hidden />
+            </button>
+          )}
+          {chrome.canImmerse && (
+            <button
+              type="button"
+              onClick={chrome.immersive ? chrome.deactivate : chrome.activate}
+              aria-pressed={chrome.immersive}
+              className={cn(btn, "@md:px-4", chrome.immersive ? "bg-accent text-accent-contrast" : "bg-surface/92 text-text hover:bg-surface")}
+            >
+              {chrome.immersive ? <X className="h-3.5 w-3.5" aria-hidden /> : <Compass className="h-3.5 w-3.5" aria-hidden />}
+              {/* En un visor angosto queda sólo el ícono (el texto sigue para lectores de pantalla). */}
+              <span className="sr-only @md:not-sr-only">Modo inmersivo</span>
+            </button>
+          )}
           <button
             type="button"
-            onClick={chrome.immersive ? chrome.deactivate : chrome.activate}
-            aria-pressed={chrome.immersive}
-            className={cn(btn, "px-4", chrome.immersive ? "bg-accent text-accent-contrast" : "bg-surface/85 text-text hover:bg-surface")}
+            onClick={chrome.toggleFullscreen}
+            aria-label={chrome.isMaximized ? "Salir de pantalla completa" : "Maximizar"}
+            className={cn(btn, chrome.isMaximized ? "bg-accent text-accent-contrast" : "bg-surface/92 text-text hover:bg-surface")}
           >
-            {chrome.immersive ? <X className="h-3.5 w-3.5" aria-hidden /> : <Compass className="h-3.5 w-3.5" aria-hidden />}
-            Modo inmersivo
+            {chrome.isMaximized ? <Minimize className="h-3.5 w-3.5" aria-hidden /> : <Maximize className="h-3.5 w-3.5" aria-hidden />}
           </button>
-        )}
-        <button
-          type="button"
-          onClick={chrome.toggleFullscreen}
-          aria-label={chrome.isMaximized ? "Salir de pantalla completa" : "Maximizar"}
-          className={cn(btn, chrome.isMaximized ? "bg-accent text-accent-contrast" : "bg-surface/85 text-text hover:bg-surface")}
-        >
-          {chrome.isMaximized ? <Minimize className="h-3.5 w-3.5" aria-hidden /> : <Maximize className="h-3.5 w-3.5" aria-hidden />}
-        </button>
+        </div>
       </div>
 
       {chrome.hint && (
         <div
           role="status"
-          className="pointer-events-none absolute inset-x-0 bottom-14 z-10 mx-auto w-fit max-w-[85%] rounded-pill bg-surface/90 px-3.5 py-1.5 text-center text-xs font-medium text-text shadow-pop backdrop-blur"
+          className="pointer-events-none absolute inset-x-0 bottom-14 z-10 mx-auto w-fit max-w-[85%] rounded-pill bg-surface/92 px-3.5 py-1.5 text-center text-xs font-medium text-text shadow-pop"
         >
           {chrome.hint}
         </div>

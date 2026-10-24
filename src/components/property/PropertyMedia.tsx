@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import dynamicImport from "next/dynamic";
-import { Orbit, Route, Sparkles } from "lucide-react";
+import { Orbit, Route } from "lucide-react";
+import { AmbientIcon } from "@/components/icons/AmbientIcon";
+import { useScrollEdges } from "@/components/ui/useScrollEdges";
 import { Gallery } from "./Gallery";
 import { AmbientCoverLazy } from "./AmbientCoverLazy";
 import { cn } from "@/lib/utils/cn";
@@ -82,6 +84,7 @@ export function PropertyMedia({
     if (trackingEnabled) track({ propertyId, event: "tour_scene", sceneId });
   }
 
+  const [barRef, barEdges] = useScrollEdges<HTMLDivElement>();
   const active = tours[selectedIndex];
   const hasVirtualTour = virtualTour.enabled && tours.length > 1 && tours.some((t) => t.links.length > 0);
 
@@ -96,25 +99,40 @@ export function PropertyMedia({
   return (
     <div>
       <div className={cn("mb-3 flex-wrap items-center gap-2", tabCount > 1 ? "flex" : "hidden")}>
-        <div className="inline-flex max-w-full overflow-x-auto rounded-pill bg-surface-2 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div
+          ref={barRef}
+          data-edge-start={barEdges.start || undefined}
+          data-edge-end={barEdges.end || undefined}
+          className="scroll-fade-x inline-flex min-w-0 max-w-full overflow-x-auto rounded-pill bg-surface-2 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
           {ambient && (
-            <TabButton active={tab === "ambient"} onClick={() => setTab("ambient")}>
-              <Sparkles className="h-3.5 w-3.5" aria-hidden /> Portada viva
+            <TabButton label="Portada viva" active={tab === "ambient"} onClick={() => setTab("ambient")}>
+              <AmbientIcon className="h-3.5 w-3.5 shrink-0" />
+              <span>
+                Portada<span className="max-sm:hidden"> viva</span>
+              </span>
             </TabButton>
           )}
           {showPhotosTab && (
             <TabButton active={tab === "fotos"} onClick={() => setTab("fotos")}>
-              Fotos {images.length > 0 && `(${images.length})`}
+              <span>Fotos</span>
+              {images.length > 0 && <span className="tabular-nums opacity-70">{images.length}</span>}
             </TabButton>
           )}
           {hasTours && (
-            <TabButton active={tab === "vista360"} onClick={() => setTab("vista360")}>
-              <Orbit className="h-3.5 w-3.5" aria-hidden /> Vista 360°
+            <TabButton label="Vista 360°" active={tab === "vista360"} onClick={() => setTab("vista360")}>
+              <Orbit className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span>
+                <span className="max-sm:hidden">Vista </span>360°
+              </span>
             </TabButton>
           )}
           {hasVirtualTour && (
-            <TabButton active={tab === "recorrido360"} onClick={() => setTab("recorrido360")}>
-              <Route className="h-3.5 w-3.5" aria-hidden /> Recorrido 360°
+            <TabButton label="Recorrido 360°" active={tab === "recorrido360"} onClick={() => setTab("recorrido360")}>
+              <Route className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span>
+                Recorrido<span className="max-sm:hidden"> 360°</span>
+              </span>
             </TabButton>
           )}
         </div>
@@ -128,7 +146,7 @@ export function PropertyMedia({
                 onClick={() => setSelectedIndex(i)}
                 aria-pressed={i === selectedIndex}
                 className={cn(
-                  "rounded-pill px-3 py-1 text-xs font-medium transition-colors duration-150",
+                  "shrink-0 whitespace-nowrap rounded-pill px-3 py-1 text-xs font-medium transition-colors duration-150",
                   i === selectedIndex
                     ? "bg-accent text-accent-contrast"
                     : "bg-surface-2 text-text-muted hover:text-text"
@@ -171,10 +189,13 @@ export function PropertyMedia({
 function TabButton({
   active,
   onClick,
+  label,
   children,
 }: {
   active: boolean;
   onClick: () => void;
+  /** Nombre completo para lectores de pantalla cuando, en pantallas chicas, el texto visible se acorta. */
+  label?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -182,8 +203,10 @@ function TabButton({
       type="button"
       onClick={onClick}
       aria-pressed={active}
+      aria-label={label}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-pill px-4 py-2 text-sm font-medium",
+        // Nunca se parte en dos líneas ni se encoge: si no entran todas, la barra se desliza.
+        "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill px-3 py-2 text-sm font-medium sm:px-4",
         "transition-colors duration-150",
         active ? "bg-accent text-accent-contrast" : "text-text-muted hover:text-text"
       )}

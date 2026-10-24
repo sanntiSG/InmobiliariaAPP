@@ -103,7 +103,10 @@ export function ResultsPanel({
       <DesktopPanel loading={loading} totalCount={totalCount} list={list} />
 
       {/* Mobile: botón flotante + drawer */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center pb-[calc(env(safe-area-inset-bottom)+16px)] md:hidden">
+      <div
+        data-map-inset="bottom"
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center pb-[calc(var(--safe-bottom)+16px)] md:hidden"
+      >
         <Button onClick={() => setMobileOpen(true)} className="pointer-events-auto shadow-float">
           {loading ? "Buscando…" : `Ver ${totalCount} propiedades`}
         </Button>
@@ -137,7 +140,7 @@ function DesktopPanel({ loading, totalCount, list }: { loading: boolean; totalCo
   );
 
   return (
-    <div className="pointer-events-none absolute left-4 top-24 bottom-6 z-10 hidden md:block">
+    <div data-map-inset="left" className="pointer-events-none absolute left-4 top-24 bottom-6 z-10 hidden md:block">
       <div ref={panelRef} className="pointer-events-auto h-full">
         {collapsed ? (
           <button

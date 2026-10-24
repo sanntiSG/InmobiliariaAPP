@@ -1,4 +1,5 @@
-import { CloudRain, Moon, Sparkles, Sun, Sunset, Wind, type LucideIcon } from "lucide-react";
+import { CloudRain, Moon, Sun, Sunset, Wind, type LucideIcon } from "lucide-react";
+import { AmbientIcon } from "@/components/icons/AmbientIcon";
 
 /** Ícono de cada estado de la portada viva (ids que usa el proveedor); uno genérico para cualquier otro. */
 const ICONS: Record<string, LucideIcon> = {
@@ -10,6 +11,7 @@ const ICONS: Record<string, LucideIcon> = {
 };
 
 export function AmbientStateIcon({ id, className }: { id: string; className?: string }) {
-  const Icon = ICONS[id] ?? Sparkles;
+  const Icon = ICONS[id];
+  if (!Icon) return <AmbientIcon className={className ?? "h-4 w-4"} />;
   return <Icon className={className ?? "h-4 w-4"} aria-hidden />;
 }

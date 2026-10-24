@@ -2,7 +2,7 @@
 
 import "maplibre-gl/dist/maplibre-gl.css";
 import { MapLibreMap, Marker, Popup, AttributionControl } from "maplibre-gl";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { Button } from "@/components/ui/Button";
 import { MAP_DEFAULTS, ARGENTINA_BOUNDS } from "@/config/site";
@@ -10,6 +10,7 @@ import { LIGHT_STYLE_URL, applyLightBrandTint } from "@/lib/map/style-light";
 import { DARK_STYLE_URL, applyDarkBrandTint } from "@/lib/map/style-dark";
 import { ensureMapLibreWorkerUrl } from "@/lib/map/worker-url";
 import type { BBox } from "@/lib/map/geo";
+import { measureMapInsets, panToCenterBlock } from "@/lib/map/insets";
 import {
   useClusteredMarkers,
   isCluster,
@@ -29,6 +30,15 @@ import { PropertyPopupCard } from "./PropertyPopupCard";
 
 /** Desde este zoom un pin suelto muestra el logo de la inmobiliaria; antes es sólo un punto. */
 const PIN_DETAIL_ZOOM = 12;
+
+/**
+ * Separación entre la punta del pin (la coordenada) y el borde de abajo de la tarjeta. Con el logo (insignia de 44 px
+ * + cola) la tarjeta tiene que quedar por encima de todo el pin; con el punto de 14 px alcanza con muy poco. El pico
+ * de la tarjeta sobresale 7 px por debajo de ella, por eso no se resta.
+ */
+function popupOffsetFor(zoom: number): number {
+  return zoom >= PIN_DETAIL_ZOOM ? 60 : 26;
+}
 
 type EffectiveTheme = "light" | "dark";
 
@@ -92,7 +102,13 @@ export function MapCanvas({
   const [mapDegraded, setMapDegraded] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
   const markersRef = useRef(new Map<string, Marker>());
-  const popupRef = useRef<{ popup: Popup; root: Root; container: HTMLDivElement } | null>(null);
+  const popupRef = useRef<{
+    id: string;
+    popup: Popup;
+    root: Root;
+    container: HTMLDivElement;
+    observer: ResizeObserver;
+  } | null>(null);
 
   const { rendered, getExpansionZoom } = useClusteredMarkers(map, features);
 
@@ -112,10 +128,8 @@ export function MapCanvas({
         [MAP_DEFAULTS.bounds.east, MAP_DEFAULTS.bounds.north],
       ],
       fitBoundsOptions: {
-        // Deja libre el panel de resultados (izquierda en escritorio, abajo en celular).
-        padding: window.innerWidth >= 640
-          ? { top: 90, right: 24, bottom: 24, left: 390 }
-          : { top: 150, right: 16, bottom: 150, left: 16 },
+        // Deja libres las capas que flotan encima (barra de arriba, panel de resultados, botón de abajo): se miden, no se suponen.
+        padding: measureMapInsets(containerRef.current),
       },
       minZoom: MAP_DEFAULTS.minZoom,
       maxZoom: MAP_DEFAULTS.maxZoom,
@@ -318,47 +332,118 @@ export function MapCanvas({
   }, [hoveredId, rendered]);
 
   // ── Popup de la propiedad seleccionada ──────────────────────────
+  // Hay UN popup por selección. Antes el efecto dependía de `features` (que cambia de identidad en cada recarga al
+  // mover o hacer zoom) y destruía y recreaba el popup, repitiendo la animación de entrada: la tarjeta "crecía y
+  // decrecía" a cada zoom. Ahora sólo se recrea si cambia la propiedad elegida; si la API devuelve la misma
+  // propiedad (aunque sea otro objeto), no se toca nada.
+  const selectedFeature = useMemo(
+    () => (selectedId ? (features.find((f) => f.properties.id === selectedId) ?? null) : null),
+    [features, selectedId]
+  );
+  const selectedKey = selectedFeature
+    ? JSON.stringify([selectedFeature.properties, selectedFeature.geometry.coordinates])
+    : null;
+
   useEffect(() => {
     if (!map) return;
+    const current = popupRef.current;
 
-    if (popupRef.current) {
-      unmountRootSafely(popupRef.current.root);
-      popupRef.current.popup.remove();
-      popupRef.current = null;
+    if (!selectedFeature) {
+      if (current) {
+        current.observer.disconnect();
+        unmountRootSafely(current.root);
+        current.popup.remove();
+        popupRef.current = null;
+      }
+      return;
     }
 
-    if (!selectedId) return;
+    const property = selectedFeature.properties;
+    const coordinates = selectedFeature.geometry.coordinates as [number, number];
+    const card = <PropertyPopupCard key={property.id} property={property} onClose={() => onSelectChange(null)} />;
 
-    const feature = features.find((f) => f.properties.id === selectedId);
-    if (!feature) return;
+    // Misma propiedad: sólo se actualiza el contenido (mismo `key`, React reconcilia sin remontar ni reanimar).
+    if (current && current.id === property.id) {
+      current.root.render(card);
+      current.popup.setLngLat(coordinates);
+      return;
+    }
+
+    if (current) {
+      current.observer.disconnect();
+      unmountRootSafely(current.root);
+      current.popup.remove();
+    }
 
     const container = document.createElement("div");
     const root = createRoot(container);
-    root.render(
-      <PropertyPopupCard property={feature.properties} onClose={() => onSelectChange(null)} />
-    );
+    root.render(card);
 
     const popup = new Popup({
       closeButton: false,
       closeOnClick: false,
       anchor: "bottom",
-      offset: 26,
+      offset: popupOffsetFor(map.getZoom()),
       maxWidth: "none",
       className: "umbral-popup",
     })
-      .setLngLat(feature.geometry.coordinates as [number, number])
+      .setLngLat(coordinates)
       .setDOMContent(container)
       .addTo(map);
 
-    popupRef.current = { popup, root, container };
+    // Auto-centrado: apenas la tarjeta tiene su tamaño real (React la monta de forma asíncrona), se desplaza el mapa lo
+    // justo para que tarjeta + pin queden centrados en el área libre. Una sola vez por selección, sin tocar el zoom;
+    // si la persona toca el mapa MapLibre corta el movimiento solo.
+    let centered = false;
+    const observer = new ResizeObserver(() => {
+      const height = container.offsetHeight;
+      const width = container.offsetWidth;
+      if (centered || height === 0 || width === 0) return;
+      centered = true;
+      const tip = map.project(coordinates);
+      const size = map.getContainer();
+      const shift = panToCenterBlock({
+        tip: { x: tip.x, y: tip.y },
+        blockWidth: width,
+        blockHeight: height + popupOffsetFor(map.getZoom()),
+        mapSize: { width: size.clientWidth, height: size.clientHeight },
+        insets: measureMapInsets(size),
+      });
+      if (shift) map.panBy([shift.dx, shift.dy], { duration: 420, easing: (t) => 1 - Math.pow(1 - t, 3), essential: false });
+    });
+    observer.observe(container);
 
+    popupRef.current = { id: property.id, popup, root, container, observer };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, selectedId, selectedKey]);
+
+  // El popup sigue al pin al cruzar el zoom de detalle (punto ↔ logo): cambia la altura del pin y con ella la separación.
+  useEffect(() => {
+    if (!map) return;
+    let detail = map.getZoom() >= PIN_DETAIL_ZOOM;
+    const onZoom = () => {
+      const next = map.getZoom() >= PIN_DETAIL_ZOOM;
+      if (next === detail) return;
+      detail = next;
+      popupRef.current?.popup.setOffset(popupOffsetFor(map.getZoom()));
+    };
+    map.on("zoom", onZoom);
     return () => {
-      unmountRootSafely(root);
-      popup.remove();
+      map.off("zoom", onZoom);
+    };
+  }, [map]);
+
+  // Al desmontar el mapa o recrearlo (reintentar) no puede quedar un popup colgado.
+  useEffect(() => {
+    return () => {
+      const current = popupRef.current;
+      if (!current) return;
+      current.observer.disconnect();
+      unmountRootSafely(current.root);
+      current.popup.remove();
       popupRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, selectedId, features]);
+  }, [map]);
 
   // ── Escape cierra la selección ──────────────────────────────────
   useEffect(() => {

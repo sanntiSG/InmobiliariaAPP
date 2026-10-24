@@ -20,6 +20,10 @@ import type { PropertyCardData } from "@/components/property/types";
  * Card flotante sobre el pin seleccionado, con "pico" propio (el tip nativo
  * de MapLibre queda deshabilitado en globals.css) y entrada animada con
  * origen en el pico — ver .impeccable.md y emil-design-eng.
+ *
+ * Responsive: desde `sm` es la card vertical de 272 px (foto arriba, datos abajo). En una pantalla
+ * chica pasa a formato horizontal compacto (foto de 112 px a la izquierda, datos a la derecha, ~150 px
+ * de alto en vez de ~390) y su ancho nunca supera el de la pantalla menos 24 px, para no tapar el mapa.
  */
 export function PropertyPopupCard({
   property,
@@ -45,15 +49,19 @@ export function PropertyPopupCard({
   );
 
   return (
-    <div className="relative w-[272px]" style={{ transformOrigin: "50% 100%" }}>
-      <div ref={cardRef} className="overflow-visible rounded-card bg-surface shadow-float">
-        <div className="relative aspect-[16/10] w-full overflow-hidden rounded-t-card bg-surface-2">
+    <div className="relative w-[min(332px,calc(100vw-24px))] sm:w-[272px]">
+      <div
+        ref={cardRef}
+        className="relative overflow-visible rounded-card bg-surface shadow-float max-sm:flex"
+        style={{ transformOrigin: "50% 100%" }}
+      >
+        <div className="relative aspect-[16/10] w-full overflow-hidden rounded-t-card bg-surface-2 max-sm:aspect-auto max-sm:min-h-[148px] max-sm:w-[112px] max-sm:shrink-0 max-sm:rounded-l-card max-sm:rounded-tr-none">
           {property.image ? (
             <Image
               src={property.image}
               alt={property.title}
               fill
-              sizes="272px"
+              sizes="(max-width: 639px) 112px, 272px"
               className="object-cover"
             />
           ) : (
@@ -65,15 +73,6 @@ export function PropertyPopupCard({
               {OPERATION_LABELS[property.operation as keyof typeof OPERATION_LABELS] ?? property.operation}
             </Badge>
           </div>
-
-          <IconButton
-            size={30}
-            aria-label="Cerrar"
-            className="absolute right-2.5 top-2.5"
-            onClick={onClose}
-          >
-            <X className="h-3.5 w-3.5" aria-hidden />
-          </IconButton>
 
           {(property.tour3d || property.ambient) && (
             <div className="absolute bottom-2.5 left-2.5 flex gap-1.5">
@@ -96,8 +95,12 @@ export function PropertyPopupCard({
           </IconButton>
         </div>
 
-        <div className="flex flex-col gap-1.5 p-3.5">
-          <PriceTag amount={property.price} currency={property.currency} period={property.period} className="text-lg" />
+        <IconButton size={30} aria-label="Cerrar" className="absolute right-2.5 top-2.5" onClick={onClose}>
+          <X className="h-3.5 w-3.5" aria-hidden />
+        </IconButton>
+
+        <div className="flex min-w-0 flex-col gap-1.5 p-3.5 max-sm:flex-1 max-sm:gap-1 max-sm:p-3">
+          <PriceTag amount={property.price} currency={property.currency} period={property.period} className="text-lg max-sm:pr-8" />
           <p className="truncate text-sm text-text-muted">{property.title}</p>
           <p className="truncate text-xs text-text-muted">
             {[property.neighborhood, property.city].filter(Boolean).join(", ")}
@@ -112,7 +115,7 @@ export function PropertyPopupCard({
             // <a> plano por la misma razón que el link de abajo (fuera del árbol de React de la app).
             <a
               href={property.agencySlug ? `/inmobiliarias/${property.agencySlug}` : undefined}
-              className="mt-1 flex items-center gap-2 text-[11px] font-medium text-text-muted hover:text-accent"
+              className="mt-1 flex items-center gap-2 text-[11px] font-medium text-text-muted hover:text-accent max-sm:hidden"
             >
               <AgencyAvatar name={property.agencyName} logo={property.agencyLogo} size={22} />
               <span className="truncate">{property.agencyName}</span>
@@ -128,9 +131,11 @@ export function PropertyPopupCard({
           */}
           <a
             href={`/propiedades/${property.slug}`}
-            className="mt-2 inline-flex items-center justify-center rounded-pill bg-accent px-3 py-2 text-center text-sm font-medium text-accent-contrast transition-colors hover:bg-accent-hover"
+            className="mt-2 inline-flex items-center justify-center whitespace-nowrap rounded-pill bg-accent px-3 py-2 text-center text-sm font-medium text-accent-contrast transition-colors hover:bg-accent-hover max-sm:mt-auto max-sm:py-1.5 max-sm:text-xs"
           >
-            Ver propiedad completa
+            <span>
+              Ver propiedad<span className="max-sm:hidden"> completa</span>
+            </span>
           </a>
         </div>
 

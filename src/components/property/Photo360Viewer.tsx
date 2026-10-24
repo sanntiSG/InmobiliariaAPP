@@ -233,7 +233,7 @@ export function Photo360Viewer({ src }: { src: string }) {
     <div
       ref={wrapperRef}
       className={cn(
-        "relative h-full w-full bg-surface-2",
+        "@container relative h-full w-full bg-surface-2",
         isMaximized && "fixed inset-0 z-50 h-[100dvh] w-screen"
       )}
     >
@@ -254,22 +254,27 @@ export function Photo360Viewer({ src }: { src: string }) {
       )}
 
       {status === "ready" && (
-        <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
+        <div
+          className={cn(
+            "absolute right-3 top-3 z-10 flex items-center gap-2",
+            isMaximized && "right-[max(0.75rem,var(--safe-right))] top-[max(0.75rem,var(--safe-top))]"
+          )}
+        >
           {canImmerse && (
             <button
               type="button"
               onClick={immersive ? deactivate : activate}
               aria-pressed={immersive}
               className={cn(
-                "inline-flex min-h-11 items-center gap-1.5 rounded-pill px-4 text-xs font-medium",
-                "backdrop-blur shadow-pop transition-[transform,background-color,box-shadow] duration-150",
+                "inline-flex h-10 min-w-10 shrink-0 items-center justify-center gap-1.5 rounded-pill px-2.5 text-xs font-medium @md:h-11 @md:min-w-11 @md:px-4",
+                "shadow-pop transition-[transform,background-color,box-shadow] duration-150",
                 "[transition-timing-function:var(--ease-out)] active:scale-[0.97]",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-bg",
-                immersive ? "bg-accent text-accent-contrast" : "bg-surface/85 text-text hover:bg-surface"
+                immersive ? "bg-accent text-accent-contrast" : "bg-surface/92 text-text hover:bg-surface"
               )}
             >
               {immersive ? <X className="h-3.5 w-3.5" aria-hidden /> : <Compass className="h-3.5 w-3.5" aria-hidden />}
-              Modo inmersivo
+              <span className="sr-only @md:not-sr-only">Modo inmersivo</span>
             </button>
           )}
 
@@ -279,24 +284,15 @@ export function Photo360Viewer({ src }: { src: string }) {
             aria-label={isMaximized ? "Salir de pantalla completa" : "Maximizar"}
             title={isMaximized ? "Salir de pantalla completa" : "Maximizar"}
             className={cn(
-              "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-pill px-3.5 text-xs font-medium",
-              "backdrop-blur shadow-pop transition-[transform,background-color,box-shadow] duration-150",
+              "inline-flex h-10 min-w-10 shrink-0 items-center justify-center gap-1.5 rounded-pill px-2.5 text-xs font-medium @md:h-11 @md:min-w-11 @md:px-3.5",
+              "shadow-pop transition-[transform,background-color,box-shadow] duration-150",
               "[transition-timing-function:var(--ease-out)] active:scale-[0.97]",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-bg",
-              isMaximized ? "bg-accent text-accent-contrast" : "bg-surface/85 text-text hover:bg-surface"
+              isMaximized ? "bg-accent text-accent-contrast" : "bg-surface/92 text-text hover:bg-surface"
             )}
           >
-            {isMaximized ? (
-              <>
-                <Minimize className="h-3.5 w-3.5" aria-hidden />
-                <span>Restaurar</span>
-              </>
-            ) : (
-              <>
-                <Maximize className="h-3.5 w-3.5" aria-hidden />
-                <span></span>
-              </>
-            )}
+            {isMaximized ? <Minimize className="h-3.5 w-3.5" aria-hidden /> : <Maximize className="h-3.5 w-3.5" aria-hidden />}
+            {isMaximized && <span className="sr-only @md:not-sr-only">Restaurar</span>}
           </button>
         </div>
       )}
@@ -305,7 +301,7 @@ export function Photo360Viewer({ src }: { src: string }) {
       {status === "ready" && hint && (
         <div
           ref={hintRef}
-          className="pointer-events-none absolute inset-x-0 top-16 z-10 mx-auto w-fit max-w-[85%] rounded-pill bg-surface/90 px-3.5 py-1.5 text-center text-xs font-medium text-text shadow-pop backdrop-blur"
+          className="pointer-events-none absolute inset-x-0 bottom-14 z-10 mx-auto w-fit max-w-[85%] rounded-pill bg-surface/92 px-3.5 py-1.5 text-center text-xs font-medium text-text shadow-pop"
         >
           {hint}
         </div>

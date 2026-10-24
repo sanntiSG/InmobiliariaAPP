@@ -1,4 +1,4 @@
-import { Sparkles } from "lucide-react";
+import { AmbientIcon } from "@/components/icons/AmbientIcon";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -16,7 +16,7 @@ export function AmbientBadge({ className, compact = false }: { className?: strin
       )}
       title="Portada viva: se ve de día, de noche, con lluvia y con viento"
     >
-      <Sparkles className="h-3.5 w-3.5" aria-hidden />
+      <AmbientIcon className="h-3.5 w-3.5" />
       {compact ? <span className="sr-only">Portada viva</span> : "Portada viva"}
     </span>
   );

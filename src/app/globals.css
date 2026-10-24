@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* Áreas seguras del dispositivo (isla dinámica, barra inferior, esquinas). Valen 0 salvo en las rutas que piden
+   `viewport-fit=cover` (mapa y propiedades). Una sola fuente de verdad: así también se pueden simular en pruebas. */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}
+
 /* ─────────────────────────────────────────────────────────────
    Design tokens — derivados del análisis de /UIreference:
    fondos casi blancos, cards blancas puras, sombras muy suaves,
@@ -219,48 +228,124 @@ body {
 .maplibregl-ctrl-attrib a {
   color: var(--text-muted);
 }
-.maplibregl-popup-content {
+/* El CSS de maplibre-gl se importa dentro del componente dinámico del mapa, así que llega DESPUÉS de este archivo y,
+   con el mismo peso, pisaba estas reglas: de ahí el recuadro blanco alrededor de la tarjeta en modo oscuro. Con
+   `.umbral-popup` delante gana siempre, sin depender del orden de carga. */
+.umbral-popup .maplibregl-popup-content {
   padding: 0;
   border-radius: var(--radius-card);
   box-shadow: none;
   background: transparent;
 }
-.maplibregl-popup-tip {
+.umbral-popup .maplibregl-popup-tip {
   display: none;
 }
 
-/* Recorrido 360°: marcadores anclados a la esfera (DOM creado por el hook useTourViewer). */
+/* Fila que se desliza con degradé sólo en el borde que tiene más contenido (ver useScrollEdges). */
+.scroll-fade-x {
+  --fade-start: 0px;
+  --fade-end: 0px;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent);
+}
+.scroll-fade-x[data-edge-start] {
+  --fade-start: 20px;
+}
+.scroll-fade-x[data-edge-end] {
+  --fade-end: 20px;
+}
+
+/* Recorrido 360°: marcadores anclados a la esfera (DOM creado por el hook useTourViewer). Sin desenfoque: se
+   dibujan encima de un canvas que se repinta en cada fotograma. Se achican según el ancho del visor (no de la
+   pantalla): compactos en un visor angosto y sólo el punto en uno muy angosto, para no tapar el ambiente. */
 .tour-marker {
-  display: inline-flex;
+  position: relative;
+  /* Photo Sphere Viewer le pone `display: block` en línea a cada elemento que recibe como marcador: sin el !important
+     el punto y el nombre se apilaban en vertical (un marcador alto que tapaba el ambiente) en vez de formar la píldora.
+     La visibilidad la maneja el contenedor `.psv-marker`, no este elemento, así que forzarlo es seguro. */
+  display: inline-flex !important;
+  /* El CSS de Photo Sphere Viewer pone `content-box` a todo lo que está dentro de su contenedor. */
+  box-sizing: border-box !important;
   align-items: center;
   gap: 8px;
-  min-height: 44px;
-  padding: 0 16px 0 8px;
-  border-radius: var(--radius-pill);
-  background: color-mix(in oklab, var(--surface) 88%, transparent);
+  min-height: 40px;
+  padding: 0 14px 0 6px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface) 92%, transparent);
   color: var(--text);
-  font: 600 13px/1 var(--font-body, inherit);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
   box-shadow: var(--shadow-pop);
-  backdrop-filter: blur(8px);
   cursor: pointer;
   white-space: nowrap;
-  transition: transform 150ms var(--ease-out), background-color 150ms var(--ease-out);
+  transition: transform 150ms var(--ease-out);
 }
-.tour-marker:hover {
-  transform: scale(1.04);
+@media (hover: hover) {
+  .tour-marker:hover {
+    transform: scale(1.04);
+  }
 }
 .tour-marker:active {
   transform: scale(0.97);
 }
+.tour-marker__label {
+  max-width: 14ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .tour-marker__dot {
   display: grid;
+  flex: none;
   place-items: center;
   width: 28px;
   height: 28px;
   border-radius: 999px;
   background: var(--accent);
   color: var(--accent-contrast);
-  font-size: 14px;
+}
+.tour-marker__dot svg {
+  width: 16px;
+  height: 16px;
+}
+@container psv-container (max-width: 520px) {
+  .tour-marker {
+    min-height: 32px;
+    gap: 6px;
+    padding: 0 10px 0 4px;
+    font-size: 12px;
+  }
+  .tour-marker__label {
+    max-width: 11ch;
+  }
+  .tour-marker__dot {
+    width: 24px;
+    height: 24px;
+  }
+  .tour-marker__dot svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+@container psv-container (max-width: 380px) {
+  .tour-marker {
+    padding: 4px;
+  }
+  /* Sólo el punto: el nombre sigue disponible para lectores de pantalla (aria-label) y aparece en la barra al llegar. */
+  .tour-marker__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    max-width: none;
+    clip-path: inset(50%);
+  }
+  /* El punto es chico pero el área táctil no. */
+  .tour-marker::before {
+    content: "";
+    position: absolute;
+    inset: -6px;
+  }
 }
 .tour-marker[data-selected="true"] {
   outline: 2px solid var(--accent);

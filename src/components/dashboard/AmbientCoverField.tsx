@@ -8,11 +8,11 @@ import {
   Info,
   LoaderCircle,
   MessageCircle,
-  Sparkles,
   Trash2,
   TriangleAlert,
 } from "lucide-react";
 import type { AmbientManifest } from "@/vendor/ambient";
+import { AmbientIcon } from "@/components/icons/AmbientIcon";
 import { Button, buttonClasses } from "@/components/ui/Button";
 import { InfoDialog } from "@/components/ui/InfoDialog";
 import { SelectField } from "@/components/ui/SelectField";
@@ -147,7 +147,7 @@ export function AmbientCoverField({
         <ModeOption
           checked={mode === "ambient"}
           onChange={() => chooseMode("ambient")}
-          icon={<Sparkles className="h-4 w-4" aria-hidden />}
+          icon={<AmbientIcon className="h-4 w-4" />}
           title="Portada viva"
           description="Una misma foto de día, al atardecer, de noche, con lluvia y con viento."
         />
@@ -261,7 +261,7 @@ export function AmbientCoverField({
         open={infoOpen}
         onClose={() => setInfoOpen(false)}
         title="Portada viva"
-        icon={<Sparkles className="h-5 w-5" aria-hidden />}
+        icon={<AmbientIcon className="h-5 w-5" />}
         actions={
           <>
             <Button type="button" onClick={() => setInfoOpen(false)}>

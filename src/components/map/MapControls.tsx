@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { MapLibreMap } from "maplibre-gl";
-import { Plus, Minus, LocateFixed } from "lucide-react";
+import { LocateFixed } from "lucide-react";
 import { IconButton } from "@/components/ui/IconButton";
 import type { LocateResult } from "@/lib/map/useUserLocation";
 
@@ -12,12 +11,14 @@ const ERROR_MESSAGES: Record<Exclude<LocateResult, { ok: true }>["reason"], stri
   unsupported: "Tu navegador no soporta geolocalización.",
 };
 
+/**
+ * Sólo "Mi ubicación". El zoom con botones + y − se quitó: el lanzador del asesor ocupa esa esquina y el zoom ya se
+ * hace con pellizco, doble toque, rueda y teclado.
+ */
 export function MapControls({
-  map,
   locateNow,
   className,
 }: {
-  map: MapLibreMap | null;
   /** Ver useUserLocation — comparte el mismo marker/estado que el intento automático al entrar al mapa. */
   locateNow: (opts?: { zoom?: number }) => Promise<LocateResult>;
   className?: string;
@@ -43,32 +44,11 @@ export function MapControls({
           {error}
         </div>
       )}
-      <div className="flex flex-col overflow-hidden rounded-pill bg-surface shadow-float">
-        <IconButton
-          variant="ghost"
-          size={44}
-          aria-label="Acercar"
-          className="rounded-none"
-          onClick={() => map?.zoomIn({ duration: 250 })}
-        >
-          <Plus className="h-4 w-4" aria-hidden />
-        </IconButton>
-        <div className="h-px bg-border" />
-        <IconButton
-          variant="ghost"
-          size={44}
-          aria-label="Alejar"
-          className="rounded-none"
-          onClick={() => map?.zoomOut({ duration: 250 })}
-        >
-          <Minus className="h-4 w-4" aria-hidden />
-        </IconButton>
-      </div>
       <IconButton
         variant="solid"
         size={44}
         aria-label="Mi ubicación"
-        className="mt-2.5 shadow-float"
+        className="shadow-float"
         onClick={locate}
         disabled={locating}
       >

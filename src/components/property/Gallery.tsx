@@ -90,7 +90,7 @@ export function Gallery({ images, title }: { images: GalleryImage[]; title: stri
                 ))}
               </div>
             )}
-            <span className="pointer-events-none absolute bottom-3 right-3 rounded-full bg-black/60 px-2.5 py-1 text-xs font-medium tabular-nums text-white" aria-hidden>
+            <span className="pointer-events-none absolute bottom-3 right-3 whitespace-nowrap rounded-full bg-black/60 px-2.5 py-1 text-xs font-medium tabular-nums text-white" aria-hidden>
               {active + 1} / {images.length}
             </span>
             {/* Con mouse: flechas al pasar por encima. En el celular se desliza con el dedo. */}

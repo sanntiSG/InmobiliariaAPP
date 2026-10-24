@@ -40,10 +40,22 @@ function makeMarkerElement(label: string, flags: { selected?: boolean; ghost?: b
 
   const dot = document.createElement("span");
   dot.className = "tour-marker__dot";
-  dot.textContent = "↑";
   dot.setAttribute("aria-hidden", "true");
+  const svgNs = "http://www.w3.org/2000/svg";
+  const chevron = document.createElementNS(svgNs, "svg");
+  chevron.setAttribute("viewBox", "0 0 24 24");
+  chevron.setAttribute("fill", "none");
+  chevron.setAttribute("stroke", "currentColor");
+  chevron.setAttribute("stroke-width", "2.5");
+  chevron.setAttribute("stroke-linecap", "round");
+  chevron.setAttribute("stroke-linejoin", "round");
+  const stroke = document.createElementNS(svgNs, "path");
+  stroke.setAttribute("d", "M6 15l6-6 6 6");
+  chevron.append(stroke);
+  dot.append(chevron);
 
   const text = document.createElement("span");
+  text.className = "tour-marker__label";
   text.textContent = label || "Sin título";
 
   el.append(dot, text);

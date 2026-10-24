@@ -228,7 +228,7 @@ export default function MapaClient({ agency, panelLink = null }: { agency: MapAg
         onMapReady={setMapInstance}
       />
 
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col gap-2 p-4">
+      <div data-map-inset="top" className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col gap-2 p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           {/* En mobile el logo y el atajo al panel comparten fila; desde `sm` el wrapper desaparece (contents). */}
           <div className="flex items-center justify-between gap-2 sm:contents">
@@ -290,7 +290,7 @@ export default function MapaClient({ agency, panelLink = null }: { agency: MapAg
         map={mapInstance}
       />
 
-      <MapControls map={mapInstance} locateNow={locateNow} className="absolute bottom-6 right-4 z-20" />
+      <MapControls locateNow={locateNow} className="absolute bottom-6 right-4 z-20" />
 
       {suggestion && (
         <NearbySuggestionCard

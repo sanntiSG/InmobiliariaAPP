@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Sparkles } from "lucide-react";
+import { NubiIcon } from "@/components/icons/NubiIcon";
 import { cn } from "@/lib/utils/cn";
 import { modeFor, openAdvisor, useAdvisorState } from "@/components/advisor/store";
 
@@ -46,7 +46,7 @@ export function DashboardNav({ isAdmin = false }: { isAdmin?: boolean }) {
           onClick={(e) => openAdvisor({ origin: e.currentTarget.getBoundingClientRect() })}
           className="flex shrink-0 items-center gap-1.5 rounded-pill px-4 py-2.5 text-sm font-medium text-accent transition-colors hover:bg-accent-soft lg:rounded-media"
         >
-          <Sparkles className="h-4 w-4" aria-hidden />
+          <NubiIcon className="h-4 w-4" />
           {advisor.config?.displayName ?? "Asesor"}
         </button>
       )}
