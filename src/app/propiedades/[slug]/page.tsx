@@ -131,10 +131,10 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
     .join(", ");
 
   return (
-    <div className="min-h-dvh">
-      <Navbar />
+    <div className="min-h-dvh pt-[calc(var(--header-h)+var(--safe-top))] pb-[var(--safe-bottom)]">
+      <Navbar variant="immersive" />
 
-      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+      <div className="mx-auto max-w-6xl py-6 pl-[max(1rem,var(--safe-left))] pr-[max(1rem,var(--safe-right))] sm:pl-[max(1.5rem,var(--safe-left))] sm:pr-[max(1.5rem,var(--safe-right))]">
         {!isPublished && (
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-card bg-warning-soft px-4 py-3 text-sm text-text">
             <span>

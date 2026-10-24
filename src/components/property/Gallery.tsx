@@ -182,7 +182,7 @@ function Lightbox({
       aria-modal="true"
       aria-label="Galería de fotos"
     >
-      <div className="flex justify-end p-4">
+      <div className="flex justify-end p-4 pt-[max(1rem,var(--safe-top))] pr-[max(1rem,var(--safe-right))]">
         <IconButton variant="ghost" aria-label="Cerrar" className="text-white hover:bg-white/10" onClick={onClose}>
           <X className="h-5 w-5" aria-hidden />
         </IconButton>
@@ -206,7 +206,7 @@ function Lightbox({
       </div>
 
       {images.length > 1 && (
-        <p className="pb-4 text-center text-sm text-white/70">
+        <p className="pb-[max(1rem,var(--safe-bottom))] text-center text-sm text-white/70">
           {index + 1} / {images.length}
         </p>
       )}

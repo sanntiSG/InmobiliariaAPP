@@ -1,4 +1,5 @@
 import { Types } from "mongoose";
+import type { Viewport } from "next";
 import { connectDB } from "@/lib/db/connect";
 import { Agency } from "@/lib/db/models/Agency";
 import { Property } from "@/lib/db/models/Property";
@@ -8,6 +9,9 @@ import { resolvePanelLink } from "@/lib/auth/panel-link";
 import MapaClient, { type MapAgencyFilter } from "@/components/map/MapaClient";
 
 export const metadata = { title: "Mapa" };
+
+/** El mapa es la pantalla entera, también debajo de la isla dinámica y de la barra inferior (ver `--safe-*`). */
+export const viewport: Viewport = { viewportFit: "cover" };
 
 /**
  * El mapa es una pantalla de cliente; esta página sólo resuelve en el servidor

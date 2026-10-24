@@ -140,7 +140,10 @@ function DesktopPanel({ loading, totalCount, list }: { loading: boolean; totalCo
   );
 
   return (
-    <div data-map-inset="left" className="pointer-events-none absolute left-4 top-24 bottom-6 z-10 hidden md:block">
+    <div
+      data-map-inset="left"
+      className="pointer-events-none absolute left-[max(1rem,var(--safe-left))] top-[calc(6rem+var(--safe-top))] bottom-[calc(1.5rem+var(--safe-bottom))] z-10 hidden md:block"
+    >
       <div ref={panelRef} className="pointer-events-auto h-full">
         {collapsed ? (
           <button

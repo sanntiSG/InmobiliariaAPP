@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { LogOut } from "lucide-react";
 import { useSession, signOut } from "next-auth/react";
 import { Button, buttonClasses } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -56,8 +57,16 @@ export function UserMenu({ compact = false, hidePanel = false }: { compact?: boo
       >
         {compact ? "Mi perfil" : `Hola, ${firstName}`}
       </Link>
-      <Button variant="ghost" size="sm" onClick={() => signOut({ callbackUrl: "/" })}>
-        Cerrar sesión
+      {/* En el celular sólo el ícono: el texto partido en dos renglones ensuciaba el header. */}
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => signOut({ callbackUrl: "/" })}
+        aria-label="Cerrar sesión"
+        className="whitespace-nowrap max-sm:size-10 max-sm:px-0"
+      >
+        <LogOut className="h-4 w-4 sm:hidden" aria-hidden />
+        <span className="max-sm:sr-only">Cerrar sesión</span>
       </Button>
     </div>
   );

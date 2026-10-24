@@ -85,7 +85,7 @@ export function Sheet({ open, onClose, children, title, side = "bottom" }: Sheet
           "transition-transform duration-[280ms] [transition-timing-function:var(--ease-out)]",
           side === "bottom" &&
             cn(
-              "inset-x-0 bottom-0 max-h-[85vh] rounded-t-card pt-2 pb-[env(safe-area-inset-bottom)]",
+              "inset-x-0 bottom-0 max-h-[85vh] rounded-t-card pt-2 pb-[var(--safe-bottom)]",
               shown ? "translate-y-0" : "translate-y-full"
             ),
           side === "right" &&

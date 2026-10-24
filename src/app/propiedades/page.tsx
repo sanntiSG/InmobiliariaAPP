@@ -87,10 +87,10 @@ export default function PropiedadesPage() {
   const hasMore = items.length < total;
 
   return (
-    <div className="min-h-dvh">
-      <Navbar />
+    <div className="min-h-dvh pt-[calc(var(--header-h)+var(--safe-top))] pb-[var(--safe-bottom)]">
+      <Navbar variant="immersive" />
 
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+      <div className="mx-auto max-w-7xl py-6 pl-[max(1rem,var(--safe-left))] pr-[max(1rem,var(--safe-right))] sm:pl-[max(1.5rem,var(--safe-left))] sm:pr-[max(1.5rem,var(--safe-right))]">
         <PageHeader
           eyebrow="Explorar"
           title="Propiedades para recorrer antes de visitar"

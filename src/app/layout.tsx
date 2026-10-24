@@ -5,6 +5,8 @@ import { Bricolage_Grotesque, Manrope } from "next/font/google";
 import "./globals.css";
 import { brand } from "@/config/brand";
 import { THEME_COOKIE_NAME } from "@/config/site";
+import { THEME_COLORS } from "@/config/theme";
+import { ThemeColorSync } from "@/components/layout/ThemeColorSync";
 import { auth } from "@/auth";
 import { getFreshAccount } from "@/lib/auth/fresh-account";
 import { SessionProvider } from "@/components/providers/SessionProvider";
@@ -33,12 +35,20 @@ export const metadata: Metadata = {
   description: brand.description,
 };
 
-export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f2f4f7" },
-    { media: "(prefers-color-scheme: dark)", color: "#0b0d12" },
-  ],
-};
+/**
+ * Color de la barra del sistema. Con tema elegido a mano (cookie) va fijo en ese color; sin cookie sigue al sistema.
+ * Las rutas que ocupan toda la pantalla (mapa, propiedades) suman `viewportFit: "cover"` en su propio `viewport`.
+ */
+export async function generateViewport(): Promise<Viewport> {
+  const chosen = (await cookies()).get(THEME_COOKIE_NAME)?.value;
+  if (chosen === "light" || chosen === "dark") return { themeColor: THEME_COLORS[chosen] };
+  return {
+    themeColor: [
+      { media: "(prefers-color-scheme: light)", color: THEME_COLORS.light },
+      { media: "(prefers-color-scheme: dark)", color: THEME_COLORS.dark },
+    ],
+  };
+}
 
 /**
  * Fallback de una sola vez para navegadores que todavía no tienen la cookie
@@ -102,6 +112,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         />
       </head>
       <body className="min-h-full flex flex-col bg-bg text-text font-sans">
+        <ThemeColorSync />
         <SessionProvider session={session}>
           <AdvisorProvider config={advisorConfig} account={advisorAccount}>
             {children}

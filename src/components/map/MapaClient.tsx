@@ -228,7 +228,10 @@ export default function MapaClient({ agency, panelLink = null }: { agency: MapAg
         onMapReady={setMapInstance}
       />
 
-      <div data-map-inset="top" className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col gap-2 p-4">
+      <div
+        data-map-inset="top"
+        className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-col gap-2 px-4 pb-4 pl-[max(1rem,var(--safe-left))] pr-[max(1rem,var(--safe-right))] pt-[max(1rem,var(--safe-top))]"
+      >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           {/* En mobile el logo y el atajo al panel comparten fila; desde `sm` el wrapper desaparece (contents). */}
           <div className="flex items-center justify-between gap-2 sm:contents">
@@ -290,7 +293,10 @@ export default function MapaClient({ agency, panelLink = null }: { agency: MapAg
         map={mapInstance}
       />
 
-      <MapControls locateNow={locateNow} className="absolute bottom-6 right-4 z-20" />
+      <MapControls
+        locateNow={locateNow}
+        className="absolute bottom-[calc(1.5rem+var(--safe-bottom))] right-[max(1rem,var(--safe-right))] z-20"
+      />
 
       {suggestion && (
         <NearbySuggestionCard
@@ -337,7 +343,7 @@ function NearbySuggestionCard({
   );
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-24 z-10 flex justify-center px-4">
+    <div className="pointer-events-none absolute inset-x-0 top-[calc(6rem+var(--safe-top))] z-10 flex justify-center px-4">
       <div
         ref={cardRef}
         className="pointer-events-auto flex w-full max-w-sm flex-col items-center gap-3 rounded-card bg-surface p-4 text-center shadow-float sm:flex-row sm:items-center sm:text-left"
