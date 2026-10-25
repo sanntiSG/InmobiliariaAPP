@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import { Camera, Eye, FlaskConical, Play, RotateCcw, Trash2, Upload } from "lucide-react";
 import { MascotCanvasLazy, type MascotHandle } from "@/components/advisor/mascot/MascotCanvasLazy";
 import { readClips } from "@/components/advisor/mascot/scene";
-import { openAdvisor } from "@/components/advisor/store";
+import { openAgent } from "@/components/advisor/store";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { cn } from "@/lib/utils/cn";
 import type { AdminConfigState, AdvisorContent, AdvisorFraming, AdvisorRoles, ClipInfo, LibraryEntry } from "@/lib/advisor/config";
+import { toPublicConfig } from "@/lib/advisor/public-config";
+import { AGENTS, type AgentId } from "@/lib/agents/registry";
 import type { UnmatchedRow } from "@/app/api/admin/advisor/unmatched/route";
 
 const MODEL_MAX_BYTES = 10 * 1024 * 1024;
@@ -51,8 +53,17 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
 }
 const json = (body: unknown): RequestInit => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
-export function AdvisorStudio({ initial, unmatched: initialUnmatched }: { initial: AdminConfigState; unmatched: UnmatchedRow[] }) {
+/**
+ * Estudio de un agente: nombre, modelo 3D, animaciones y encuadre sobre un BORRADOR que se prueba y se publica. Sirve para
+ * cualquier agente (`agentId`); lo único propio del asesor es la lista de "preguntas que no entendió". Los modelos 3D
+ * subidos son una biblioteca compartida por todos los agentes.
+ */
+export function AdvisorStudio({ initial, unmatched: initialUnmatched, agentId = "advisor" }: { initial: AdminConfigState; unmatched?: UnmatchedRow[]; agentId?: AgentId }) {
   const router = useRouter();
+  const def = AGENTS[agentId];
+  const isAdvisor = agentId === "advisor";
+  // El asesor conserva sus rutas de siempre; los demás agentes viajan con `?agent=`.
+  const ep = useCallback((path = "") => `/api/admin/advisor${path}${isAdvisor ? "" : `?agent=${agentId}`}`, [agentId, isAdvisor]);
   const [state, setState] = useState(initial);
   const [draft, setDraft] = useState<AdvisorContent>(initial.draft);
   const [dark, setDark] = useState(false);
@@ -63,7 +74,7 @@ export function AdvisorStudio({ initial, unmatched: initialUnmatched }: { initia
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const [toDelete, setToDelete] = useState<LibraryEntry | null>(null);
-  const [unmatched, setUnmatched] = useState(initialUnmatched);
+  const [unmatched, setUnmatched] = useState(initialUnmatched ?? []);
   const viewer = useRef<MascotHandle>(null);
   const dirty = useRef(false);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -79,7 +90,7 @@ export function AdvisorStudio({ initial, unmatched: initialUnmatched }: { initia
     setStatus("saving");
     const t = window.setTimeout(async () => {
       try {
-        const next = await api<AdminConfigState>("/api/admin/advisor", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ draft }) });
+        const next = await api<AdminConfigState>(ep(), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ draft }) });
         dirty.current = false;
         setState((s) => ({ ...s, hasUnpublished: next.hasUnpublished, library: next.library, published: next.published }));
         setStatus("saved");
@@ -89,15 +100,15 @@ export function AdvisorStudio({ initial, unmatched: initialUnmatched }: { initia
       }
     }, 700);
     return () => window.clearTimeout(t);
-  }, [draft]);
+  }, [draft, ep]);
 
   const flush = useCallback(async () => {
     if (!dirty.current) return;
-    const next = await api<AdminConfigState>("/api/admin/advisor", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ draft }) });
+    const next = await api<AdminConfigState>(ep(), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ draft }) });
     dirty.current = false;
     setState((s) => ({ ...s, hasUnpublished: next.hasUnpublished, library: next.library }));
     setStatus("saved");
-  }, [draft]);
+  }, [draft, ep]);
 
   const run = async (label: string, fn: () => Promise<void>) => {
     setBusy(label);
@@ -147,7 +158,7 @@ export function AdvisorStudio({ initial, unmatched: initialUnmatched }: { initia
       const form = new FormData();
       form.set("file", file);
       form.set("clips", JSON.stringify(clips));
-      next = await api<AdminConfigState>("/api/admin/advisor/model/local", { method: "POST", body: form });
+      next = await api<AdminConfigState>(ep("/model/local"), { method: "POST", body: form });
     } else {
       const { ticket } = sign;
       await new Promise<void>((resolve, reject) => {
@@ -161,7 +172,7 @@ export function AdvisorStudio({ initial, unmatched: initialUnmatched }: { initia
         form.set("file", file);
         xhr.send(form);
       });
-      next = await api<AdminConfigState>("/api/admin/advisor/model", json({ providerId: ticket.providerId, label: file.name, clips }));
+      next = await api<AdminConfigState>(ep("/model"), json({ providerId: ticket.providerId, label: file.name, clips }));
     }
     setState(next);
     const added = next.library[next.library.length - 1];
@@ -174,7 +185,7 @@ export function AdvisorStudio({ initial, unmatched: initialUnmatched }: { initia
   };
 
   async function deleteModel(entry: LibraryEntry) {
-    const next = await api<AdminConfigState>("/api/admin/advisor/model", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ providerId: entry.providerId }) });
+    const next = await api<AdminConfigState>(ep("/model"), { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ providerId: entry.providerId }) });
     setState(next);
     setToDelete(null);
   }
@@ -195,22 +206,23 @@ export function AdvisorStudio({ initial, unmatched: initialUnmatched }: { initia
   const publish = () =>
     run("publish", async () => {
       await flush();
-      const next = await api<AdminConfigState>("/api/admin/advisor/publish", { method: "POST" });
+      const next = await api<AdminConfigState>(ep("/publish"), { method: "POST" });
       setState(next);
       setDraft(next.draft);
       router.refresh();
     });
   const discard = () =>
     run("discard", async () => {
-      const next = await api<AdminConfigState>("/api/admin/advisor/discard", { method: "POST" });
+      const next = await api<AdminConfigState>(ep("/discard"), { method: "POST" });
       dirty.current = false;
       setState(next);
       setDraft(next.draft);
     });
-  const tryIt = (mode: "agency" | "explorer") =>
+  const tryIt = (mode?: "agency" | "explorer") =>
     run("try", async () => {
       await flush();
-      openAdvisor({ mode, preview: true });
+      // `override`: el escenario se dibuja con el borrador (antes mostraba al asesor publicado aunque se probara otro modelo).
+      openAgent(agentId, { mode, preview: true, override: toPublicConfig(draft, agentId) });
     });
 
   // ── Póster ──
@@ -221,7 +233,7 @@ export function AdvisorStudio({ initial, unmatched: initialUnmatched }: { initia
       await flush();
       const form = new FormData();
       form.set("file", new File([blob], "poster.png", { type: "image/png" }));
-      const next = await api<AdminConfigState>("/api/admin/advisor/poster", { method: "POST", body: form });
+      const next = await api<AdminConfigState>(ep("/poster"), { method: "POST", body: form });
       setState(next);
       setDraft(next.draft);
     });
@@ -266,7 +278,7 @@ export function AdvisorStudio({ initial, unmatched: initialUnmatched }: { initia
       <div className="grid gap-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
         {/* Visor */}
         <div className="flex flex-col gap-3 lg:sticky lg:top-36 lg:self-start">
-          <div className={cn("relative h-[26rem] overflow-hidden rounded-card shadow-card", dark ? "bg-[oklch(15.9%_0.0111_268)]" : "bg-[oklch(96.6%_0.0045_258)]")} aria-label="Vista previa del asesor">
+          <div className={cn("relative h-[26rem] overflow-hidden rounded-card shadow-card", dark ? "bg-[oklch(15.9%_0.0111_268)]" : "bg-[oklch(96.6%_0.0045_258)]")} aria-label={`Vista previa de ${def.roleNoun}`}>
             <MascotCanvasLazy
               modelUrl={draft.model.url}
               roles={draft.roles}
@@ -316,20 +328,30 @@ export function AdvisorStudio({ initial, unmatched: initialUnmatched }: { initia
             <div className="mt-4 flex flex-col gap-4">
               <label className="flex flex-col gap-1.5 text-sm font-medium">
                 Nombre
-                <input className={fieldCls} value={draft.name} maxLength={40} placeholder="Sin nombre todavía (se muestra “Asesor”)" onChange={(e) => update({ name: e.target.value })} />
+                <input className={fieldCls} value={draft.name} maxLength={40} placeholder={`Sin nombre todavía (se muestra “${def.roleLabel}”)`} onChange={(e) => update({ name: e.target.value })} />
               </label>
               <label className="flex flex-col gap-1.5 text-sm font-medium">
                 Descripción
                 <textarea className={cn(fieldCls, "min-h-[5.5rem] resize-y")} value={draft.description} maxLength={300} onChange={(e) => update({ description: e.target.value })} />
               </label>
-              <fieldset className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+              <fieldset className="flex flex-col gap-2 text-sm">
                 <legend className="mb-1 font-medium">Disponible para</legend>
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" checked={draft.enabled.agency} onChange={(e) => update({ enabled: { ...draft.enabled, agency: e.target.checked } })} /> Inmobiliarias
-                </label>
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" checked={draft.enabled.explorer} onChange={(e) => update({ enabled: { ...draft.enabled, explorer: e.target.checked } })} /> Exploradores
-                </label>
+                <div className="flex flex-wrap gap-x-6 gap-y-2">
+                  <label className="flex items-center gap-2">
+                    <input type="checkbox" checked={draft.enabled.agency} onChange={(e) => update({ enabled: { ...draft.enabled, agency: e.target.checked } })} /> Inmobiliarias y admin
+                  </label>
+                  {def.audiences.includes("explorer") && (
+                    <label className="flex items-center gap-2">
+                      <input type="checkbox" checked={draft.enabled.explorer} onChange={(e) => update({ enabled: { ...draft.enabled, explorer: e.target.checked } })} /> Exploradores
+                    </label>
+                  )}
+                </div>
+                {!isAdvisor && (
+                  <p className="text-xs text-text-muted">
+                    {def.audiences.includes("explorer") ? "" : "Sólo lo ven el admin y las personas de una inmobiliaria. "}
+                    Nace apagado: no aparece en el botón flotante de nadie hasta que lo actives y publiques.
+                  </p>
+                )}
               </fieldset>
             </div>
           </section>
@@ -339,6 +361,7 @@ export function AdvisorStudio({ initial, unmatched: initialUnmatched }: { initia
             <h2 id="studio-model" className="font-display text-lg font-semibold">
               Modelo 3D
             </h2>
+            <p className="mt-1 text-sm text-text-muted">Los modelos subidos son de todos los agentes: lo que subas acá también lo podés elegir en los demás. Hasta que cargues uno propio, usa el modelo incluido.</p>
             <ul className="mt-4 flex flex-col gap-2">
               {models.map((m) => {
                 const active = m.url === currentUrl;
@@ -459,18 +482,29 @@ export function AdvisorStudio({ initial, unmatched: initialUnmatched }: { initia
             <h2 id="studio-try" className="font-display text-lg font-semibold">
               Probar antes de publicar
             </h2>
-            <p className="mt-1 text-sm text-text-muted">Abre el escenario real con el borrador (nombre, modelo y animaciones). Las preguntas usan tus datos de admin.</p>
+            <p className="mt-1 text-sm text-text-muted">
+              Abre el escenario real con el borrador (nombre, modelo y animaciones).{isAdvisor ? " Las preguntas usan tus datos de admin." : ""}
+            </p>
             <div className="mt-4 flex flex-wrap gap-2">
-              <Button size="sm" variant="secondary" onClick={() => tryIt("agency")} disabled={!!busy}>
-                <FlaskConical className="h-4 w-4" aria-hidden /> Probar como inmobiliaria
-              </Button>
-              <Button size="sm" variant="secondary" onClick={() => tryIt("explorer")} disabled={!!busy}>
-                <FlaskConical className="h-4 w-4" aria-hidden /> Probar como explorador
-              </Button>
+              {isAdvisor ? (
+                <>
+                  <Button size="sm" variant="secondary" onClick={() => tryIt("agency")} disabled={!!busy}>
+                    <FlaskConical className="h-4 w-4" aria-hidden /> Probar como inmobiliaria
+                  </Button>
+                  <Button size="sm" variant="secondary" onClick={() => tryIt("explorer")} disabled={!!busy}>
+                    <FlaskConical className="h-4 w-4" aria-hidden /> Probar como explorador
+                  </Button>
+                </>
+              ) : (
+                <Button size="sm" variant="secondary" onClick={() => tryIt()} disabled={!!busy}>
+                  <FlaskConical className="h-4 w-4" aria-hidden /> Probar {def.roleNoun}
+                </Button>
+              )}
             </div>
           </section>
 
-          {/* No entendidas */}
+          {/* No entendidas (sólo el asesor conversa) */}
+          {isAdvisor && (
           <section className={card} aria-labelledby="studio-unmatched">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 id="studio-unmatched" className="font-display text-lg font-semibold">
@@ -508,6 +542,7 @@ export function AdvisorStudio({ initial, unmatched: initialUnmatched }: { initia
               </ul>
             )}
           </section>
+          )}
         </div>
       </div>
 

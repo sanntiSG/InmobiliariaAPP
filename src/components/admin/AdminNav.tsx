@@ -10,7 +10,7 @@ const LINKS = [
   { href: "/dashboard/propiedades", label: "Propiedades" },
   { href: "/admin/accesos", label: "Accesos" },
   { href: "/admin/estadisticas", label: "Estadísticas" },
-  { href: "/admin/asesor", label: "Asesor" },
+  { href: "/admin/agentes", label: "Agentes" },
 ];
 
 export function AdminNav({ pendingRequests = 0 }: { pendingRequests?: number }) {

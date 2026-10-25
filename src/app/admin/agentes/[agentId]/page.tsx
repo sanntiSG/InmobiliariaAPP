@@ -1,0 +1,61 @@
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
+import type { Metadata } from "next";
+import { ArrowLeft } from "lucide-react";
+import { connectDB } from "@/lib/db/connect";
+import { AdvisorUnmatched } from "@/lib/db/models/AdvisorUnmatched";
+import { getAdminConfigState } from "@/lib/advisor/config";
+import { AGENTS, isAgentId } from "@/lib/agents/registry";
+import { requireFreshAdmin } from "@/lib/auth/require-fresh-admin";
+import { AdvisorStudio } from "@/components/admin/advisor/AdvisorStudio";
+import type { UnmatchedRow } from "@/app/api/admin/advisor/unmatched/route";
+
+export const dynamic = "force-dynamic";
+
+type Props = { params: Promise<{ agentId: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { agentId } = await params;
+  return { title: isAgentId(agentId) ? AGENTS[agentId].roleLabel : "Agente" };
+}
+
+const INTRO: Record<string, string> = {
+  advisor: "Ponele nombre, elegí su modelo 3D y cuándo usa cada animación. Trabajás sobre un borrador: lo probás y recién cuando publicás lo ve la gente.",
+  marketing: "Lo usan el admin y las personas de una inmobiliaria desde el botón flotante y desde Contenido para redes. Nace apagado: activalo y publicalo cuando quieras.",
+  mail: "Lo usan el admin y las personas de una inmobiliaria para atender las consultas que llegan por mail. Nace apagado: activalo y publicalo cuando quieras.",
+};
+
+export default async function AgentStudioPage({ params }: Props) {
+  const { agentId } = await params;
+  if (!isAgentId(agentId)) notFound();
+  const admin = await requireFreshAdmin();
+  if (!admin) redirect("/ingresar");
+
+  await connectDB();
+  const [state, rows] = await Promise.all([
+    getAdminConfigState(agentId),
+    // Sólo el asesor conversa: el resto no tiene "preguntas que no entendió".
+    agentId === "advisor" ? AdvisorUnmatched.find({}).sort({ count: -1, lastAt: -1 }).limit(100).lean() : Promise.resolve([]),
+  ]);
+  const unmatched: UnmatchedRow[] = rows.map((r) => ({
+    id: String(r._id),
+    text: r.text,
+    mode: r.mode,
+    kind: r.kind,
+    count: r.count ?? 1,
+    lastAt: new Date(r.lastAt).toISOString(),
+  }));
+
+  return (
+    <div className="flex flex-col gap-6">
+      <header>
+        <Link href="/admin/agentes" className="inline-flex items-center gap-1.5 text-sm font-medium text-text-muted transition-colors hover:text-text">
+          <ArrowLeft className="h-4 w-4" aria-hidden /> Agentes
+        </Link>
+        <h1 className="mt-2 font-display text-2xl font-semibold text-text">{AGENTS[agentId].roleLabel}</h1>
+        <p className="mt-1 max-w-2xl text-sm text-text-muted">{INTRO[agentId]}</p>
+      </header>
+      <AdvisorStudio key={agentId} initial={state} unmatched={unmatched} agentId={agentId} />
+    </div>
+  );
+}
