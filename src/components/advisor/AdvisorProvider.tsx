@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
-import type { PublicAdvisorConfig } from "@/lib/advisor/config";
+import type { PublicAdvisorConfig } from "@/lib/advisor/public-config";
 import { AdvisorLauncher } from "./AdvisorLauncher";
 import { configure, setAgencyId, useAdvisorState, type Account } from "./store";
 
@@ -16,15 +16,25 @@ const AdvisorStage = dynamic(loadStage, { ssr: false });
  * rol ya confirmado contra la base) y aloja el lanzador y el escenario. Nada de esto toca el HTML de
  * las páginas: el asesor es una capa flotante.
  */
-export function AdvisorProvider({ config, account, children }: { config: PublicAdvisorConfig; account: Account; children: ReactNode }) {
+export function AdvisorProvider({
+  config,
+  agents,
+  account,
+  children,
+}: {
+  config: PublicAdvisorConfig;
+  agents: PublicAdvisorConfig[];
+  account: Account;
+  children: ReactNode;
+}) {
   const pathname = usePathname();
   const { open } = useAdvisorState();
   const [wanted, setWanted] = useState(false);
   const warmed = useRef(false);
 
   useEffect(() => {
-    configure(config, account);
-  }, [config, account]);
+    configure(config, agents, account);
+  }, [config, agents, account]);
 
   // El admin trabaja sobre una inmobiliaria elegida con `?agencyId=` en el panel.
   useEffect(() => {

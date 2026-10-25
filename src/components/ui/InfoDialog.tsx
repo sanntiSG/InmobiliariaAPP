@@ -14,6 +14,11 @@ export type InfoDialogProps = {
   actions: ReactNode;
   /** Esc o clic afuera. */
   onClose: () => void;
+  /**
+   * "page" (por defecto): sobre el contenido de la página. "overlay": también por encima del escenario de los agentes
+   * (que ocupa toda la pantalla), para abrir un detalle sin cerrarlo.
+   */
+  layer?: "page" | "overlay";
 };
 
 const EXIT_MS = 160;
@@ -23,7 +28,7 @@ const EXIT_MS = 160;
  * `ConfirmDialog` — entra con fade + escala corta desde 0.96 (nunca desde 0), sale más rápido, el origen queda en el
  * centro por ser modal, y los setState viven en callbacks (rAF/timeout). Esc y clic afuera lo cierran.
  */
-export function InfoDialog({ open, title, icon, children, actions, onClose }: InfoDialogProps) {
+export function InfoDialog({ open, title, icon, children, actions, onClose, layer = "page" }: InfoDialogProps) {
   const [shown, setShown] = useState(false);
   const [lingering, setLingering] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -53,7 +58,9 @@ export function InfoDialog({ open, title, icon, children, actions, onClose }: In
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeHandler.current();
+      if (e.key !== "Escape") return;
+      if (layer === "overlay") e.preventDefault();
+      closeHandler.current();
     };
     document.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
@@ -64,12 +71,12 @@ export function InfoDialog({ open, title, icon, children, actions, onClose }: In
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
     };
-  }, [open]);
+  }, [open, layer]);
 
   if (!mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+    <div className={cn("fixed inset-0 flex items-center justify-center p-4", layer === "overlay" ? "z-[80]" : "z-[60]")}>
       <div
         className={cn(
           "absolute inset-0 bg-black/45 transition-opacity duration-150 [transition-timing-function:var(--ease-out)]",

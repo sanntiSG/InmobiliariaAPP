@@ -1,19 +1,22 @@
 "use client";
 
 import { RotateCcw } from "lucide-react";
+import { AgentSoon } from "@/components/agents/AgentSoon";
 import { AdvisorThread } from "./AdvisorThread";
 import { StageFrame } from "./StageFrame";
-import { resetThread, useAdvisorState } from "./store";
+import { resetThread, stageConfig, useAdvisorState } from "./store";
 
 /**
- * El escenario del agente que está abierto: el marco común (`StageFrame`) con el contenido de ese agente adentro. Hoy sólo
- * está el asesor (una conversación); los demás agentes se suman acá con su propio contenido.
+ * El escenario del agente que está abierto: el marco común (`StageFrame`) con el contenido de ese agente adentro. El asesor
+ * es una conversación; marketing y correo traen su propio escenario (hoy, un aviso provisorio).
  */
 export default function AdvisorStage() {
   const s = useAdvisorState();
-  const { open, mode, config } = s;
+  const { open, mode } = s;
+  const config = stageConfig(s);
+  const advisor = s.agent === "advisor";
   const thread = s.threads[mode];
-  const pending = thread.turns.some((t) => t.role === "assistant" && t.status === "pending");
+  const pending = advisor && thread.turns.some((t) => t.role === "assistant" && t.status === "pending");
 
   return (
     <StageFrame
@@ -22,16 +25,16 @@ export default function AdvisorStage() {
       config={config}
       preview={s.preview}
       busyLabel={pending ? "Analizando" : null}
-      ariaLabel={`Conversación con ${config?.displayName ?? "el asesor"}`}
+      ariaLabel={advisor ? `Conversación con ${config?.displayName ?? "el asesor"}` : (config?.displayName ?? "Agente")}
       headerActions={
-        thread.turns.length > 0 ? (
+        advisor && thread.turns.length > 0 ? (
           <button type="button" onClick={() => resetThread(mode)} className="advisor-icon-btn" aria-label="Empezar una charla nueva" title="Charla nueva">
             <RotateCcw className="h-[18px] w-[18px]" aria-hidden />
           </button>
         ) : null
       }
     >
-      <AdvisorThread mode={mode} />
+      {advisor ? <AdvisorThread mode={mode} /> : <AgentSoon />}
     </StageFrame>
   );
 }

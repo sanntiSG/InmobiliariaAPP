@@ -152,6 +152,8 @@ export function StageFrame({ open, origin, config, preview, busyLabel, ariaLabel
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        // Un cartel abierto encima (Sheet/diálogo en la capa "overlay") ya atendió la tecla: cierra él, no el escenario.
+        if (e.defaultPrevented) return;
         e.preventDefault();
         closeAdvisor();
         return;

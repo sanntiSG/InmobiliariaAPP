@@ -11,7 +11,8 @@ import { auth } from "@/auth";
 import { getFreshAccount } from "@/lib/auth/fresh-account";
 import { SessionProvider } from "@/components/providers/SessionProvider";
 import { AdvisorProvider } from "@/components/advisor/AdvisorProvider";
-import { getPublishedConfig, toPublicConfig } from "@/lib/advisor/config";
+import { getPublishedAgents, toPublicConfig } from "@/lib/advisor/config";
+import { agentsForAudience, audienceOf } from "@/lib/agents/registry";
 
 // Syne (variable, 400–800): UI, titulares y precios — geométrica y ancha, con carácter propio. `latin-ext` cubre
 // la ñ, las tildes y los signos de apertura (¿ ¡) del español.
@@ -107,8 +108,15 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       ? { ...jwtSession, user: { ...jwtSession.user, role: fresh.role as typeof jwtSession.user.role, agencyId: fresh.agencyId } }
       : null;
   // Lo que el asesor muestra (nombre, modelo, animaciones) es la configuración PUBLICADA; el borrador no sale del estudio.
-  const advisorConfig = toPublicConfig(await getPublishedConfig());
   const advisorAccount = { signedIn: !!session, role: session?.user.role ?? null, agencyId: session?.user.agencyId ?? null };
+  // Un explorador (o quien no inició sesión) recibe sólo al asesor; marketing y correo viajan únicamente a admin y a quienes
+  // gestionan una inmobiliaria, y sólo si el admin los publicó.
+  const publishedAgents = await getPublishedAgents();
+  const audience = audienceOf(advisorAccount);
+  const advisorConfig = toPublicConfig(publishedAgents.advisor);
+  const agents = agentsForAudience(audience)
+    .filter((id) => publishedAgents[id].enabled[audience])
+    .map((id) => toPublicConfig(publishedAgents[id], id));
   const themeCookie = cookieStore.get(THEME_COOKIE_NAME)?.value;
   const theme = themeCookie === "light" || themeCookie === "dark" ? themeCookie : undefined;
 
@@ -129,7 +137,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col bg-bg text-text font-sans">
         <ThemeColorSync />
         <SessionProvider session={session}>
-          <AdvisorProvider config={advisorConfig} account={advisorAccount}>
+          <AdvisorProvider config={advisorConfig} agents={agents} account={advisorAccount}>
             {children}
           </AdvisorProvider>
         </SessionProvider>

@@ -4,7 +4,8 @@
  * mínimo con `useSyncExternalStore` — sin librerías ni contexto que re-renderice todo.
  */
 import { useSyncExternalStore } from "react";
-import type { PublicAdvisorConfig } from "@/lib/advisor/config";
+import type { PublicAdvisorConfig } from "@/lib/advisor/public-config";
+import type { AgentId } from "@/lib/agents/registry";
 import { isFreeIntent } from "@/lib/advisor/types";
 import type {
   AdvisorAnswer,
@@ -39,7 +40,19 @@ export type Account = { signedIn: boolean; role: string | null; agencyId: string
 export type AdvisorState = {
   open: boolean;
   mode: AdvisorMode;
+  /** Agente cuyo escenario está abierto (o el último que se abrió). */
+  agent: AgentId;
+  /** Configuración PUBLICADA del asesor (es el agente de siempre: lo usan los botones sueltos de la web). */
   config: PublicAdvisorConfig | null;
+  /**
+   * Agentes que esta cuenta puede usar ahora, con el asesor primero. Los filtra el servidor por tipo de cuenta y por
+   * si el admin los publicó: un explorador sólo recibe al asesor, y marketing/correo no llegan al navegador de nadie más.
+   */
+  agents: PublicAdvisorConfig[];
+  /** Reemplaza a la configuración publicada: sólo la prueba del estudio del admin (el BORRADOR, con su modelo y su nombre). */
+  override: PublicAdvisorConfig | null;
+  /** Abanico de agentes desplegado desde el botón flotante. */
+  fan: boolean;
   account: Account;
   /** Sólo el admin: inmobiliaria elegida en el panel (`?agencyId=`). */
   agencyId: string | null;
@@ -67,7 +80,11 @@ const emptyThread = (): Thread => ({
 let state: AdvisorState = {
   open: false,
   mode: "explorer",
+  agent: "advisor",
   config: null,
+  agents: [],
+  override: null,
+  fan: false,
   account: { signedIn: false, role: null, agencyId: null },
   agencyId: null,
   preview: false,
@@ -104,6 +121,13 @@ export function useAdvisorState(): AdvisorState {
 
 export const getAdvisorState = () => state;
 
+/** Configuración con la que se dibuja el escenario: la de la prueba del estudio si la hay; si no, la publicada del agente abierto. */
+export function stageConfig(s: AdvisorState): PublicAdvisorConfig | null {
+  if (s.override) return s.override;
+  if (s.agent === "advisor") return s.config;
+  return s.agents.find((a) => a.id === s.agent) ?? null;
+}
+
 /** Modo según la cuenta: inmobiliaria si es admin o gestiona una inmobiliaria ya creada; si no, explorador. */
 export function modeFor(account: Account): AdvisorMode {
   if (account.role === "admin") return "agency";
@@ -113,11 +137,12 @@ export function modeFor(account: Account): AdvisorMode {
 
 // ─── Acciones ────────────────────────────────────────────────────────────────
 
-export function configure(config: PublicAdvisorConfig, account: Account) {
+export function configure(config: PublicAdvisorConfig, agents: PublicAdvisorConfig[], account: Account) {
   const nextMode = modeFor(account);
   const changed = state.account.role !== account.role || state.account.agencyId !== account.agencyId || state.account.signedIn !== account.signedIn;
   set({
     config,
+    agents,
     account,
     mode: state.preview ? state.mode : nextMode,
     // Cambió la persona (cerró sesión, otra cuenta): la charla anterior ya no corresponde.
@@ -133,6 +158,8 @@ export function setAgencyId(agencyId: string | null) {
 export type OpenOptions = {
   mode?: AdvisorMode;
   preview?: boolean;
+  /** Prueba del estudio: dibuja el escenario con esta configuración (el borrador) en lugar de la publicada. */
+  override?: PublicAdvisorConfig | null;
   focusPropertyId?: string | null;
   origin?: DOMRect | null;
   /** Una pregunta lista para hacer apenas abre ("Investigar por qué"). */
@@ -154,6 +181,9 @@ export function openAdvisor(opts: OpenOptions = {}) {
   set({
     open: true,
     mode,
+    agent: "advisor",
+    override: opts.override ?? null,
+    fan: false,
     preview: !!opts.preview,
     focusPropertyId: focus,
     origin: opts.origin ? { x: opts.origin.x, y: opts.origin.y, w: opts.origin.width, h: opts.origin.height } : state.origin,
@@ -171,8 +201,33 @@ export function openAdvisor(opts: OpenOptions = {}) {
   if (opts.ask) void ask(mode, opts.ask);
 }
 
+/**
+ * Abre el escenario de un agente. El asesor es la conversación de siempre (`openAdvisor`); los demás abren su propio
+ * escenario, que no usa los hilos del asesor.
+ */
+export function openAgent(id: AgentId, opts: OpenOptions = {}) {
+  if (id === "advisor") {
+    openAdvisor(opts);
+    return;
+  }
+  set({
+    open: true,
+    agent: id,
+    override: opts.override ?? null,
+    fan: false,
+    preview: !!opts.preview,
+    origin: opts.origin ? { x: opts.origin.x, y: opts.origin.y, w: opts.origin.width, h: opts.origin.height } : state.origin,
+  });
+}
+
 export function closeAdvisor() {
   set({ open: false });
+}
+
+/** Despliega o recoge el abanico de agentes del botón flotante. */
+export function setFan(fan: boolean) {
+  if (state.fan === fan) return;
+  set({ fan });
 }
 
 export function resetThread(mode: AdvisorMode) {

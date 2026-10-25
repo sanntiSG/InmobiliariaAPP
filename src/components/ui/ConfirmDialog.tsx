@@ -16,6 +16,11 @@ export type ConfirmDialogProps = {
   error?: string | null;
   onConfirm: () => void;
   onCancel: () => void;
+  /**
+   * "page" (por defecto): sobre el contenido de la página. "overlay": también por encima del escenario de los agentes
+   * (que ocupa toda la pantalla), para abrir un detalle sin cerrarlo.
+   */
+  layer?: "page" | "overlay";
 };
 
 const EXIT_MS = 160;
@@ -37,6 +42,7 @@ export function ConfirmDialog({
   error,
   onConfirm,
   onCancel,
+  layer = "page",
 }: ConfirmDialogProps) {
   const [shown, setShown] = useState(false);
   const [lingering, setLingering] = useState(false);
@@ -69,7 +75,9 @@ export function ConfirmDialog({
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !busyRef.current) cancelHandler.current();
+      if (e.key !== "Escape") return;
+      if (layer === "overlay") e.preventDefault();
+      if (!busyRef.current) cancelHandler.current();
     };
     document.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
@@ -80,12 +88,12 @@ export function ConfirmDialog({
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
     };
-  }, [open]);
+  }, [open, layer]);
 
   if (!mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+    <div className={cn("fixed inset-0 flex items-center justify-center p-4", layer === "overlay" ? "z-[80]" : "z-[60]")}>
       <div
         className={cn(
           "absolute inset-0 bg-black/45 transition-opacity duration-150 [transition-timing-function:var(--ease-out)]",

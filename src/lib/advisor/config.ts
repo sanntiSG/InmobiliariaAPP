@@ -199,6 +199,10 @@ export function getPublishedAgents(): Promise<Record<AgentId, AdvisorContent>> {
         const doc = docs.find((d) => d.key === AGENTS[id].storageKey);
         if (doc && (id === "advisor" || doc.publishedAt)) out[id] = normalizeContent(doc.published, id);
       }
+      // Mientras no tengan imagen propia, marketing y correo usan la del asesor (comparten el mismo modelo 3D).
+      for (const id of AGENT_IDS) {
+        if (id !== "advisor" && !out[id].poster && out.advisor.poster) out[id] = { ...out[id], poster: out.advisor.poster };
+      }
     } catch (err) {
       console.error("getPublishedAgents failed:", err);
     }

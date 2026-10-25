@@ -13,6 +13,11 @@ export type SheetProps = {
   title?: string;
   /** "bottom": drawer mobile-first (usado también para el panel de filtros). */
   side?: "bottom" | "right";
+  /**
+   * "page" (por defecto): sobre el contenido de la página. "overlay": también por encima del escenario de los agentes
+   * (que ocupa toda la pantalla), para abrir un detalle sin cerrarlo.
+   */
+  layer?: "page" | "overlay";
 };
 
 const EXIT_MS = 200;
@@ -21,7 +26,7 @@ const EXIT_MS = 200;
  * Drawer accesible: se desmonta EXIT_MS después de cerrar para poder animar
  * la salida (más rápida que la entrada — ver .impeccable.md / emil-design-eng).
  */
-export function Sheet({ open, onClose, children, title, side = "bottom" }: SheetProps) {
+export function Sheet({ open, onClose, children, title, side = "bottom", layer = "page" }: SheetProps) {
   const [shown, setShown] = useState(false);
   const [lingering, setLingering] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -51,7 +56,12 @@ export function Sheet({ open, onClose, children, title, side = "bottom" }: Sheet
 
   useEffect(() => {
     if (!mounted) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      // Sobre el escenario de un agente, Esc cierra sólo este cartel (el escenario ignora los eventos ya atendidos).
+      if (layer === "overlay") e.preventDefault();
+      onClose();
+    };
     document.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -60,12 +70,12 @@ export function Sheet({ open, onClose, children, title, side = "bottom" }: Sheet
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
     };
-  }, [mounted, onClose]);
+  }, [mounted, onClose, layer]);
 
   if (!mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50">
+    <div className={cn("fixed inset-0", layer === "overlay" ? "z-[80]" : "z-50")}>
       <div
         className={cn(
           "absolute inset-0 bg-black/40 transition-opacity duration-200 [transition-timing-function:var(--ease-out)]",
