@@ -179,6 +179,22 @@ Desde su panel: *Agentes → Correo → Conectar mi casilla*. El asistente expli
 
 Si el correo todavía no está activado en la plataforma, la inmobiliaria lo ve apenas entra y tiene un botón **Avisar al administrador** (llega como notificación) y otro de WhatsApp. No hay que pasarle ninguna credencial al admin.
 
+### Cómo funciona y cómo probarlo
+
+La clave sólo **enciende el servicio**: no conecta ningún correo. El correo se vincula **por inmobiliaria**, con la casilla donde ella recibe las consultas de sus clientes (la de sus avisos y portales). El correo del admin no se vincula a nada.
+
+1. Cada 5 minutos (o con **Revisar ahora**) el agente mira esa bandeja en sólo lectura, **sólo los mails que llegan después de conectar**.
+2. Descarta lo que no es una consulta; si lo es, busca la propiedad **de esa inmobiliaria** (enlace, título o lo que pide), prepara el borrador y avisa.
+3. Una persona lo revisa y sale **desde esa misma casilla** (en modo automático, sólo si es claro y el remitente está verificado).
+
+El formulario de consulta de la ficha **no** manda mails: crea un cliente en *Clientes* y una notificación. El agente de correo atiende los mails que escriben directo a la casilla.
+
+**Probar sin conectar nada.** En *Agentes → Correo* de cualquier inmobiliaria (el admin entra "viendo como"), la tarjeta **Probá cómo respondería** toma una consulta de ejemplo con una propiedad publicada, la entiende y muestra el borrador con la configuración actual. No guarda, anota ni envía nada.
+
+**Probar con un mail de verdad.** Conectá una casilla de prueba (no la personal) a una inmobiliaria — el admin puede hacerlo por ella desde *Admin → Agentes → Correo → Conectar casilla* — y escribile desde **otra** cuenta un mail que nombre una de sus propiedades. Lo que manda la propia casilla se ignora, y los mails anteriores a la conexión no cuentan. Aparece en "Para confirmar" en hasta 5 minutos.
+
+**Avisar a las inmobiliarias.** Con el agente publicado, el botón **Avisar a las inmobiliarias** (Admin → Agentes → Correo) manda una notificación a los dueños, una sola vez.
+
 ### Variables opcionales (casi nunca hacen falta)
 
 | Variable | Para qué |

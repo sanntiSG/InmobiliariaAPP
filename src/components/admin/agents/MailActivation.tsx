@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Check, ChevronDown, Copy, ExternalLink, KeyRound, RefreshCw } from "lucide-react";
+import { AlertTriangle, BellRing, Check, ChevronDown, Copy, ExternalLink, KeyRound, Loader2, RefreshCw } from "lucide-react";
 import { Button, buttonClasses } from "@/components/ui/Button";
 import { cn } from "@/lib/utils/cn";
 import type { MailActivationStatus } from "@/lib/mail/activation";
@@ -60,6 +60,71 @@ function CopyButton({ text, label, className }: { text: string; label: string; c
       {done ? <Check className="h-4 w-4 text-success" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />}
       {done ? "Copiado" : label}
     </Button>
+  );
+}
+
+/**
+ * Lo que sigue una vez que el servicio está encendido: el correo se vincula POR INMOBILIARIA (la casilla que recibe las
+ * consultas de sus clientes), no es el del admin. Explica cómo seguir y deja avisar a las inmobiliarias.
+ */
+function WhatsNext({ agentOn }: { agentOn: boolean }) {
+  const [phase, setPhase] = useState<"idle" | "sending" | "done">("idle");
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const announce = async () => {
+    setPhase("sending");
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/mail/announce", { method: "POST", credentials: "same-origin" });
+      const data = (await res.json().catch(() => null)) as { notified?: number; total?: number; error?: string } | null;
+      if (!res.ok) throw new Error(data?.error ?? "No se pudo enviar el aviso.");
+      const n = data?.notified ?? 0;
+      setMessage(n > 0 ? `Listo: avisé a ${n} ${n === 1 ? "dueño" : "dueños"}.` : data?.total ? "Ya estaban avisados todos los dueños." : "Todavía no hay dueños a quienes avisar.");
+      setPhase("done");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo enviar el aviso.");
+      setPhase("idle");
+    }
+  };
+
+  return (
+    <section className="flex flex-col gap-3 rounded-media bg-surface-2 p-4 sm:p-5" aria-labelledby="mail-next">
+      <h3 id="mail-next" className="font-display text-base font-semibold text-text">
+        Qué sigue
+      </h3>
+      <p className="text-sm text-text-muted">
+        La clave sólo enciende el servicio: todavía no hay ningún correo conectado. El correo se vincula <strong className="font-semibold text-text">por inmobiliaria</strong>, con la casilla donde ella recibe las consultas de sus clientes. Tu correo de admin no se conecta a nada.
+      </p>
+      <ol className="flex list-decimal flex-col gap-2 pl-5 text-sm text-text-muted marker:font-semibold">
+        <li>
+          <strong className="font-semibold text-text">Cada inmobiliaria conecta la suya</strong> desde su panel (Agentes → Correo). Si querés, se lo avisás con un botón.
+        </li>
+        <li>
+          <strong className="font-semibold text-text">Para probar vos:</strong> elegí una inmobiliaria y conectale una casilla de prueba (no la tuya personal), o probá sin conectar nada con “Probá cómo respondería”.
+        </li>
+      </ol>
+      <div className="flex flex-wrap items-center gap-2.5">
+        <Link href="/dashboard/agentes/correo" className={buttonClasses("primary", "md")}>
+          Ver las inmobiliarias y conectar
+        </Link>
+        <Button type="button" variant="secondary" onClick={() => void announce()} disabled={phase !== "idle" || !agentOn}>
+          {phase === "sending" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : phase === "done" ? <Check className="h-4 w-4 text-success" aria-hidden /> : <BellRing className="h-4 w-4" aria-hidden />}
+          Avisar a las inmobiliarias
+        </Button>
+      </div>
+      {!agentOn && <p className="text-xs text-text-muted">Para avisar, primero publicá el agente (más abajo, en “Disponible para”).</p>}
+      {message && (
+        <p role="status" className="text-sm text-text">
+          {message}
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -138,11 +203,14 @@ export function MailActivation({ status }: { status: MailActivationStatus }) {
         <StatusRow tone={status.sender ? "ok" : "off"} label="Envío de respuestas">
           {status.sender ? "Esta web puede enviar mails." : backup ? "Desde el respaldo no se envía: lo hace la web principal." : "Se activa solo con la clave."}
         </StatusRow>
-        <StatusRow tone={status.troubled > 0 ? "warn" : status.connected > 0 ? "ok" : "off"} label="Casillas conectadas">
-          {status.connected} de {status.agencies} {status.agencies === 1 ? "inmobiliaria" : "inmobiliarias"}
+        <StatusRow tone={status.troubled > 0 ? "warn" : status.connected > 0 ? "ok" : "off"} label="Inmobiliarias con su casilla conectada">
+          {status.connected} de {status.agencies}
           {status.troubled > 0 ? ` · ${status.troubled} con problemas` : ""}.
+          {status.connected === 0 && " Cada inmobiliaria conecta la suya: mirá “Qué sigue”."}
         </StatusRow>
       </ul>
+
+      {status.keyReady && !backup && <WhatsNext agentOn={status.agentOn} />}
 
       {backup ? (
         status.mainSiteUrl && (

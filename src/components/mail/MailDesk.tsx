@@ -11,6 +11,7 @@ import { MAIL_CATEGORY_LABELS, MAIL_STATUS_LABELS } from "@/lib/mail/constants";
 import type { MailOverview } from "@/lib/mail/overview";
 import type { MailDetail, MailListItem, MailTab } from "@/lib/mail/messages";
 import { MailSetupNotice, setupState } from "./MailSetupNotice";
+import { MailRealTestGuide, MailTryOut } from "./MailTryOut";
 import { mailApi, MailApiError } from "./mail-api";
 
 const TABS: { id: MailTab; label: string; empty: string }[] = [
@@ -216,20 +217,21 @@ export function MailDesk({
               <Mail className="h-5 w-5" />
             </span>
             <div>
-              <h3 className="font-display text-base font-bold text-text">Todavía no conectaste tu casilla</h3>
+              <h3 className="font-display text-base font-bold text-text">{overview.viewerIsAdmin ? "Esta inmobiliaria todavía no conectó su casilla" : "Todavía no conectaste tu casilla"}</h3>
               <p className="mt-0.5 text-sm text-text-muted">
-                Conectala y voy a leer las consultas que lleguen, entender qué preguntan y dejarte la respuesta lista con tus propiedades. Sólo leo lo que llegue desde que la conectes.
+                {overview.viewerIsAdmin ? "La casilla es la que recibe las consultas de sus clientes. " : ""}
+                Conectala y voy a leer las consultas que lleguen, entender qué preguntan y dejar la respuesta lista con las propiedades de la inmobiliaria. Sólo leo lo que llegue desde que la conectes.
               </p>
             </div>
           </div>
           {overview.canManage ? (
             onManage ? (
               <button type="button" onClick={onManage} className="inline-flex w-fit items-center gap-1.5 rounded-pill bg-accent px-4 py-2.5 text-sm font-semibold text-accent-contrast transition-transform active:scale-[0.97]">
-                Conectar mi casilla <ArrowRight className="h-4 w-4" aria-hidden />
+                {overview.viewerIsAdmin ? "Conectar la casilla de esta inmobiliaria" : "Conectar mi casilla"} <ArrowRight className="h-4 w-4" aria-hidden />
               </button>
             ) : (
               <Link href={connectHref} className="inline-flex w-fit items-center gap-1.5 rounded-pill bg-accent px-4 py-2.5 text-sm font-semibold text-accent-contrast transition-transform active:scale-[0.97]">
-                Conectar mi casilla <ArrowRight className="h-4 w-4" aria-hidden />
+                {overview.viewerIsAdmin ? "Conectar la casilla de esta inmobiliaria" : "Conectar mi casilla"} <ArrowRight className="h-4 w-4" aria-hidden />
               </Link>
             )
           ) : (
@@ -273,6 +275,8 @@ export function MailDesk({
           )}
         </section>
       )}
+
+      {!mb && <MailTryOut agencyId={agencyId} defaultOpen />}
 
       {notice && (
         <p role="status" className="rounded-media bg-accent-soft px-4 py-3 text-sm text-text">
@@ -318,10 +322,13 @@ export function MailDesk({
               Cargando…
             </p>
           ) : items.length === 0 ? (
-            <p className="flex items-start gap-3 rounded-card bg-surface p-5 text-sm text-text-muted shadow-card">
-              <Inbox className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
-              {TABS.find((t) => t.id === tab)!.empty}
-            </p>
+            <>
+              <p className="flex items-start gap-3 rounded-card bg-surface p-5 text-sm text-text-muted shadow-card">
+                <Inbox className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
+                {TABS.find((t) => t.id === tab)!.empty}
+              </p>
+              {tab === "confirm" && Object.values(overview.counts).every((n) => n === 0) && <MailRealTestGuide agencyId={agencyId} email={mb.email} />}
+            </>
           ) : (
             <ul className="swap-in flex flex-col divide-y divide-border overflow-hidden rounded-card bg-surface shadow-card">
               {items.map((m) => (
@@ -349,6 +356,8 @@ export function MailDesk({
           )}
         </>
       )}
+
+      {mb && <MailTryOut agencyId={agencyId} />}
 
       <Sheet open={!!openMail} onClose={closeDetail} title={detail?.subject || "Mail"} side="right" size="lg" layer={layer}>
         {!detail ? (

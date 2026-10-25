@@ -104,7 +104,10 @@ export function ConnectWizard({ agencyId, onConnected, onCancel }: { agencyId: s
               </span>
             </p>
             <p>
-              Vas a necesitar: <strong className="font-semibold text-text">tu email</strong>, unos 5 minutos y tu celular a mano por si tu proveedor te pide un código.
+              <strong className="font-semibold text-text">¿Qué casilla conecto?</strong> La que recibe las consultas de tus clientes: la de tus avisos y portales. No hace falta que sea la de tu cuenta de Recorrr.
+            </p>
+            <p>
+              Vas a necesitar: <strong className="font-semibold text-text">el email de esa casilla</strong>, unos 5 minutos y tu celular a mano por si tu proveedor te pide un código.
             </p>
           </div>
           <div role="radiogroup" aria-label="Proveedor de correo" className="grid gap-2.5 sm:grid-cols-2">
@@ -209,7 +212,7 @@ export function ConnectWizard({ agencyId, onConnected, onCancel }: { agencyId: s
             </p>
           )}
           <label className="flex flex-col gap-1.5 text-sm font-medium text-text">
-            Tu email
+            Email de consultas
             <input
               type="email"
               inputMode="email"
@@ -323,6 +326,9 @@ export function ConnectWizard({ agencyId, onConnected, onCancel }: { agencyId: s
             <span>
               <strong className="font-semibold">Listo, {email} quedó conectada.</strong> Empiezo a leer los mails que lleguen desde ahora. Cada respuesta te la dejo para que la confirmes.
             </span>
+          </p>
+          <p className="rounded-media bg-surface-2 px-4 py-3 text-sm text-text-muted">
+            <strong className="font-semibold text-text">Para probarlo:</strong> escribile a esa casilla desde <em>otra</em> cuenta (no desde la misma) un mail que nombre una de tus propiedades. En unos 5 minutos, o tocando “Revisar ahora”, aparece en “Para confirmar”.
           </p>
           {onCancel && (
             <div>

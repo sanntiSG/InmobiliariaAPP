@@ -36,17 +36,17 @@ const STATUS_TEXT: Record<(typeof MAILBOX_STATUSES)[number], { label: string; to
   paused: { label: "Pausada", tone: "bg-surface-2 text-text-muted" },
 };
 
-/** Para el admin sin una inmobiliaria elegida: el ESTADO de todos los buzones (nunca el contenido de los mails). */
+/** Para el admin sin una inmobiliaria elegida: TODAS las inmobiliarias y el estado de su casilla (nunca el contenido de los mails). */
 async function AdminMailboxes() {
   await connectDB();
-  const [mailboxes, totalAgencies] = await Promise.all([Mailbox.find({}).select("agencyId provider email status lastPollAt").sort({ lastPollAt: -1 }).limit(200).lean(), Agency.countDocuments({})]);
-  const ids = mailboxes.map((m) => m.agencyId);
-  const [agencies, settings, waiting] = await Promise.all([
-    Agency.find({ _id: { $in: ids } }).select("name").lean(),
+  const agencies = await Agency.find({ status: { $ne: "suspended" } }).select("name").sort({ name: 1 }).limit(200).lean();
+  const ids = agencies.map((a) => a._id);
+  const [mailboxes, settings, waiting] = await Promise.all([
+    Mailbox.find({ agencyId: { $in: ids } }).select("agencyId provider email status lastPollAt").lean(),
     MailSettings.find({ agencyId: { $in: ids } }).select("agencyId mode").lean(),
     MailMessage.aggregate<{ _id: Types.ObjectId; n: number }>([{ $match: { agencyId: { $in: ids }, status: "awaiting_confirmation" } }, { $group: { _id: "$agencyId", n: { $sum: 1 } } }]),
   ]);
-  const name = new Map(agencies.map((a) => [String(a._id), a.name]));
+  const box = new Map(mailboxes.map((m) => [String(m.agencyId), m]));
   const mode = new Map(settings.map((s) => [String(s.agencyId), s.mode]));
   const pending = new Map(waiting.map((w) => [String(w._id), w.n]));
 
@@ -55,43 +55,66 @@ async function AdminMailboxes() {
       <header>
         <h1 className="font-display text-2xl font-semibold text-text">Correo de las inmobiliarias</h1>
         <p className="mt-1 max-w-2xl text-sm text-text-muted">
-          {mailboxes.length} de {totalAgencies} {totalAgencies === 1 ? "inmobiliaria conectó" : "inmobiliarias conectaron"} su casilla. Ves el estado de cada una; para abrir sus mails tenés que entrar “viendo como” esa inmobiliaria, y queda anotado en su bitácora.
+          {mailboxes.length} de {agencies.length} {agencies.length === 1 ? "inmobiliaria conectó" : "inmobiliarias conectaron"} su casilla. Cada una conecta <strong className="font-semibold text-text">una</strong>: la que recibe las consultas de sus clientes. Tu correo de admin no se vincula a nada.
         </p>
       </header>
-      {mailboxes.length === 0 ? (
-        <p className="rounded-card bg-surface p-6 text-sm text-text-muted shadow-card">Todavía ninguna inmobiliaria conectó su casilla.</p>
+
+      <ol className="grid max-w-3xl gap-3 text-sm text-text-muted sm:grid-cols-3">
+        {[
+          ["Se conecta", "Cada inmobiliaria conecta su casilla de consultas desde su panel (o la conectás vos por ella, entrando “viendo como”)."],
+          ["Se revisa", "Cada 5 minutos leo lo que llegó de nuevo, descarto lo que no es una consulta y dejo la respuesta lista con sus propiedades."],
+          ["Se confirma", "Una persona la revisa y sale desde esa misma casilla. En modo automático sale sola sólo si es clara."],
+        ].map(([title, text], i) => (
+          <li key={title} className="flex gap-3 rounded-card bg-surface p-4 shadow-card">
+            <span className="grid size-6 shrink-0 place-items-center rounded-full bg-accent-soft font-mono text-xs font-semibold text-accent" aria-hidden>
+              {i + 1}
+            </span>
+            <span>
+              <strong className="block font-semibold text-text">{title}</strong>
+              {text}
+            </span>
+          </li>
+        ))}
+      </ol>
+
+      {agencies.length === 0 ? (
+        <p className="rounded-card bg-surface p-6 text-sm text-text-muted shadow-card">Todavía no hay inmobiliarias. Creá una desde Admin → Inmobiliarias.</p>
       ) : (
         <div className="overflow-hidden rounded-card bg-surface shadow-card">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-text-muted">
-                  <th className="px-5 py-3 font-medium">Inmobiliaria</th>
-                  <th className="px-5 py-3 font-medium">Casilla</th>
-                  <th className="px-5 py-3 font-medium">Estado</th>
-                  <th className="px-5 py-3 font-medium">Modo</th>
-                  <th className="px-5 py-3 text-right font-medium">Para confirmar</th>
-                  <th className="px-5 py-3 font-medium">Última revisión</th>
-                  <th className="px-5 py-3" />
+                  <th className="px-4 py-3 font-medium sm:px-5">Inmobiliaria</th>
+                  <th className="hidden px-5 py-3 font-medium md:table-cell">Casilla</th>
+                  <th className="px-4 py-3 font-medium sm:px-5">Estado</th>
+                  <th className="hidden px-5 py-3 font-medium md:table-cell">Modo</th>
+                  <th className="hidden px-5 py-3 text-right font-medium sm:table-cell">Para confirmar</th>
+                  <th className="hidden px-5 py-3 font-medium lg:table-cell">Última revisión</th>
+                  <th className="px-4 py-3 sm:px-5" />
                 </tr>
               </thead>
               <tbody>
-                {mailboxes.map((m) => {
-                  const id = String(m.agencyId);
-                  const st = STATUS_TEXT[m.status ?? "active"];
+                {agencies.map((a) => {
+                  const id = String(a._id);
+                  const m = box.get(id);
+                  const st = m ? STATUS_TEXT[m.status ?? "active"] : { label: "Sin conectar", tone: "bg-surface-2 text-text-muted" };
                   return (
-                    <tr key={String(m._id)} className="border-b border-border last:border-0">
-                      <td className="px-5 py-3 font-medium text-text">{name.get(id) ?? "—"}</td>
-                      <td className="px-5 py-3 text-text-muted">{mask(m.email)}</td>
-                      <td className="px-5 py-3">
-                        <span className={cn("rounded-pill px-2.5 py-1 text-xs font-medium", st.tone)}>{st.label}</span>
+                    <tr key={id} className="border-b border-border last:border-0">
+                      <td className="px-4 py-3 font-medium text-text sm:px-5">
+                        {a.name}
+                        {m && <span className="mt-0.5 block text-xs font-normal text-text-muted md:hidden">{mask(m.email)}</span>}
                       </td>
-                      <td className="px-5 py-3 text-text-muted">{mode.get(id) === "auto" ? "Automático" : "Con confirmación"}</td>
-                      <td className="px-5 py-3 text-right text-text">{pending.get(id) ?? 0}</td>
-                      <td className="px-5 py-3 text-text-muted">{m.lastPollAt ? formatRelativeTime(m.lastPollAt) : "—"}</td>
-                      <td className="px-5 py-3 text-right">
-                        <Link href={`/dashboard/agentes/correo?agencyId=${id}`} className="font-semibold text-accent hover:underline">
-                          Ver como
+                      <td className="hidden px-5 py-3 text-text-muted md:table-cell">{m ? mask(m.email) : "—"}</td>
+                      <td className="px-4 py-3 sm:px-5">
+                        <span className={cn("whitespace-nowrap rounded-pill px-2.5 py-1 text-xs font-medium", st.tone)}>{st.label}</span>
+                      </td>
+                      <td className="hidden px-5 py-3 text-text-muted md:table-cell">{m ? (mode.get(id) === "auto" ? "Automático" : "Con confirmación") : "—"}</td>
+                      <td className="hidden px-5 py-3 text-right text-text sm:table-cell">{m ? (pending.get(id) ?? 0) : "—"}</td>
+                      <td className="hidden px-5 py-3 text-text-muted lg:table-cell">{m?.lastPollAt ? formatRelativeTime(m.lastPollAt) : "—"}</td>
+                      <td className="px-4 py-1 text-right sm:px-5">
+                        <Link href={`/dashboard/agentes/correo?agencyId=${id}`} className="inline-flex min-h-11 items-center whitespace-nowrap font-semibold text-accent hover:underline">
+                          {m ? "Ver como" : "Conectar casilla"}
                         </Link>
                       </td>
                     </tr>

@@ -17,6 +17,8 @@ import { extractSlugs } from "../src/lib/mail/refs";
 import { composeReply, replySubject, type ComposeInput, type ReplyProperty } from "../src/lib/mail/compose";
 import { argentinaClock, decideAuto, inSchedule, type AutoInput } from "../src/lib/mail/decide";
 import { presetFor, providerFromEmail, smtpImplicitTls } from "../src/lib/mail/presets";
+import { buildSample } from "../src/lib/mail/preview";
+import { propertyUrl } from "../src/lib/mail/analyze";
 import type { PropertyFacts } from "../src/lib/agents/knowledge/facts";
 
 let failed = 0;
@@ -131,6 +133,20 @@ const throwsCode = (fn: () => unknown, code: string): boolean => {
   check("parseAuth: pass si alguna verificación pasa", parseAuth("mx.google.com; dkim=pass header.i=@x.com; spf=pass") === "pass" && parseAuth("mx; dmarc=pass") === "pass");
   check("parseAuth: fail gana sobre pass", parseAuth("mx; spf=pass; dkim=fail") === "fail" && parseAuth("mx; dmarc=fail (p=reject)") === "fail" && parseAuth("mx; spf=softfail") === "fail");
   check("parseAuth: sin encabezado o sin datos → unknown", parseAuth(null) === "unknown" && parseAuth("") === "unknown" && parseAuth("mx; dkim=none; spf=neutral") === "unknown");
+}
+
+// ── "Probá cómo respondería": la consulta de ejemplo tiene que funcionar de verdad ─────
+{
+  const url = propertyUrl("https://sitio.example", "casa-en-canning-abc123");
+  check("preview: el enlace a la ficha sale del sitio y del slug", url === "https://sitio.example/propiedades/casa-en-canning-abc123" && propertyUrl(null, "x") === null, url);
+  const withUrl = buildSample({ title: "Casa en Canning", url });
+  const noUrl = buildSample({ title: "Casa en Canning", url: null });
+  check("preview: el ejemplo nombra la propiedad y trae el enlace", withUrl.subject.includes("Casa en Canning") && withUrl.text.includes("https://sitio.example/propiedades/casa-en-canning-abc123"), withUrl);
+  check("preview: sin dirección pública, el ejemplo nombra sólo el título", noUrl.text.includes("Casa en Canning") && !noUrl.text.includes("http"), noUrl);
+  check("preview: el enlace del ejemplo se reconoce como una propiedad de la inmobiliaria", extractSlugs(withUrl.text, ["sitio.example"]).join() === "casa-en-canning-abc123", extractSlugs(withUrl.text, ["sitio.example"]));
+  const cls = classifyMail({ subject: withUrl.subject, text: cleanBody(withUrl.text), hasPropertyRef: true });
+  check("preview: el ejemplo se entiende como una consulta y no queda para una persona", ["availability", "price", "visit", "general", "features"].includes(cls.category) && !cls.needsHuman && cls.confidence >= 0.6, cls);
+  check("preview: lo que se manda a la simulación no puede traer saltos en el asunto", !/[\r\n]/.test(withUrl.subject));
 }
 
 // ── Servidores de correo (SSRF) ─────────────────────────────────────────────

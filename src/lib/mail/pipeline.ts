@@ -15,16 +15,13 @@ import { MailMessage } from "@/lib/db/models/MailMessage";
 import { createNotification, createNotificationForMany } from "@/lib/notifications/create";
 import { agencyMemberIds } from "@/lib/notifications/agency-members";
 import { dayStart } from "@/lib/tracking/record";
+import { analyzeMail } from "./analyze";
 import { cleanBody } from "./clean";
-import { classifyMail } from "./classify";
-import { composeReply, type ReplyProperty } from "./compose";
 import { openCreds } from "./creds";
 import { MAIL_LIMITS, isInquiry, type MailCategory } from "./constants";
 import { decideAuto } from "./decide";
 import { prefilter, replyAddress } from "./prefilter";
-import { selectForMail } from "./select";
 import { loadSettings, type MailSettingsView } from "./settings";
-import { publicSiteUrl, siteHosts } from "./site";
 import { explain, pollNew, type FetchedMail } from "./transport";
 
 const DAY_MS = 86_400_000;
@@ -113,31 +110,14 @@ export async function processMail(ctx: PipelineCtx, mail: FetchedMail, counts: C
   const pre = prefilter(mail.headers, { ownEmail: ctx.ownEmail, blocked: ctx.settings.blockedSenders });
   if (pre.skip) return void (await ignore(pre.category, [pre.reason]));
 
-  const selection = await selectForMail(ctx.agencyId, { subject: mail.subject, text }, siteHosts(), ctx.settings.maxProperties);
-  const cls = classifyMail({
+  const { selection, classification: cls, compose } = await analyzeMail(ctx, {
     subject: mail.subject,
     text,
-    hasPropertyRef: selection.properties.length > 0 || selection.unavailable,
-    searchHits: selection.alternatives.length > 0,
+    fromName: mail.from.name || null,
+    seed: mail.messageId,
     portal: pre.portal,
   });
   if (!isInquiry(cls.category)) return void (await ignore(cls.category, cls.reasons, cls.confidence));
-
-  const siteUrl = publicSiteUrl();
-  const toReply = (f: (typeof selection.properties)[number]): ReplyProperty => ({ facts: f, url: siteUrl ? `${siteUrl}/propiedades/${encodeURIComponent(f.slug)}` : null });
-  const compose = (auto: boolean) =>
-    composeReply({
-      fromName: mail.from.name || null,
-      subject: mail.subject,
-      classification: cls,
-      properties: selection.properties.map(toReply),
-      unavailable: selection.unavailable,
-      alternatives: selection.alternatives.map(toReply),
-      settings: ctx.settings,
-      agencyName: ctx.agencyName,
-      seed: mail.messageId,
-      auto,
-    });
 
   // ¿Puede salir sola?
   const [sentToday, senderRecently, threadAnswered] = await Promise.all([
