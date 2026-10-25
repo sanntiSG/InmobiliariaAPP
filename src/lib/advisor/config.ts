@@ -220,6 +220,8 @@ export type PublicAdvisorConfig = {
   name: string;
   /** El nombre para mostrar: lo que definió el admin o "Asesor". */
   displayName: string;
+  /** Complemento para "Preguntale …": "a Nubi" si tiene nombre, "al asesor" si no (nunca "a Asesor"). */
+  ctaTo: string;
   description: string;
   enabled: { agency: boolean; explorer: boolean };
   modelUrl: string;
@@ -234,6 +236,7 @@ export function toPublicConfig(c: AdvisorContent): PublicAdvisorConfig {
   return {
     name: c.name,
     displayName: c.name || "Asesor",
+    ctaTo: c.name ? `a ${c.name}` : "al asesor",
     description: c.description,
     enabled: c.enabled,
     modelUrl: c.model.url,

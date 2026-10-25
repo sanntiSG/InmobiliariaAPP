@@ -7,6 +7,7 @@ export const preferencesSchema = z.object({
   locations: z.array(z.string().trim().min(1).max(60)).max(10).default([]),
   priceMin: z.number().nonnegative().optional(),
   priceMax: z.number().positive().optional(),
+  priceCurrency: z.enum(["USD", "ARS"]).optional(),
   minRooms: z.number().int().nonnegative().optional(),
 });
 

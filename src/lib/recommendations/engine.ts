@@ -28,6 +28,7 @@ export type Preferences = {
   locations?: string[] | null;
   priceMin?: number | null;
   priceMax?: number | null;
+  priceCurrency?: string | null;
   minRooms?: number | null;
 };
 
@@ -40,6 +41,8 @@ export type Candidate = {
   currency: string;
   price: number;
   bedrooms?: number | null;
+  /** Ambientes (no dormitorios): es lo que la persona pone en "ambientes mínimos". */
+  rooms?: number | null;
   area?: number | null;
   amenities: string[];
   lng: number;
@@ -91,14 +94,20 @@ export function scoreCandidate(c: Candidate, ctx: ScoreContext): { score: number
 
   // — Preferencias explícitas —
   const hasPriceRange = prefs.priceMin != null || prefs.priceMax != null;
+  // Con moneda elegida, sólo se compara contra propiedades en esa moneda (antes se mezclaban dólares con pesos).
+  const sameCurrency = !prefs.priceCurrency || prefs.priceCurrency === c.currency;
   const prefPrice =
-    hasPriceRange && (prefs.priceMin == null || c.price >= prefs.priceMin) && (prefs.priceMax == null || c.price <= prefs.priceMax);
+    hasPriceRange &&
+    sameCurrency &&
+    (prefs.priceMin == null || c.price >= prefs.priceMin) &&
+    (prefs.priceMax == null || c.price <= prefs.priceMax);
   const prefLocation = !!c.neighborhood && !!prefs.locations?.some((l) => c.neighborhood!.toLowerCase().includes(l.toLowerCase()));
   if (prefs.operations?.includes(c.operation)) score += 12;
   if (prefs.propertyTypes?.includes(c.type)) score += 12;
   if (prefPrice) score += 14;
   if (prefLocation) score += 14;
-  if (prefs.minRooms && c.bedrooms != null && c.bedrooms >= prefs.minRooms) score += 4;
+  const rooms = c.rooms ?? (c.bedrooms != null ? c.bedrooms + 1 : null);
+  if (prefs.minRooms && rooms != null && rooms >= prefs.minRooms) score += 4;
 
   // — Parecido con la actividad real —
   const hoodShare = share(profile.neighborhoods, c.neighborhood);
@@ -163,7 +172,7 @@ export function primaryReason(reasons: ReasonCode[]): ReasonCode {
   return REASON_PRIORITY.find((r) => reasons.includes(r)) ?? "fits";
 }
 
-const CANDIDATE_SELECT = `${PROPERTY_CARD_PROJECTION} amenities stats.ratingAvg stats.ratingCount stats.views`;
+const CANDIDATE_SELECT = `${PROPERTY_CARD_PROJECTION} features.rooms amenities stats.ratingAvg stats.ratingCount stats.views`;
 const CANDIDATE_LIMIT = 300;
 const NEARBY_RADIUS_KM = 12;
 const EARTH_RADIUS_KM = 6378.1;
@@ -296,6 +305,7 @@ export async function getRecommendations(userId: string, limit = 12): Promise<Re
       currency: card.currency,
       price: card.price,
       bedrooms: card.bedrooms,
+      rooms: (doc as { features?: { rooms?: number | null } }).features?.rooms ?? null,
       area: card.area,
       amenities: ((doc as { amenities?: string[] }).amenities ?? []) as string[],
       lng: card.lng,

@@ -16,7 +16,18 @@ export async function PATCH(req: Request) {
 
   try {
     await connectDB();
-    await User.updateOne({ _id: user.id }, { $set: { preferences: parsed.data } });
+    const p = parsed.data;
+    const $set: Record<string, unknown> = {
+      "preferences.operations": p.operations,
+      "preferences.propertyTypes": p.propertyTypes,
+      "preferences.locations": p.locations,
+    };
+    const $unset: Record<string, 1> = {};
+    for (const key of ["priceMin", "priceMax", "priceCurrency", "minRooms"] as const) {
+      if (p[key] != null) $set[`preferences.${key}`] = p[key];
+      else $unset[`preferences.${key}`] = 1;
+    }
+    await User.updateOne({ _id: user.id }, { $set, ...(Object.keys($unset).length ? { $unset } : {}) });
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("PATCH /api/me/preferences failed:", err);

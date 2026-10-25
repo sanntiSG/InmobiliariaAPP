@@ -38,6 +38,7 @@ export const INTENT_LABELS: Record<IntentId, string> = {
   "explorer.new": "¿Qué hay de nuevo?",
   "explorer.popular": "¿Cuáles son las más populares?",
   "explorer.agencies": "¿Qué inmobiliarias hay en una zona?",
+  "explorer.about_property": "¿Me conviene esta propiedad?",
   "common.greeting": "Hola",
   "common.thanks": "Gracias",
   "common.help": "¿Qué podés hacer?",

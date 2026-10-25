@@ -6,6 +6,7 @@ import { FilterPill } from "@/components/ui/FilterPill";
 import { RangeSlider } from "@/components/ui/RangeSlider";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { Segmented } from "@/components/ui/Segmented";
 import { OPERATIONS, OPERATION_LABELS, PROPERTY_TYPES, PROPERTY_TYPE_LABELS } from "@/config/filters";
 import { formatPriceCompact } from "@/lib/utils/format";
 import type { PreferencesInput } from "@/lib/validation/preferences";
@@ -19,6 +20,7 @@ export function PreferencesForm({ initial }: { initial: PreferencesInput }) {
     initial.priceMin ?? PRICE_BOUNDS[0],
     initial.priceMax ?? PRICE_BOUNDS[1],
   ]);
+  const [priceCurrency, setPriceCurrency] = useState<"USD" | "ARS">(initial.priceCurrency ?? "USD");
   const [minRooms, setMinRooms] = useState(initial.minRooms ?? null);
   const [locationsText, setLocationsText] = useState(initial.locations.join(", "));
   const [saving, setSaving] = useState(false);
@@ -31,6 +33,7 @@ export function PreferencesForm({ initial }: { initial: PreferencesInput }) {
   async function save() {
     setSaving(true);
     setSaved(false);
+    const hasRange = priceRange[0] !== PRICE_BOUNDS[0] || priceRange[1] !== PRICE_BOUNDS[1];
     const payload: PreferencesInput = {
       operations,
       propertyTypes,
@@ -41,6 +44,7 @@ export function PreferencesForm({ initial }: { initial: PreferencesInput }) {
         .slice(0, 10),
       priceMin: priceRange[0] !== PRICE_BOUNDS[0] ? priceRange[0] : undefined,
       priceMax: priceRange[1] !== PRICE_BOUNDS[1] ? priceRange[1] : undefined,
+      priceCurrency: hasRange ? priceCurrency : undefined,
       minRooms: minRooms ?? undefined,
     };
     const res = await fetch("/api/me/preferences", {
@@ -86,6 +90,17 @@ export function PreferencesForm({ initial }: { initial: PreferencesInput }) {
           onChange={setPriceRange}
           formatValue={(n) => (n >= PRICE_BOUNDS[1] ? `${formatPriceCompact(n)}+` : formatPriceCompact(n))}
         />
+        <div className="mt-3 flex items-center gap-3">
+          <span className="text-sm text-text-muted">Moneda del rango</span>
+          <Segmented
+            items={[
+              { id: "USD", content: <span>Dólares</span> },
+              { id: "ARS", content: <span>Pesos</span> },
+            ]}
+            value={priceCurrency}
+            onChange={setPriceCurrency}
+          />
+        </div>
       </div>
 
       <div>

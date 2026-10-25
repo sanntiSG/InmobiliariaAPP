@@ -100,6 +100,13 @@ export const LEXICON: Record<Concept, string[]> = {
     "como hago para", "como puedo", "como consigo", "como conseguir", "como logro", "como lograr", "vender mas",
     "como vendo", "como vender", "que aconsejas", "que me aconsejas", "que sugerís", "que sugeris",
   ],
+  // Pedir una opinión o una descripción de UNA propiedad ("contame de esta", "me conviene", "me la recomendás").
+  "v.opinion": [
+    "contame de", "contame sobre", "contame acerca", "hablame de", "hablame sobre", "describ*", "que tal es", "que tal esta",
+    "como es esta", "como es la", "como es el", "que opinas", "que te parece", "que sabes de", "que me contas",
+    "me conviene", "me convendria", "me la recomendas", "me lo recomendas", "la recomendas", "lo recomendas",
+    "vale la pena", "me sirve", "es para mi", "me va a gustar", "esta bien esta", "esta bueno", "esta buena",
+  ],
   "v.simulate": [
     "simular", "simula", "simulacion", "escenario", "supongamos", "suponete", "hipotetico", "hipotetica",
     "que pasaria", "que pasa si", "y si", "si baj*", "si reduj*", "si rebaj*", "si sub*", "si aument*", "probando",

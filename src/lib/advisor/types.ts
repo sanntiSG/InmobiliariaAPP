@@ -50,7 +50,16 @@ export const EXPLORER_INTENTS = [
   "explorer.new",
   "explorer.popular",
   "explorer.agencies",
+  "explorer.about_property",
 ] as const;
+
+/**
+ * Intenciones que no gastan el cupo gratuito de quien no inició sesión: describen una propiedad pública que la persona
+ * ya está mirando (botón de la ficha). Las compartimos entre el servidor (no descuenta) y el cliente (no bloquea el botón
+ * aunque el cupo de preguntas libres esté agotado). Siguen sujetas al límite por minuto.
+ */
+export const FREE_INTENTS: readonly IntentId[] = ["explorer.about_property"];
+export const isFreeIntent = (intent: string): boolean => (FREE_INTENTS as readonly string[]).includes(intent);
 
 export const COMMON_INTENTS = ["common.greeting", "common.thanks", "common.help"] as const;
 
@@ -152,8 +161,37 @@ export type TrendBlockPoint = {
   contacts: number;
 };
 
+/** Ícono de una fila de datos de la propiedad (bloque `facts`). */
+export type FactIcon =
+  | "price"
+  | "expenses"
+  | "place"
+  | "rooms"
+  | "bedrooms"
+  | "bathrooms"
+  | "area"
+  | "garage"
+  | "age"
+  | "floor"
+  | "orientation"
+  | "amenity"
+  | "tour"
+  | "ambient"
+  | "video";
+
 export type AdvisorBlock =
   | { type: "text"; text: string }
+  | { type: "facts"; title?: string; items: { icon: FactIcon; label: string; value: string }[] }
+  | {
+      /** Si la propiedad encaja con lo que busca la persona: tono, qué coincide y qué no, y a dónde ir a ajustarlo. */
+      type: "verdict";
+      tone: "yes" | "maybe" | "no" | "unknown";
+      title: string;
+      matches: string[];
+      misses: string[];
+      note?: string;
+      actions?: AdvisorAction[];
+    }
   | {
       type: "metrics";
       items: { label: string; value: string; delta?: number | null; hint?: string; tone?: Tone }[];

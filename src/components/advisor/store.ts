@@ -5,6 +5,7 @@
  */
 import { useSyncExternalStore } from "react";
 import type { PublicAdvisorConfig } from "@/lib/advisor/config";
+import { isFreeIntent } from "@/lib/advisor/types";
 import type {
   AdvisorAnswer,
   AdvisorBriefing,
@@ -28,6 +29,8 @@ export type Thread = {
   context: AdvisorContext;
   briefing: AdvisorBriefing | null;
   briefingState: "idle" | "loading" | "error";
+  /** Para qué se cargó el saludo: `agency` o `explorer:<propiedad que se miraba>`. Si cambia (otra ficha), se vuelve a cargar. */
+  briefingKey: string | null;
   quota: AdvisorQuota | null;
 };
 
@@ -43,6 +46,8 @@ export type AdvisorState = {
   /** Prueba del estudio del admin: usa el borrador. */
   preview: boolean;
   focusPropertyId: string | null;
+  /** Propiedad cuya ficha está abierta ahora mismo (la registra el botón de la ficha): el lanzador flotante abre con ese contexto. */
+  pageFocus: string | null;
   /** Rect del lanzador, para abrir el escenario desde ahí. */
   origin: { x: number; y: number; w: number; h: number } | null;
   threads: Record<AdvisorMode, Thread>;
@@ -55,6 +60,7 @@ const emptyThread = (): Thread => ({
   context: { turn: 0 },
   briefing: null,
   briefingState: "idle",
+  briefingKey: null,
   quota: null,
 });
 
@@ -66,6 +72,7 @@ let state: AdvisorState = {
   agencyId: null,
   preview: false,
   focusPropertyId: null,
+  pageFocus: null,
   origin: null,
   threads: { agency: emptyThread(), explorer: emptyThread() },
 };
@@ -132,16 +139,35 @@ export type OpenOptions = {
   ask?: AskInput;
 };
 
+/** La ficha que se está mirando (o `null` al salir de ella): el lanzador flotante abre el asesor hablando de esa propiedad. */
+export function setPageFocus(id: string | null) {
+  if (state.pageFocus === id) return;
+  set({ pageFocus: id });
+}
+
+const briefingKeyFor = (mode: AdvisorMode, focus: string | null) => (mode === "explorer" ? `explorer:${focus ?? ""}` : "agency");
+
 export function openAdvisor(opts: OpenOptions = {}) {
   const mode = opts.mode ?? (opts.preview ? state.mode : modeFor(state.account));
+  // En modo explorador, sin una propiedad explícita se usa la ficha abierta (si hay una).
+  const focus = opts.focusPropertyId ?? (mode === "explorer" ? state.pageFocus : null);
   set({
     open: true,
     mode,
     preview: !!opts.preview,
-    focusPropertyId: opts.focusPropertyId ?? null,
+    focusPropertyId: focus,
     origin: opts.origin ? { x: opts.origin.x, y: opts.origin.y, w: opts.origin.width, h: opts.origin.height } : state.origin,
   });
-  if (!state.threads[mode].briefing && state.threads[mode].briefingState !== "loading") void loadBriefing(mode);
+
+  // La propiedad en foco viaja en el contexto de CADA pregunta (antes sólo llegaba al saludo): "¿me conviene?" ya sabe cuál.
+  if (mode === "explorer" && focus && state.threads.explorer.context.focusPropertyId !== focus) {
+    patchThread("explorer", (t) => ({ context: { ...t.context, focusPropertyId: focus } }));
+  }
+
+  // El saludo depende de la propiedad que se mira: si cambió y todavía no se habló, se vuelve a cargar.
+  const thread = state.threads[mode];
+  const stale = thread.briefingKey !== briefingKeyFor(mode, focus);
+  if (thread.briefingState !== "loading" && (!thread.briefing || (stale && thread.turns.length === 0))) void loadBriefing(mode);
   if (opts.ask) void ask(mode, opts.ask);
 }
 
@@ -155,6 +181,7 @@ export function resetThread(mode: AdvisorMode) {
 }
 
 export async function loadBriefing(mode: AdvisorMode) {
+  const key = briefingKeyFor(mode, state.focusPropertyId);
   patchThread(mode, { briefingState: "loading" });
   try {
     const res = await fetch("/api/advisor/briefing", {
@@ -170,7 +197,7 @@ export async function loadBriefing(mode: AdvisorMode) {
     });
     if (!res.ok) throw new Error(String(res.status));
     const briefing = (await res.json()) as AdvisorBriefing;
-    patchThread(mode, { briefing, briefingState: "idle", quota: briefing.quota ?? state.threads[mode].quota });
+    patchThread(mode, { briefing, briefingState: "idle", briefingKey: key, quota: briefing.quota ?? state.threads[mode].quota });
   } catch {
     patchThread(mode, { briefingState: "error" });
   }
@@ -182,11 +209,19 @@ export function markStreamed(mode: AdvisorMode, turnId: number) {
   }));
 }
 
+/** Pregunta que llegó mientras había otra en curso (p. ej. el botón de una ficha tocado con el escenario ya abierto): se hace al terminar. */
+let queued: { mode: AdvisorMode; input: AskInput } | null = null;
+
+const isFreeInput = (input: AskInput) => "query" in input && isFreeIntent(input.query.intent);
+
 export async function ask(mode: AdvisorMode, input: AskInput) {
   const thread = state.threads[mode];
-  // Una pregunta a la vez; y con el cupo agotado no se manda nada al servidor.
-  if (thread.turns.some((t) => t.role === "assistant" && t.status === "pending")) return;
-  if (thread.quota?.requiresAccount) return;
+  // Una pregunta a la vez (la siguiente espera su turno); y con el cupo agotado sólo pasan las que no lo gastan.
+  if (thread.turns.some((t) => t.role === "assistant" && t.status === "pending")) {
+    queued = { mode, input };
+    return;
+  }
+  if (thread.quota?.requiresAccount && !isFreeInput(input)) return;
 
   const userId = ++seq;
   const pendingId = ++seq;
@@ -224,4 +259,8 @@ export async function ask(mode: AdvisorMode, input: AskInput) {
   } catch (err) {
     replace({ id: pendingId, role: "assistant", status: "error", message: err instanceof Error ? err.message : "No pude responder ahora.", retry: input });
   }
+
+  const next = queued;
+  queued = null;
+  if (next) void ask(next.mode, next.input);
 }

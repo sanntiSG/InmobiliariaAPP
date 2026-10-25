@@ -212,6 +212,7 @@ export async function explorerBriefing(opts: {
     if (doc) {
       const zone = doc.address?.neighborhood ?? doc.address?.city ?? undefined;
       const base: Slots = { types: [doc.type], operation: doc.operation, ...(zone ? { zones: [zone] } : {}) };
+      cands.push({ priority: 97, suggestion: sug("explorer.about_property", "¿Me la recomendás?", { slots: { propertyIds: [opts.focusPropertyId] }, tone: "good" }) });
       cands.push({ priority: 95, suggestion: sug("explorer.price_check", "¿Está bien de precio?", { slots: { propertyIds: [opts.focusPropertyId] } }) });
       cands.push({ priority: 90, suggestion: sug("explorer.search", `Más como esta${zone ? ` en ${zone}` : ""}`, { slots: { ...base } }) });
       cands.push({ priority: 85, suggestion: sug("explorer.price_typical", `¿Cuánto cuesta ${typeLabel(doc.type, false)} en ${zone ?? "la zona"}?`, { slots: { ...base } }) });

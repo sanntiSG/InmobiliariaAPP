@@ -25,6 +25,8 @@ import { InquiryForm } from "@/components/property/InquiryForm";
 import { AgencyAvatar } from "@/components/property/AgencyAvatar";
 import { PropertyVideos } from "@/components/property/PropertyVideos";
 import { PropertyTracker } from "@/components/property/PropertyTracker";
+import { AskAboutProperty } from "@/components/advisor/AskAboutProperty";
+import { getPublishedConfig, toPublicConfig } from "@/lib/advisor/config";
 import { CommentsSection, type CommentItem } from "@/components/property/CommentsSection";
 import { PropertyLocationMapLazy } from "@/components/map/PropertyLocationMapLazy";
 import {
@@ -125,6 +127,8 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
   });
 
   const siteOrigin = await getSiteOrigin();
+  // Nombre, póster y si el asesor está encendido para exploradores: se resuelven acá para que el botón no "salte" al hidratar.
+  const advisor = toPublicConfig(await getPublishedConfig());
 
   const addressLine = [property.address.neighborhood, property.address.city]
     .filter(Boolean)
@@ -207,6 +211,12 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
                 )}
                 {property.publishedAt && <span>Publicado {formatRelativeTime(property.publishedAt)}</span>}
               </div>
+
+              {isPublished && advisor.enabled.explorer && (
+                <div className="mt-4">
+                  <AskAboutProperty propertyId={property.id} title={property.title} ctaTo={advisor.ctaTo} poster={advisor.poster} />
+                </div>
+              )}
 
               <div className="mt-4 flex flex-wrap items-center gap-3">
                 <SocialBar

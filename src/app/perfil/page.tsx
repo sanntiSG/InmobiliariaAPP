@@ -27,6 +27,7 @@ export default async function PerfilPage() {
     locations: userDoc?.preferences?.locations ?? [],
     priceMin: userDoc?.preferences?.priceMin ?? undefined,
     priceMax: userDoc?.preferences?.priceMax ?? undefined,
+    priceCurrency: userDoc?.preferences?.priceCurrency ?? undefined,
     minRooms: userDoc?.preferences?.minRooms ?? undefined,
   };
 

@@ -471,7 +471,11 @@ export const INTENTS: IntentDef[] = [
       when(3, (c) => has(c.detected, "v.recommend") && FILTER_COUNT(c.slots) === 0),
       when(2, (c) => /\bpara mi\b|\bpara nosotros\b|\bsegun mis\b|\bme convendria\b/.test(c.norm)),
     ],
-    negatives: [when(4, (c) => FILTER_COUNT(c.slots) >= 1)],
+    negatives: [
+      when(4, (c) => FILTER_COUNT(c.slots) >= 1),
+      // "me la recomendás" hablando de UNA propiedad es pedir su opinión (explorer.about_property), no una lista de sugerencias.
+      when(6, (c) => has(c.detected, "v.opinion") && ((c.slots.propertyIds?.length ?? 0) === 1 || !!c.ctx?.focusPropertyId)),
+    ],
     examples: ["recomendame propiedades", "que me recomendas", "sugeri algo para mi", "que casas me convienen", "dame ideas de propiedades"],
   },
   {
@@ -503,6 +507,27 @@ export const INTENTS: IntentDef[] = [
     audience: "explorer",
     signals: [any(8, "v.fair_price"), when(3, (c) => has(c.detected, "d.price") && (c.slots.propertyIds?.length ?? 0) > 0)],
     examples: ["esta bien de precio esta propiedad", "es cara", "el precio es razonable", "esta sobrevaluada", "vale lo que cuesta"],
+  },
+  {
+    id: "explorer.about_property",
+    audience: "explorer",
+    signals: [
+      // Pedir una opinión o una descripción sólo tiene sentido si hay UNA propiedad de la que se habla (la ficha o una mencionada).
+      when(11, (c) => has(c.detected, "v.opinion") && ((c.slots.propertyIds?.length ?? 0) === 1 || !!c.ctx?.focusPropertyId)),
+    ],
+    negatives: [
+      any(7, "v.fair_price"),
+      any(6, "v.compare"),
+      when(8, (c) => (c.slots.propertyIds?.length ?? 0) === 0 && !c.ctx?.focusPropertyId),
+    ],
+    examples: [
+      "contame de esta propiedad",
+      "me conviene esta casa",
+      "que opinas de esta",
+      "me la recomendas",
+      "describime esta propiedad",
+      "que tal es esta",
+    ],
   },
   {
     id: "explorer.with_tour",

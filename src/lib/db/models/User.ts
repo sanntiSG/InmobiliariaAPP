@@ -43,6 +43,8 @@ const userSchema = new Schema(
       locations: [{ type: String }], // barrios/ciudades de interés
       priceMin: { type: Number },
       priceMax: { type: Number },
+      /** Moneda del rango de precio (USD/ARS): sin ella el rango no se puede comparar con una propiedad en otra moneda. */
+      priceCurrency: { type: String, enum: ["USD", "ARS"] },
       minRooms: { type: Number },
       amenities: [{ type: String }],
     },

@@ -31,6 +31,7 @@ const E = (q: string, expect: string, slots?: Case["slots"], ctx?: AdvisorContex
 
 const afterWorst: AdvisorContext = { turn: 1, lastIntent: "agency.worst", lastSlots: { zones: ["Ezeiza"], period: "week" }, resultIds: ["p1", "p2", "p3"] };
 const afterChanges: AdvisorContext = { turn: 1, lastIntent: "agency.changes_vs_previous", lastSlots: { period: "week" } };
+const focusP2: AdvisorContext = { turn: 1, focusPropertyId: "p2" };
 const afterSearch: AdvisorContext = { turn: 1, lastIntent: "explorer.search", lastSlots: { types: ["departamento"] }, resultIds: ["p2", "p4", "p3"] };
 
 const CASES: Case[] = [
@@ -185,6 +186,29 @@ const CASES: Case[] = [
   E("mostrame las que tienen portada reactiva en palermo", "explorer.with_ambient|explorer.search", { zones: ["Palermo"] }),
   E("hay casas que se vean de dia y de noche", "explorer.with_ambient|explorer.search"),
   E("departamento de 2 ambientes en palermo", "explorer.search", { rooms: 2, zones: ["Palermo"] }), // no se confunde con "ambientacion"
+
+  // ── "Preguntale al asesor" desde la ficha (explorer.about_property) ────────
+  E("contame de esta propiedad", "explorer.about_property", { propertyIds: ["p2"] }, focusP2),
+  E("me conviene esta casa", "explorer.about_property", { propertyIds: ["p2"] }, focusP2),
+  E("que opinas de esta", "explorer.about_property", undefined, focusP2),
+  E("describime esta propiedad", "explorer.about_property", undefined, focusP2),
+  E("me la recomendas", "explorer.about_property", undefined, focusP2),
+  E("que tal es esta", "explorer.about_property", undefined, focusP2),
+  E("describime la primera", "explorer.about_property", { propertyIds: ["p2"] }, afterSearch),
+  E("contame de la casa de alan", "explorer.about_property|explorer.search|explorer.recommend|unknown|clarify"), // el explorador no ve títulos
+  // Regresiones: lo que ya andaba no cambia.
+  E("recomendame algo", "explorer.recommend"),
+  E("recomendame algo", "explorer.recommend", undefined, focusP2), // con ficha abierta pero sin pedir opinión de ella
+  E("que me recomendas", "explorer.recommend"),
+  E("esta bien de precio esta propiedad", "explorer.price_check", undefined, focusP2),
+  E("esta cara esta propiedad", "explorer.price_check", undefined, focusP2),
+  E("cuanto cuesta un departamento en palermo", "explorer.price_typical", { zones: ["Palermo"] }),
+  E("compara las primeras", "explorer.compare", undefined, afterSearch),
+  E("busco una casa en canning", "explorer.search", { zones: ["Canning"] }),
+  // Sin propiedad de la que hablar, pedir "opinión" no activa la intención nueva.
+  E("que opinas", "unknown|clarify|explorer.recommend|common.help"),
+  // Una inmobiliaria (modo agency) no tiene esta intención.
+  A("contame de esta propiedad", "unknown|clarify|agency.property_status|agency.investigate|agency.overview", undefined, focusP2),
 ];
 
 function matches(actual: string, expected: string): boolean {

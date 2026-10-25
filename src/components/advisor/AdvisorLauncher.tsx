@@ -34,7 +34,7 @@ export function AdvisorLauncher({ onWarm }: { onWarm: () => void }) {
     >
       <MascotFallback poster={config.poster} />
       <span className="advisor-launcher-tip" aria-hidden>
-        Preguntale a {config.displayName}
+        Preguntale {config.ctaTo}
       </span>
     </button>
   );

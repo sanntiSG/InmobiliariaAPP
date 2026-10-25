@@ -5,7 +5,7 @@
  * ya autorizado y devuelve una `AdvisorAnswer`. Por eso mañana se le puede
  * enchufar un modelo de lenguaje en la capa de interpretación sin tocar el resto.
  */
-import { AGENCY_INTENTS, EXPLORER_INTENTS, type AdvisorAnswer, type AdvisorContext, type AdvisorInput, type AdvisorMode, type AgencyIntent, type ExplorerIntent, type IntentId, type Slots } from "./types";
+import { AGENCY_INTENTS, EXPLORER_INTENTS, isFreeIntent, type AdvisorAnswer, type AdvisorContext, type AdvisorInput, type AdvisorMode, type AgencyIntent, type ExplorerIntent, type IntentId, type Slots } from "./types";
 import { AGENCY_HANDLERS } from "./analysis/agency";
 import { greeting, help, thanks } from "./analysis/common";
 import { EXPLORER_HANDLERS } from "./analysis/explorer";
@@ -121,11 +121,13 @@ function run(intent: IntentId, env: Env): Promise<HandlerResult> | HandlerResult
  * la ayuda y lo que no entiende o necesita aclarar no cuentan. Sólo clasifica: no toca datos.
  */
 export async function willConsumeQuota(params: Pick<AskParams, "mode" | "input" | "context">): Promise<boolean> {
-  if (!("text" in params.input)) return !params.input.query.intent.startsWith("common.");
+  // El saludo, el agradecimiento y la ayuda no cuentan; tampoco lo que describe una ficha pública (botón de la propiedad).
+  const free = (intent: string) => intent.startsWith("common.") || isFreeIntent(intent);
+  if (!("text" in params.input)) return !free(params.input.query.intent);
   const ctx = sanitizeContext(params.context ?? { turn: 0 }, null);
   const index = await loadMarketIndex();
   const u = understand(params.input.text, params.mode, index, ctx);
-  return u.kind === "intent" && !u.intent.startsWith("common.");
+  return u.kind === "intent" && !free(u.intent);
 }
 
 export async function answer(params: AskParams): Promise<AdvisorAnswer> {

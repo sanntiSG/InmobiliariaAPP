@@ -2,13 +2,67 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, FlaskConical, Info, TrendingDown, TrendingUp } from "lucide-react";
+import {
+  ArrowRight,
+  BedDouble,
+  Bath,
+  Calendar,
+  Car,
+  CircleAlert,
+  CircleCheck,
+  CircleHelp,
+  CircleX,
+  Compass,
+  DoorOpen,
+  FlaskConical,
+  Info,
+  Layers,
+  ListChecks,
+  MapPin,
+  Orbit,
+  Receipt,
+  Ruler,
+  Tag,
+  TrendingDown,
+  TrendingUp,
+  Video,
+  type LucideIcon,
+} from "lucide-react";
+import { AmbientIcon } from "@/components/icons/AmbientIcon";
+import { buttonClasses } from "@/components/ui/Button";
 import { BarList } from "@/components/dashboard/charts/BarList";
 import { TrendChart } from "@/components/dashboard/charts/TrendChart";
 import { DiagnosticCard } from "@/components/dashboard/DiagnosticCard";
 import { PropertyCard } from "@/components/property/PropertyCard";
 import { cn } from "@/lib/utils/cn";
-import type { AdvisorBlock, PropertyRef, TableCell, Tone } from "@/lib/advisor/types";
+import type { AdvisorBlock, FactIcon, PropertyRef, TableCell, Tone } from "@/lib/advisor/types";
+
+const FACT_ICON: Record<FactIcon, LucideIcon | typeof AmbientIcon> = {
+  price: Tag,
+  expenses: Receipt,
+  place: MapPin,
+  rooms: DoorOpen,
+  bedrooms: BedDouble,
+  bathrooms: Bath,
+  area: Ruler,
+  garage: Car,
+  age: Calendar,
+  floor: Layers,
+  orientation: Compass,
+  amenity: ListChecks,
+  tour: Orbit,
+  ambient: AmbientIcon,
+  video: Video,
+};
+/** Estos datos son largos (precio con texto, zona, comodidades): ocupan el ancho completo. */
+const WIDE_FACTS = new Set<FactIcon>(["price", "place", "amenity"]);
+
+const VERDICT_STYLE: Record<"yes" | "maybe" | "no" | "unknown", { box: string; icon: string; Icon: LucideIcon }> = {
+  yes: { box: "bg-success-soft", icon: "text-success", Icon: CircleCheck },
+  maybe: { box: "bg-warning-soft", icon: "text-warning", Icon: CircleAlert },
+  no: { box: "bg-danger-soft", icon: "text-danger", Icon: CircleX },
+  unknown: { box: "bg-surface-2", icon: "text-text-muted", Icon: CircleHelp },
+};
 
 const TONE_TEXT: Record<Tone, string> = { good: "text-success", bad: "text-danger", neutral: "text-text" };
 const TONE_DOT: Record<Tone, string> = { good: "bg-success", bad: "bg-danger", neutral: "bg-text-muted" };
@@ -79,6 +133,77 @@ export function BlockView({ block, onOpenProperty }: { block: AdvisorBlock; onOp
   switch (block.type) {
     case "text":
       return <p className="text-sm text-text-muted">{block.text}</p>;
+
+    case "facts": {
+      // Mosaico de 1 px. Con `dense` las filas angostas rellenan los huecos que dejan las anchas; si las angostas son
+      // impares, la última ocupa el ancho completo para que no quede una celda vacía (se vería un hueco oscuro).
+      const narrow = block.items.filter((i) => !WIDE_FACTS.has(i.icon));
+      const lastNarrow = narrow.length % 2 === 1 ? narrow[narrow.length - 1] : null;
+      return (
+        <section className="overflow-hidden rounded-card bg-surface shadow-card">
+          {block.title && <p className="px-4 pb-1 pt-3.5 font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-text-subtle">{block.title}</p>}
+          <dl className="grid grid-flow-dense grid-cols-2 gap-px bg-border-hi">
+            {block.items.map((item) => {
+              const Icon = FACT_ICON[item.icon];
+              const wide = WIDE_FACTS.has(item.icon) || item === lastNarrow;
+              return (
+                <div key={item.label} className={cn("flex min-w-0 items-start gap-2.5 bg-surface px-3.5 py-3", wide && "col-span-2")}>
+                  <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent">
+                    <Icon className="h-3.5 w-3.5" aria-hidden />
+                  </span>
+                  <div className="min-w-0">
+                    <dt className="font-mono text-[10px] uppercase tracking-[0.08em] text-text-subtle">{item.label}</dt>
+                    <dd className="text-sm font-medium text-text">{item.value}</dd>
+                  </div>
+                </div>
+              );
+            })}
+          </dl>
+        </section>
+      );
+    }
+
+    case "verdict": {
+      const style = VERDICT_STYLE[block.tone];
+      return (
+        <section className={cn("flex flex-col gap-3 rounded-card p-4", style.box)} aria-label={block.title}>
+          <div className="flex items-center gap-2.5">
+            <style.Icon className={cn("h-5 w-5 shrink-0", style.icon)} aria-hidden />
+            <p className="font-display text-base font-semibold text-text">{block.title}</p>
+          </div>
+          {block.matches.length > 0 && (
+            <ul className="flex flex-col gap-1.5">
+              {block.matches.map((t) => (
+                <li key={t} className="flex items-start gap-2 text-sm text-text">
+                  <CircleCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" aria-hidden />
+                  {t}
+                </li>
+              ))}
+            </ul>
+          )}
+          {block.misses.length > 0 && (
+            <ul className="flex flex-col gap-1.5">
+              {block.misses.map((t) => (
+                <li key={t} className="flex items-start gap-2 text-sm text-text">
+                  <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" aria-hidden />
+                  {t}
+                </li>
+              ))}
+            </ul>
+          )}
+          {block.note && <p className="text-sm text-text-muted">{block.note}</p>}
+          {block.actions && block.actions.length > 0 && (
+            <div className="flex flex-wrap gap-2 pt-0.5">
+              {block.actions.map((a) => (
+                <Link key={a.label} href={a.href} className={buttonClasses(a.kind === "primary" ? "primary" : "secondary", "sm")}>
+                  {a.label}
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+      );
+    }
 
     case "caveat":
       return (
