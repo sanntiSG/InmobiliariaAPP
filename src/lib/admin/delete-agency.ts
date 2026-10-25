@@ -10,6 +10,9 @@ import { Comment } from "@/lib/db/models/Comment";
 import { Favorite } from "@/lib/db/models/Favorite";
 import { Interaction } from "@/lib/db/models/Interaction";
 import { Lead } from "@/lib/db/models/Lead";
+import { Mailbox } from "@/lib/db/models/Mailbox";
+import { MailMessage } from "@/lib/db/models/MailMessage";
+import { MailSettings } from "@/lib/db/models/MailSettings";
 import { Like } from "@/lib/db/models/Like";
 import { Notification } from "@/lib/db/models/Notification";
 import { Property } from "@/lib/db/models/Property";
@@ -84,6 +87,10 @@ export async function deleteAgencyCascade(agencyId: string): Promise<DeleteAgenc
     PropertyDailyStat.deleteMany({ agencyId: agencyOid }),
     SocialContent.deleteMany({ agencyId: agencyOid }),
     ActivityLog.deleteMany({ agencyId: agencyOid }),
+    // El buzón de correo vinculado (con su contraseña cifrada), la configuración del agente y los mails guardados.
+    Mailbox.deleteMany({ agencyId: agencyOid }),
+    MailSettings.deleteMany({ agencyId: agencyOid }),
+    MailMessage.deleteMany({ agencyId: agencyOid }),
   ]);
   invalidateAgency(agencyId);
 

@@ -20,6 +20,8 @@ export const NOTIFICATION_TYPES = [
   "follow_new_property", // nueva propiedad de una inmobiliaria que el usuario sigue
   "admin_alert", // (admin) situación que requiere atención
   "social_post", // (inmobiliaria) publicación para redes lista
+  "mail_draft", // (inmobiliaria) el agente de correo dejó una respuesta para confirmar
+  "mail_error", // (inmobiliaria) el buzón de correo necesita atención (contraseña, conexión)
 ] as const;
 
 const notificationSchema = new Schema(

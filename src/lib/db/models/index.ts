@@ -21,6 +21,9 @@ export { ActivityLog, ACTIVITY_KINDS } from "./ActivityLog";
 export { AdvisorUnmatched } from "./AdvisorUnmatched";
 export { AdvisorConfig } from "./AdvisorConfig";
 export { AmbientCover, AMBIENT_COVER_STATUSES } from "./AmbientCover";
+export { Mailbox } from "./Mailbox";
+export { MailSettings } from "./MailSettings";
+export { MailMessage } from "./MailMessage";
 
 export type { AgencyDoc } from "./Agency";
 export type { UserDoc } from "./User";
@@ -44,3 +47,6 @@ export type { ActivityLogDoc, ActivityKind } from "./ActivityLog";
 export type { AdvisorUnmatchedDoc } from "./AdvisorUnmatched";
 export type { AdvisorConfigDoc } from "./AdvisorConfig";
 export type { AmbientCoverDoc } from "./AmbientCover";
+export type { MailboxDoc } from "./Mailbox";
+export type { MailSettingsDoc } from "./MailSettings";
+export type { MailMessageDoc } from "./MailMessage";

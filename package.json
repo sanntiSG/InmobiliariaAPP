@@ -19,7 +19,8 @@
     "migrate-tour3d-to-tours": "tsx scripts/migrate-tour3d-to-tours.ts",
     "reconcile-property-stats": "tsx scripts/reconcile-property-stats.ts",
     "fix-stale-agency-requests": "tsx scripts/fix-stale-agency-requests.ts",
-    "postinstall": "node scripts/copy-maplibre-worker.mjs"
+    "postinstall": "node scripts/copy-maplibre-worker.mjs",
+    "mail:check": "tsx scripts/mail-check.ts"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",
@@ -32,11 +33,14 @@
     "clsx": "^2.1.1",
     "fflate": "0.8.3",
     "gsap": "^3.15.0",
+    "imapflow": "^2.9.1",
     "lucide-react": "^1.41.0",
+    "mailparser": "^3.12.4",
     "maplibre-gl": "^6.7.0",
     "mongoose": "^9.9.4",
     "next": "16.3.4",
     "next-auth": "^5.0.0-beta.32",
+    "nodemailer": "^10.2.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-photo-sphere-viewer": "^6.2.3",
@@ -47,8 +51,10 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/mailparser": "^3.9.0",
     "@types/mapbox__point-geometry": "^0.1.4",
     "@types/node": "^20",
+    "@types/nodemailer": "^8.0.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/supercluster": "^7.1.3",
@@ -59,5 +65,10 @@
     "tailwindcss": "^4",
     "tsx": "^4.23.13",
     "typescript": "^5"
+  },
+  "overrides": {
+    "next-auth": {
+      "nodemailer": "$nodemailer"
+    }
   }
 }

@@ -26,6 +26,9 @@ const leadSchema = new Schema(
       },
     ],
 
+    /** Por dónde llegó: el formulario de la ficha ("web") o un mail que atendió el agente de correo ("email"). */
+    source: { type: String, enum: ["web", "email"], default: "web" },
+
     status: { type: String, enum: LEAD_STATUSES, default: "nuevo" },
     visitRequested: { type: Boolean, default: false },
     visitDone: { type: Boolean, default: false },
