@@ -8,6 +8,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { agencyScope } from "@/lib/auth/agency-scope";
 import { requireDashboardAccess } from "@/lib/auth/require-dashboard-access";
+import { mailRuntime } from "./runtime";
 
 export type MailAccess = { agencyId: string; userId: string; isAdmin: boolean; role: string; canManage: boolean };
 
@@ -25,7 +26,7 @@ export async function mailAccess(req: NextRequest, opts: { manage?: boolean } = 
   return { agencyId: scope.agencyId, userId: access.userId, isAdmin: access.isAdmin, role: access.role, canManage };
 }
 
-/** ¿El despliegue puede enviar mails? (Render gratis bloquea SMTP: sólo se habilita donde sí se puede.) */
-export const sendEnabled = (): boolean => process.env.MAIL_SEND_ENABLED === "true";
+/** ¿El despliegue puede enviar mails? (Render gratis bloquea SMTP: ahí no; ver `runtime.ts`.) */
+export const sendEnabled = (): boolean => mailRuntime().sender;
 /** ¿Este despliegue corre la revisión programada? */
-export const pollerEnabled = (): boolean => process.env.MAIL_POLLER_ENABLED === "true";
+export const pollerEnabled = (): boolean => mailRuntime().poller;

@@ -275,7 +275,7 @@ export function AdvisorStudio({ initial, unmatched: initialUnmatched, agentId = 
         </p>
       )}
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
         {/* Visor */}
         <div className="flex flex-col gap-3 lg:sticky lg:top-36 lg:self-start">
           <div className={cn("relative h-[26rem] overflow-hidden rounded-card shadow-card", dark ? "bg-[oklch(15.9%_0.0111_268)]" : "bg-[oklch(96.6%_0.0045_258)]")} aria-label={`Vista previa de ${def.roleNoun}`}>
@@ -432,7 +432,7 @@ export function AdvisorStudio({ initial, unmatched: initialUnmatched, agentId = 
                           <span className="font-medium text-text">{c.name}</span> <span className="text-xs text-text-muted">{c.duration.toFixed(1).replace(".", ",")} s</span>
                         </td>
                         <td className="text-center">
-                          <button type="button" aria-label={`Reproducir ${c.name}`} className="grid h-8 w-8 place-items-center rounded-full text-accent hover:bg-accent-soft" onClick={() => viewer.current?.playClip(c.name)}>
+                          <button type="button" aria-label={`Reproducir ${c.name}`} className="grid h-8 w-8 pointer-coarse:size-11 place-items-center rounded-full text-accent hover:bg-accent-soft" onClick={() => viewer.current?.playClip(c.name)}>
                             <Play className="h-4 w-4" aria-hidden />
                           </button>
                         </td>
@@ -465,7 +465,7 @@ export function AdvisorStudio({ initial, unmatched: initialUnmatched, agentId = 
                 <RotateCcw className="h-3.5 w-3.5" aria-hidden /> Restablecer
               </button>
             </div>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
               {FRAMING.map((f) => (
                 <label key={f.key} className="flex flex-col gap-1.5 text-sm font-medium">
                   <span className="flex justify-between">
@@ -534,7 +534,7 @@ export function AdvisorStudio({ initial, unmatched: initialUnmatched, agentId = 
                         {u.mode === "agency" ? "Inmobiliaria" : "Explorador"} · {u.kind === "clarify" ? "dudó" : "no entendió"} · {u.count} {u.count === 1 ? "vez" : "veces"}
                       </span>
                     </span>
-                    <button type="button" aria-label="Borrar" className="grid h-8 w-8 place-items-center rounded-full text-text-muted hover:bg-surface-2 hover:text-danger" onClick={() => removeUnmatched({ id: u.id })}>
+                    <button type="button" aria-label="Borrar" className="grid h-8 w-8 pointer-coarse:size-11 place-items-center rounded-full text-text-muted hover:bg-surface-2 hover:text-danger" onClick={() => removeUnmatched({ id: u.id })}>
                       <Trash2 className="h-4 w-4" aria-hidden />
                     </button>
                   </li>

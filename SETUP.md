@@ -151,35 +151,56 @@ health-check ya completos, sólo pide las variables secretas en un formulario).
 
 ## 8. Agente de correo (opcional)
 
-El agente de correo lee las consultas que llegan a la casilla de una inmobiliaria y le deja la respuesta lista. Está **apagado** hasta que
-el admin lo publica en *Admin → Agentes → Correo*, y **no hace nada** hasta que se cargan estas variables. Ninguna va en el repo:
-se cargan en el panel de cada plataforma.
+El agente de correo lee las consultas que llegan a la casilla de una inmobiliaria y le deja la respuesta lista. Está **apagado** hasta que el admin lo publica en *Admin → Agentes → Correo*.
 
-| Variable | Dónde | Para qué |
-|---|---|---|
-| `MAIL_CREDENTIALS_KEY` | Netlify (y Render, si querés conectar o revisar desde ahí) | Clave que cifra las contraseñas de aplicación. 32 bytes en base64: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`. **Guardá una copia fuera del repo**: si se pierde, hay que reconectar todas las casillas. |
-| `CRON_SECRET` | Netlify **y** como secreto de GitHub | Clave de la revisión programada (mínimo 32 caracteres): `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. |
-| `PUBLIC_SITE_URL` | Netlify (y Render) | La dirección pública con https, por ejemplo `https://tu-sitio.netlify.app`. Los enlaces a las fichas dentro de los mails salen de acá, nunca del encabezado de la petición. |
-| `MAIL_SITE_HOSTS` | opcional | Otros dominios propios (separados por coma) para reconocer enlaces a tus fichas. |
-| `MAIL_POLLER_ENABLED=true` | **sólo Netlify** | Habilita la ruta `/api/cron/mail-poll`. En los demás despliegues la ruta no existe. |
-| `MAIL_SEND_ENABLED=true` | **sólo Netlify** | Habilita el envío por SMTP. Render gratis bloquea SMTP: ahí las respuestas quedan en cola y las manda Netlify. |
+**Qué se carga, y cuántas veces.** Una sola cosa, **una sola vez para toda la plataforma** (no una por casilla ni una por inmobiliaria): la clave de seguridad con la que se cifran las contraseñas de las casillas. La contraseña de cada casilla la escribe la propia inmobiliaria en su panel; queda cifrada en la base y el admin nunca la ve.
 
-**Revisión programada.** En GitHub → *Settings → Secrets and variables → Actions* cargá `CRON_SECRET` (el mismo valor) y `MAIL_POLL_URL`
-(`https://tu-sitio.netlify.app/api/cron/mail-poll`). El flujo `.github/workflows/mail-poll.yml` llama cada 5 minutos; también se puede
-disparar a mano (*Actions → Revisar el correo de las inmobiliarias → Run workflow*). GitHub desactiva los flujos programados tras 60 días
-sin actividad en el repo: si pasa, hay que volver a activarlo. El botón **Revisar ahora** del panel sirve de respaldo.
+| Dónde | Qué hay que hacer |
+|---|---|
+| **Netlify** | Cargar **una** variable: `MAIL_CREDENTIALS_KEY`. |
+| **GitHub** | Nada. (La revisión cada 5 minutos la hace una función programada de Netlify, `netlify/functions/mail-poll.mts`.) |
+| **Render** | Nada. Es la web de respaldo: ahí se ve y se confirma, pero no se conectan casillas ni se envía (el plan gratis bloquea el envío de mails); lo confirmado lo manda Netlify. |
 
-**Conectar una casilla.** La hace el dueño de la inmobiliaria desde *Agentes → Correo*, con una **contraseña de aplicación** (Gmail exige
-verificación en 2 pasos; Yahoo e iCloud también las ofrecen). El asistente explica cada paso. Outlook/Hotmail queda para una segunda etapa.
+### Activarlo (admin, unos 3 minutos)
 
-**Qué hace y qué no.** Sólo lee la bandeja de entrada en modo lectura y sólo los mails que llegan *después* de conectar; no borra ni mueve
-nada. Guarda el texto (sin adjuntos) 60 días (14 si lo ignoró) y todo se borra al desconectar. Empieza en modo *con confirmación*: nada
-se envía sin que una persona lo confirme. El modo automático sólo responde consultas claras, con una propiedad identificada, de remitentes
-que pasan las verificaciones SPF/DKIM/DMARC y dentro de los topes configurados. Las pruebas de la lógica (sin red ni base): `npm run mail:check`.
+Todo se explica también dentro de *Admin → Agentes → Correo*, con un botón que genera la clave.
 
-**Datos personales (Ley 25.326).** El agente trata nombre, email y texto de las consultas de terceros. La finalidad (atender la consulta),
-la retención (60 días) y el borrado al desconectar están en el aviso que acepta quien conecta la casilla; la política de privacidad del
-sitio la redacta el dueño de la plataforma.
+1. En *Admin → Agentes → Correo* tocá **Generar la clave** y **Copiar clave**. Se crea en tu navegador; guardala en tu gestor de contraseñas (si se pierde, cada inmobiliaria tiene que volver a conectar su casilla).
+2. En Netlify: tu sitio → **Site configuration → Environment variables → Add a variable → Add a single variable**. En *Key* escribí `MAIL_CREDENTIALS_KEY`, en *Values* pegá la clave, y **Create variable**.
+3. **Deploys → Trigger deploy → Deploy site** y esperá a que termine.
+4. Volvé a *Admin → Agentes → Correo* y tocá **Actualizar estado**: "Clave de seguridad" tiene que decir *Cargada*, y a los 5 minutos "Revisión automática" muestra la última corrida.
+5. Más abajo, en **Disponible para**, marcá *Inmobiliarias y admin* y tocá **Publicar**.
+
+Listo: cada inmobiliaria ya puede conectar su casilla.
+
+### Conectar una casilla (cada inmobiliaria, unos 5 minutos)
+
+Desde su panel: *Agentes → Correo → Conectar mi casilla*. El asistente explica cada paso y trae el enlace directo a la página donde el proveedor (Gmail, Yahoo, iCloud) entrega la **contraseña de aplicación** (una clave especial para una sola app; no es la contraseña de la cuenta y se puede borrar cuando se quiera). Para un correo de hosting propio, se piden los datos del servidor (IMAP y SMTP). Outlook/Hotmail queda para una segunda etapa.
+
+Si el correo todavía no está activado en la plataforma, la inmobiliaria lo ve apenas entra y tiene un botón **Avisar al administrador** (llega como notificación) y otro de WhatsApp. No hay que pasarle ninguna credencial al admin.
+
+### Variables opcionales (casi nunca hacen falta)
+
+| Variable | Para qué |
+|---|---|
+| `PUBLIC_SITE_URL` | Dirección (con https) que usan los enlaces dentro de los mails. Si falta, se usa `AUTH_URL`. |
+| `MAIL_SITE_HOSTS` | Otros dominios propios, separados por coma, para reconocer enlaces a tus fichas dentro de un mail. |
+| `MAIL_CREDENTIALS_KEY_PREVIOUS` | Para cambiar la clave sin desconectar a nadie: poné acá la clave vieja y cargá la nueva en `MAIL_CREDENTIALS_KEY`. |
+| `MAIL_POLLER_ENABLED` / `MAIL_SEND_ENABLED` | Con el valor `false` apagan la revisión o el envío. Con `true` fuerzan encenderlos (por ejemplo, en un Render de pago). Normalmente no se cargan. |
+| `CRON_SECRET` | Sólo si querés llamar a `/api/cron/mail-poll` desde un programador externo (mínimo 32 caracteres, con `Authorization: Bearer <valor>`). La clave que usa Netlify se deriva sola de `MAIL_CREDENTIALS_KEY`. |
+
+Si ya tenías cargadas `MAIL_POLLER_ENABLED=true`, `MAIL_SEND_ENABLED=true`, `CRON_SECRET` o los secretos de GitHub (`CRON_SECRET`, `MAIL_POLL_URL`), se pueden dejar o borrar: ya no hacen falta.
+
+### Cómo funciona y cómo revisarlo
+
+- Netlify ejecuta `mail-poll` cada 5 minutos (en *Logs → Functions → mail-poll* se ve cada corrida). Esa función llama a `POST /api/cron/mail-poll`, que revisa las casillas y manda lo que quedó en cola. La ruta devuelve sólo conteos y no existe (404) donde el correo no corre, como en Render.
+- Cada corrida deja una señal de vida en la base: el panel del admin la muestra ("Última revisión hace 3 min"). Si pasan 15 minutos sin corrida, el panel avisa.
+- El botón **Revisar ahora** del panel de cada inmobiliaria sirve de respaldo (1 por minuto).
+- Las funciones programadas de Netlify sólo corren en el despliegue publicado, no en vistas previas.
+
+**Qué hace y qué no.** Sólo lee la bandeja de entrada en modo lectura y sólo los mails que llegan *después* de conectar; no borra ni mueve nada. Guarda el texto (sin adjuntos) 60 días (14 si lo ignoró) y todo se borra al desconectar. Empieza en modo *con confirmación*: nada se envía sin que una persona lo confirme. El modo automático sólo responde consultas claras, con una propiedad identificada, de remitentes que pasan las verificaciones SPF/DKIM/DMARC y dentro de los topes configurados. Las pruebas de la lógica (sin red ni base): `npm run mail:check`.
+
+**Datos personales (Ley 25.326).** El agente trata nombre, email y texto de las consultas de terceros. La finalidad (atender la consulta), la retención (60 días) y el borrado al desconectar están en el aviso que acepta quien conecta la casilla; la política de privacidad del sitio la redacta el dueño de la plataforma.
 
 ## Nota de seguridad
 

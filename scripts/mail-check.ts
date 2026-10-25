@@ -4,8 +4,11 @@
  * modo automático. Correr con `npm run mail:check`: sale con código 1 si alguna falla.
  */
 import { createSecretBox, SecretBoxError, mailboxAad } from "../src/lib/security/secret-box";
-import { verifyCronRequest } from "../src/lib/security/cron-auth";
-import { getPublicSiteUrl, siteHosts } from "../src/lib/mail/site";
+import { cronSecrets, verifyCronRequest } from "../src/lib/security/cron-auth";
+import { CRON_TOKEN_LABEL, deriveCronToken } from "../src/lib/security/cron-token";
+import { mailRuntime } from "../src/lib/mail/runtime";
+import { explain, MailTransportError, parseAuth } from "../src/lib/mail/transport";
+import { getPublicSiteUrl, publicSiteUrl, siteHosts } from "../src/lib/mail/site";
 import { assertSafeMailHost, HostError, isPrivateIp } from "../src/lib/mail/hosts";
 import { cleanBody, htmlToText } from "../src/lib/mail/clean";
 import { firstNameOf, prefilter, replyAddress, type MailHeaders } from "../src/lib/mail/prefilter";
@@ -61,12 +64,26 @@ const throwsCode = (fn: () => unknown, code: string): boolean => {
 {
   const secret = "s".repeat(40);
   const req = (auth?: string) => new Request("https://x.test/api/cron", { headers: auth ? { authorization: auth } : {} });
-  check("cron: la clave correcta pasa", verifyCronRequest(req(`Bearer ${secret}`), secret));
-  check("cron: otra clave no pasa", !verifyCronRequest(req(`Bearer ${"t".repeat(40)}`), secret));
-  check("cron: sin encabezado no pasa", !verifyCronRequest(req(), secret));
-  check("cron: sin 'Bearer' no pasa", !verifyCronRequest(req(secret), secret));
-  check("cron: sin clave configurada nadie pasa", !verifyCronRequest(req("Bearer x"), undefined) && !verifyCronRequest(req("Bearer "), ""));
-  check("cron: una clave corta se rechaza aunque coincida", !verifyCronRequest(req("Bearer corta"), "corta"));
+  check("cron: la clave correcta pasa", verifyCronRequest(req(`Bearer ${secret}`), [secret]));
+  check("cron: otra clave no pasa", !verifyCronRequest(req(`Bearer ${"t".repeat(40)}`), [secret]));
+  check("cron: sin encabezado no pasa", !verifyCronRequest(req(), [secret]));
+  check("cron: sin 'Bearer' no pasa", !verifyCronRequest(req(secret), [secret]));
+  check("cron: sin claves configuradas nadie pasa", !verifyCronRequest(req("Bearer x"), []) && !verifyCronRequest(req("Bearer "), [""]));
+  check("cron: una clave corta se rechaza aunque coincida", !verifyCronRequest(req("Bearer corta"), ["corta"]));
+  check("cron: con varias claves pasa cualquiera de ellas", verifyCronRequest(req(`Bearer ${secret}`), ["z".repeat(40), secret]));
+
+  // La clave de la revisión se deriva de la de cifrado: una sola variable en la plataforma.
+  const key = Buffer.alloc(32, 7).toString("base64");
+  const other = Buffer.alloc(32, 8).toString("base64");
+  const token = deriveCronToken(key);
+  check("cron-token: es determinista, hexadecimal y no contiene la clave", token === deriveCronToken(key) && /^[0-9a-f]{64}$/.test(token) && !token.includes(key) && CRON_TOKEN_LABEL.length > 0);
+  check("cron-token: otra clave da otro token", token !== deriveCronToken(other));
+  check("cron-token: ignora espacios alrededor de la clave", token === deriveCronToken(`  ${key}
+`));
+  check("cronSecrets: con la clave de cifrado válida aparece el token derivado", cronSecrets({ MAIL_CREDENTIALS_KEY: key }).join() === token, cronSecrets({ MAIL_CREDENTIALS_KEY: key }));
+  check("cronSecrets: una clave inválida o corta no aporta nada", cronSecrets({ MAIL_CREDENTIALS_KEY: "abc" }).length === 0 && cronSecrets({ CRON_SECRET: "corta" }).length === 0 && cronSecrets({}).length === 0);
+  check("cronSecrets: CRON_SECRET (≥32) se suma como opción", cronSecrets({ MAIL_CREDENTIALS_KEY: key, CRON_SECRET: secret }).length === 2 && cronSecrets({ CRON_SECRET: secret })[0] === secret);
+  check("cron: el token derivado pasa y la clave de cifrado en crudo NO", verifyCronRequest(req(`Bearer ${token}`), cronSecrets({ MAIL_CREDENTIALS_KEY: key })) && !verifyCronRequest(req(`Bearer ${key}`), cronSecrets({ MAIL_CREDENTIALS_KEY: key })));
 }
 
 // ── Dirección pública del sitio ─────────────────────────────────────────────
@@ -74,7 +91,46 @@ const throwsCode = (fn: () => unknown, code: string): boolean => {
   check("site: https válido", getPublicSiteUrl("https://recorrr.example/") === "https://recorrr.example");
   check("site: http sólo para localhost", getPublicSiteUrl("http://localhost:3000") === "http://localhost:3000" && getPublicSiteUrl("http://recorrr.example") === null);
   check("site: basura → null", getPublicSiteUrl("javascript:alert(1)") === null && getPublicSiteUrl("no es una url") === null && getPublicSiteUrl(undefined) === null);
+  check("site: AUTH_URL sirve cuando falta PUBLIC_SITE_URL", publicSiteUrl({ AUTH_URL: "https://sitio.netlify.app" }) === "https://sitio.netlify.app" && publicSiteUrl({ PUBLIC_SITE_URL: "https://propio.example", AUTH_URL: "https://sitio.netlify.app" }) === "https://propio.example");
+  check("site: una PUBLIC_SITE_URL inválida cae en AUTH_URL; sin ninguna, null", publicSiteUrl({ PUBLIC_SITE_URL: "ftp://x", AUTH_URL: "https://sitio.netlify.app" }) === "https://sitio.netlify.app" && publicSiteUrl({}) === null);
+  check("siteHosts: reconoce también el host de AUTH_URL", siteHosts({ site: "https://propio.example", auth: "https://sitio.netlify.app" }).join() === "propio.example,sitio.netlify.app");
   check("siteHosts: junta el sitio y los extra, sin basura", siteHosts({ site: "https://recorrr.example", extra: "www.recorrr.example, evil host ,otro.com" }).join() === "recorrr.example,www.recorrr.example,otro.com", siteHosts({ site: "https://recorrr.example", extra: "www.recorrr.example, evil host ,otro.com" }));
+}
+
+// ── Qué puede hacer cada despliegue (sin cargar variables de más) ───────────
+{
+  const key = Buffer.alloc(32, 9).toString("base64");
+  const main = mailRuntime({ MAIL_CREDENTIALS_KEY: key });
+  check("runtime: con sólo la clave, la web principal revisa y envía", main.keyReady && main.platform === "main" && main.poller && main.sender, main);
+  const backup = mailRuntime({ MAIL_CREDENTIALS_KEY: key, RENDER: "true" });
+  check("runtime: en Render (respaldo) no revisa ni envía, aunque tenga la clave", backup.keyReady && backup.platform === "backup" && !backup.poller && !backup.sender, backup);
+  const none = mailRuntime({});
+  check("runtime: sin clave no hay nada activo", !none.keyReady && !none.poller && !none.sender, none);
+  check("runtime: una clave mal pegada cuenta como ausente", !mailRuntime({ MAIL_CREDENTIALS_KEY: "abc", MAIL_POLLER_ENABLED: "true", MAIL_SEND_ENABLED: "true" }).poller);
+  const off = mailRuntime({ MAIL_CREDENTIALS_KEY: key, MAIL_POLLER_ENABLED: "false", MAIL_SEND_ENABLED: "false" });
+  check("runtime: 'false' apaga aunque haya clave", !off.poller && !off.sender, off);
+  const paid = mailRuntime({ MAIL_CREDENTIALS_KEY: key, RENDER: "true", MAIL_POLLER_ENABLED: "true", MAIL_SEND_ENABLED: "true" });
+  check("runtime: 'true' forzado enciende incluso en Render (plan pago)", paid.poller && paid.sender && paid.platform === "backup", paid);
+  check("runtime: valores raros no cambian el comportamiento por defecto", mailRuntime({ MAIL_CREDENTIALS_KEY: key, MAIL_POLLER_ENABLED: "1", MAIL_SEND_ENABLED: "yes" }).poller);
+}
+
+// ── Mensajes de error de la conexión y verificación del remitente ───────────
+{
+  const code = (e: unknown) => explain(e).code;
+  check("explain: contraseña equivocada → auth, y dice qué hacer", code({ authenticationFailed: true }) === "auth" && /contraseña de aplicación nueva/.test(explain({ code: "EAUTH" }).message));
+  check("explain: Gmail pide contraseña de aplicación → auth", code({ responseText: "[ALERT] Application-specific password required" }) === "auth");
+  check("explain: IMAP desactivado → disabled", code({ message: "IMAP access is disabled for your account" }) === "disabled" && /IMAP/.test(explain({ message: "imap not enabled" }).message));
+  check("explain: certificado → tls", code({ code: "DEPTH_ZERO_SELF_SIGNED_CERT" }) === "tls" && code({ message: "certificate has expired" }) === "tls");
+  check("explain: demasiados intentos → busy", code({ message: "Too many login attempts, try again later" }) === "busy");
+  check("explain: sin red → network", code({ code: "ENOTFOUND" }) === "network" && code({ code: "ETIMEDOUT" }) === "network" && code({ message: "Connection timeout" }) === "network");
+  check("explain: algo raro → unknown, sin filtrar el texto original", code({ message: "boom con datos privados" }) === "unknown" && !explain({ message: "boom con datos privados" }).message.includes("privados"));
+  const own = new MailTransportError("host", "ya traducido");
+  check("explain: un error ya traducido pasa tal cual", explain(own) === own);
+  check("explain: ningún mensaje deja pasar contraseñas ni correos", ["auth", "disabled", "busy", "network", "tls", "unknown"].every((c) => !/@|password=|pass=/i.test(explain(c === "auth" ? { code: "EAUTH" } : c === "disabled" ? { message: "imap disabled" } : c === "busy" ? { message: "too many" } : c === "network" ? { code: "ENOTFOUND" } : c === "tls" ? { message: "ssl" } : { message: "x" }).message)));
+
+  check("parseAuth: pass si alguna verificación pasa", parseAuth("mx.google.com; dkim=pass header.i=@x.com; spf=pass") === "pass" && parseAuth("mx; dmarc=pass") === "pass");
+  check("parseAuth: fail gana sobre pass", parseAuth("mx; spf=pass; dkim=fail") === "fail" && parseAuth("mx; dmarc=fail (p=reject)") === "fail" && parseAuth("mx; spf=softfail") === "fail");
+  check("parseAuth: sin encabezado o sin datos → unknown", parseAuth(null) === "unknown" && parseAuth("") === "unknown" && parseAuth("mx; dkim=none; spf=neutral") === "unknown");
 }
 
 // ── Servidores de correo (SSRF) ─────────────────────────────────────────────

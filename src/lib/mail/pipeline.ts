@@ -24,7 +24,7 @@ import { decideAuto } from "./decide";
 import { prefilter, replyAddress } from "./prefilter";
 import { selectForMail } from "./select";
 import { loadSettings, type MailSettingsView } from "./settings";
-import { getPublicSiteUrl, siteHosts } from "./site";
+import { publicSiteUrl, siteHosts } from "./site";
 import { explain, pollNew, type FetchedMail } from "./transport";
 
 const DAY_MS = 86_400_000;
@@ -123,7 +123,7 @@ export async function processMail(ctx: PipelineCtx, mail: FetchedMail, counts: C
   });
   if (!isInquiry(cls.category)) return void (await ignore(cls.category, cls.reasons, cls.confidence));
 
-  const siteUrl = getPublicSiteUrl();
+  const siteUrl = publicSiteUrl();
   const toReply = (f: (typeof selection.properties)[number]): ReplyProperty => ({ facts: f, url: siteUrl ? `${siteUrl}/propiedades/${encodeURIComponent(f.slug)}` : null });
   const compose = (auto: boolean) =>
     composeReply({

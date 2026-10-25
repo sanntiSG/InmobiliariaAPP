@@ -123,7 +123,7 @@ export function LeadsBoard({ initialLeads }: { initialLeads: LeadRow[] }) {
             </FilterChip>
           ))}
         </div>
-        <div className="flex flex-col gap-2">
+        <div key={filter} className="swap-in flex flex-col gap-2">
           {visible.length === 0 ? (
             <p className="rounded-card bg-surface p-5 text-sm text-text-muted shadow-card">No hay clientes en esta vista.</p>
           ) : (
@@ -146,7 +146,7 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "shrink-0 rounded-pill px-3.5 py-2 text-sm font-medium transition-colors",
+        "min-h-11 shrink-0 rounded-pill px-4 text-sm font-medium transition-[background-color,color,transform] duration-150 [transition-timing-function:var(--ease-out)] active:scale-[0.97]",
         active ? "bg-accent text-accent-contrast" : "bg-surface-2 text-text-muted hover:text-text"
       )}
     >
@@ -160,18 +160,18 @@ function LeadCard({ lead, onOpen, showStatus = false }: { lead: LeadRow; onOpen:
     <button
       type="button"
       onClick={onOpen}
-      className="flex w-full flex-col gap-1.5 rounded-media bg-surface p-3 text-left shadow-pop transition-[transform,box-shadow] duration-150 [transition-timing-function:var(--ease-out)] hover:-translate-y-0.5 hover:shadow-card active:scale-[0.99]"
+      className="flex min-h-14 w-full flex-col gap-1.5 rounded-media bg-surface p-3.5 text-left shadow-pop transition-[transform,box-shadow] duration-150 [transition-timing-function:var(--ease-out)] hover:-translate-y-0.5 hover:shadow-card active:scale-[0.99] lg:p-3"
     >
       <span className="flex items-start justify-between gap-2">
-        <span className="min-w-0 truncate text-sm font-semibold text-text">{lead.name}</span>
+        <span className="min-w-0 truncate text-[15px] font-semibold text-text lg:text-sm">{lead.name}</span>
         {lead.stale && (
           <Badge variant="soft" className="shrink-0 gap-1 bg-warning-soft text-warning">
             <Clock className="h-3 w-3" aria-hidden /> Sin seguimiento
           </Badge>
         )}
       </span>
-      {lead.property && <span className="truncate text-xs text-text-muted">{lead.property.title}</span>}
-      <span className="flex items-center gap-2 text-xs text-text-muted">
+      {lead.property && <span className="truncate text-[13px] text-text-muted lg:text-xs">{lead.property.title}</span>}
+      <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-text-muted">
         {showStatus && <Badge variant="soft">{LEAD_STATUS_LABELS[lead.status]}</Badge>}
         <span>{lead.lastContactAt ? `Contacto ${formatRelativeTime(lead.lastContactAt)}` : `Llegó ${formatRelativeTime(lead.createdAt)}`}</span>
         <span className="ml-auto flex items-center gap-1.5">
@@ -251,7 +251,7 @@ function LeadDetail({ lead, onUpdate }: { lead: LeadRow; onUpdate: (body: Record
               onClick={() => s !== lead.status && run({ status: s })}
               aria-pressed={s === lead.status}
               className={cn(
-                "rounded-pill px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-60",
+                "min-h-11 rounded-pill px-4 text-sm font-medium transition-[background-color,color,transform] duration-150 [transition-timing-function:var(--ease-out)] active:scale-[0.97] disabled:opacity-60",
                 s === lead.status ? "bg-accent text-accent-contrast" : "bg-surface-2 text-text-muted hover:text-text"
               )}
             >

@@ -11,7 +11,8 @@ const VARIANTS = {
 } as const;
 
 const SIZES = {
-  sm: "h-9 px-3.5 text-sm gap-1.5",
+  // 36 px con mouse; 44 px en pantallas táctiles y angostas (el dedo necesita más blanco).
+  sm: "h-9 px-3.5 text-sm gap-1.5 pointer-coarse:h-11 max-sm:h-11",
   md: "h-11 px-5 text-[15px] gap-2",
   lg: "h-12 px-6 text-base gap-2",
 } as const;

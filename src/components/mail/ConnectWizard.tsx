@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, ExternalLink, Loader2, Lock, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronDown, Eye, EyeOff, ExternalLink, KeyRound, Loader2, Lock, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils/cn";
 import { PRESETS, providerFromEmail, type MailProviderId } from "@/lib/mail/presets";
@@ -16,6 +16,14 @@ const PROVIDERS: { id: MailProviderId; label: string; hint: string }[] = [
   { id: "icloud", label: "iCloud", hint: "Cuentas @icloud.com y @me.com" },
   { id: "custom", label: "Otro (tu hosting)", hint: "Una casilla de tu dominio, con servidor propio" },
 ];
+
+const STEP_TITLES: Partial<Record<Step, { n: number; title: string }>> = {
+  provider: { n: 1, title: "Elegí tu correo" },
+  guide: { n: 2, title: "Creá la contraseña de aplicación" },
+  credentials: { n: 3, title: "Pegá tus datos" },
+  testing: { n: 4, title: "Probando la conexión" },
+  done: { n: 4, title: "Listo" },
+};
 
 const TESTING = ["Conectando con el servidor…", "Entrando a tu casilla…", "Mirando tu bandeja de entrada…", "Probando que pueda enviar…"] as const;
 
@@ -32,6 +40,7 @@ export function ConnectWizard({ agencyId, onConnected, onCancel }: { agencyId: s
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [consent, setConsent] = useState(false);
+  const [showPass, setShowPass] = useState(false);
   const [imap, setImap] = useState({ host: "", port: 993 });
   const [smtp, setSmtp] = useState({ host: "", port: 465 });
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +64,7 @@ export function ConnectWizard({ agencyId, onConnected, onCancel }: { agencyId: s
         body: JSON.stringify({ provider, email, password, consent: true, ...(provider === "custom" ? { imap, smtp } : {}) }),
       });
       setPassword("");
+      setShowPass(false);
       setStep("done");
       onConnected(o);
     } catch (e) {
@@ -73,10 +83,12 @@ export function ConnectWizard({ agencyId, onConnected, onCancel }: { agencyId: s
           <h2 id="wizard-title" className="font-display text-lg font-bold text-text">
             Conectar tu casilla
           </h2>
-          <p className="text-sm text-text-muted">Cuatro pasos cortos. Usamos una contraseña de aplicación: tu contraseña de siempre nunca se comparte.</p>
+          <p className="font-mono text-xs uppercase tracking-wide text-text-muted" aria-live="polite">
+            Paso {STEP_TITLES[step]?.n} de 4 · {STEP_TITLES[step]?.title}
+          </p>
         </div>
         {onCancel && step !== "testing" && (
-          <button type="button" onClick={onCancel} aria-label="Cancelar" className="grid size-9 place-items-center rounded-full text-text-muted hover:bg-surface-2">
+          <button type="button" onClick={onCancel} aria-label="Cancelar" className="-mr-2 -mt-2 grid size-11 shrink-0 place-items-center rounded-full text-text-muted transition-colors hover:bg-surface-2 hover:text-text">
             <X className="h-4 w-4" aria-hidden />
           </button>
         )}
@@ -84,6 +96,17 @@ export function ConnectWizard({ agencyId, onConnected, onCancel }: { agencyId: s
 
       {step === "provider" && (
         <>
+          <div className="flex flex-col gap-2.5 rounded-media bg-surface-2 p-4 text-sm text-text-muted">
+            <p className="flex items-start gap-2.5">
+              <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
+              <span>
+                Para leer tus consultas, tu correo te da una <strong className="font-semibold text-text">contraseña de aplicación</strong>: una clave especial para una sola app. La creás en un par de minutos, la podés borrar cuando quieras y tu contraseña de siempre nunca se comparte.
+              </span>
+            </p>
+            <p>
+              Vas a necesitar: <strong className="font-semibold text-text">tu email</strong>, unos 5 minutos y tu celular a mano por si tu proveedor te pide un código.
+            </p>
+          </div>
           <div role="radiogroup" aria-label="Proveedor de correo" className="grid gap-2.5 sm:grid-cols-2">
             {PROVIDERS.map((p) => (
               <button
@@ -117,13 +140,25 @@ export function ConnectWizard({ agencyId, onConnected, onCancel }: { agencyId: s
       {step === "guide" && (
         <>
           {preset ? (
-            <ol className="flex flex-col gap-3">
+            <ol className="flex flex-col gap-4">
               {preset.steps.map((s, i) => (
-                <li key={s} className="flex gap-3">
+                <li key={s.text} className="flex gap-3">
                   <span className="grid size-6 shrink-0 place-items-center rounded-full bg-accent-soft font-mono text-xs font-semibold text-accent" aria-hidden>
                     {i + 1}
                   </span>
-                  <span className="text-[15px] text-text">{s}</span>
+                  <span className="flex min-w-0 flex-col items-start gap-2">
+                    <span className="text-[15px] text-text">{s.text}</span>
+                    {s.url && (
+                      <a
+                        href={s.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex min-h-11 items-center gap-1.5 rounded-pill bg-surface-2 px-4 py-2 text-sm font-semibold text-text transition-[color,transform] duration-150 hover:text-accent active:scale-[0.97]"
+                      >
+                        {s.action ?? "Abrir"} <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                      </a>
+                    )}
+                  </span>
                 </li>
               ))}
             </ol>
@@ -136,15 +171,23 @@ export function ConnectWizard({ agencyId, onConnected, onCancel }: { agencyId: s
             </div>
           )}
           {preset?.note && <p className="rounded-media bg-surface-2 px-3.5 py-2.5 text-xs text-text-muted">{preset.note}</p>}
+          {preset && preset.trouble.length > 0 && (
+            <div className="flex flex-col divide-y divide-border overflow-hidden rounded-media border border-border">
+              {preset.trouble.map((t) => (
+                <details key={t.q} className="group">
+                  <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3.5 py-2.5 text-sm font-medium text-text [&::-webkit-details-marker]:hidden">
+                    {t.q}
+                    <ChevronDown className="h-4 w-4 shrink-0 text-text-muted transition-transform duration-200 group-open:rotate-180" aria-hidden />
+                  </summary>
+                  <p className="px-3.5 pb-3 text-sm text-text-muted">{t.a}</p>
+                </details>
+              ))}
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="ghost" onClick={() => setStep("provider")}>
               <ArrowLeft className="h-4 w-4" aria-hidden /> Atrás
             </Button>
-            {preset?.helpUrl && (
-              <a href={preset.helpUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-pill bg-surface-2 px-3.5 py-2 text-sm font-semibold text-text hover:text-accent">
-                Ir a la página de contraseñas <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-              </a>
-            )}
             <Button onClick={() => setStep("credentials")}>
               Ya la tengo <ArrowRight className="h-4 w-4" aria-hidden />
             </Button>
@@ -182,19 +225,31 @@ export function ConnectWizard({ agencyId, onConnected, onCancel }: { agencyId: s
           </label>
           <label className="flex flex-col gap-1.5 text-sm font-medium text-text">
             Contraseña de aplicación
-            <input
-              type="password"
-              autoComplete="new-password"
-              spellCheck={false}
-              autoCapitalize="none"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className={field}
-              placeholder={provider === "custom" ? "La contraseña de tu casilla" : "xxxx xxxx xxxx xxxx"}
-              required
-            />
-            <span className="flex items-center gap-1.5 text-xs font-normal text-text-muted">
-              <Lock className="h-3.5 w-3.5" aria-hidden /> Se guarda cifrada y nadie la puede ver, ni siquiera el administrador.
+            <span className="relative">
+              <input
+                type={showPass ? "text" : "password"}
+                autoComplete="new-password"
+                spellCheck={false}
+                autoCapitalize="none"
+                autoCorrect="off"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={cn(field, "pr-12")}
+                placeholder={provider === "custom" ? "La contraseña de tu casilla" : "xxxx xxxx xxxx xxxx"}
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPass((v) => !v)}
+                aria-label={showPass ? "Ocultar la contraseña" : "Mostrar la contraseña"}
+                aria-pressed={showPass}
+                className="absolute right-0.5 top-1/2 grid size-11 -translate-y-1/2 place-items-center rounded-full text-text-muted transition-colors hover:text-text"
+              >
+                {showPass ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
+              </button>
+            </span>
+            <span className="flex items-start gap-1.5 text-xs font-normal text-text-muted">
+              <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden /> Pegala tal cual te la mostró tu correo. Se guarda cifrada y nadie la puede ver, ni siquiera el administrador.
             </span>
           </label>
 

@@ -24,6 +24,7 @@ export { AmbientCover, AMBIENT_COVER_STATUSES } from "./AmbientCover";
 export { Mailbox } from "./Mailbox";
 export { MailSettings } from "./MailSettings";
 export { MailMessage } from "./MailMessage";
+export { ServiceHeartbeat } from "./ServiceHeartbeat";
 
 export type { AgencyDoc } from "./Agency";
 export type { UserDoc } from "./User";
@@ -50,3 +51,4 @@ export type { AmbientCoverDoc } from "./AmbientCover";
 export type { MailboxDoc } from "./Mailbox";
 export type { MailSettingsDoc } from "./MailSettings";
 export type { MailMessageDoc } from "./MailMessage";
+export type { ServiceHeartbeatDoc } from "./ServiceHeartbeat";

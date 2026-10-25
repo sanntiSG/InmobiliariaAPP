@@ -7,8 +7,10 @@ import { Mailbox } from "@/lib/db/models/Mailbox";
 import { MailMessage } from "@/lib/db/models/MailMessage";
 import { MailSettings } from "@/lib/db/models/MailSettings";
 import { mailAccess } from "@/lib/mail/access";
+import { mainSiteUrl } from "@/lib/mail/heartbeat";
 import { getOverview } from "@/lib/mail/overview";
 import { PRESETS } from "@/lib/mail/presets";
+import { mailRuntime } from "@/lib/mail/runtime";
 import { explain, testConnection } from "@/lib/mail/transport";
 import { limitOr429, rateLimit } from "@/lib/security/rate-limit";
 import { mailboxAad, secretBox } from "@/lib/security/secret-box";
@@ -39,13 +41,26 @@ export async function POST(req: NextRequest) {
   const a = await mailAccess(req, { manage: true });
   if (a instanceof NextResponse) return a;
 
+  // Antes de gastar intentos: ¿esta web puede conectar casillas? (si no, se dice qué hacer en vez de fallar al final)
+  const runtime = mailRuntime();
+  if (!runtime.keyReady) return fail("El correo todavía no está activado en la plataforma. Avisale a quien la administra.", 503, "not_ready");
+  if (!runtime.sender) {
+    const main = await mainSiteUrl();
+    return NextResponse.json(
+      {
+        error: main ? "Esta es la web de respaldo y desde acá no se puede conectar la casilla. Entrá desde la web principal y conectala ahí." : "Desde esta web no se puede conectar la casilla. Entrá desde la web principal.",
+        code: "use_main",
+        mainSiteUrl: main,
+      },
+      { status: 409, headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
   // Freno anti-abuso (probar contraseñas ajenas): por persona y por inmobiliaria; si el contador falla, no se deja pasar.
   const limited = await limitOr429(req, "mail-connect", 6, 60 * 60, { userId: a.userId, failOpen: false });
   if (limited) return limited;
   const perAgency = await rateLimit(`mail-connect:agency:${a.agencyId}`, 12, 24 * 60 * 60, { failOpen: false });
   if (!perAgency.ok) return fail("Se probó demasiadas veces hoy. Esperá y volvé a intentar mañana.", 429);
-
-  if (!secretBox.ready()) return fail("El correo todavía no está habilitado en este servidor (falta configurarlo). Avisale a quien administra la plataforma.", 503, "not_ready");
 
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return fail("Revisá los datos: el email, la contraseña y aceptar el aviso son obligatorios.", 400);
@@ -100,7 +115,7 @@ export async function POST(req: NextRequest) {
     await MailSettings.updateOne({ agencyId: a.agencyId }, { $setOnInsert: { agencyId: a.agencyId } }, { upsert: true });
 
     after(() => logActivity({ agencyId: a.agencyId, actorId: a.userId, actorRole: a.role, kind: "mail_connected" }));
-    return NextResponse.json(await getOverview(a.agencyId, a.canManage), { status: 201, headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json(await getOverview(a.agencyId, a.canManage, a.isAdmin), { status: 201, headers: { "Cache-Control": "no-store" } });
   } catch (err) {
     console.error("POST /api/dashboard/mail/connect failed:", (err as Error)?.message);
     return fail("No se pudo guardar la conexión. Probá de nuevo.", 503);
@@ -117,7 +132,7 @@ export async function DELETE(req: NextRequest) {
     await connectDB();
     await Promise.all([Mailbox.deleteOne({ agencyId: a.agencyId }), MailMessage.deleteMany({ agencyId: a.agencyId })]);
     after(() => logActivity({ agencyId: a.agencyId, actorId: a.userId, actorRole: a.role, kind: "mail_disconnected" }));
-    return NextResponse.json(await getOverview(a.agencyId, a.canManage), { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json(await getOverview(a.agencyId, a.canManage, a.isAdmin), { headers: { "Cache-Control": "no-store" } });
   } catch (err) {
     console.error("DELETE /api/dashboard/mail/connect failed:", (err as Error)?.message);
     return fail("No se pudo desconectar. Probá de nuevo.", 503);

@@ -26,7 +26,7 @@ export type MailCreds = {
 
 export class MailTransportError extends Error {
   constructor(
-    public code: "auth" | "network" | "tls" | "host" | "unknown",
+    public code: "auth" | "network" | "tls" | "host" | "disabled" | "busy" | "unknown",
     message: string
   ) {
     super(message);
@@ -42,11 +42,17 @@ export function explain(err: unknown): MailTransportError {
   if (e.authenticationFailed || e.code === "EAUTH" || /authenticat|invalid credentials|login failed|authentication failed|app.?specific|application-specific/.test(text)) {
     return new MailTransportError(
       "auth",
-      "No pude entrar con ese email y esa contraseña. Revisá que sea una contraseña de aplicación (no la de tu cuenta) y que la verificación en 2 pasos esté activada."
+      "No pude entrar con ese email y esa contraseña. Lo más común: se usó la contraseña de siempre en vez de una contraseña de aplicación, o falta activar la verificación en 2 pasos. Volvé al paso anterior, creá una contraseña de aplicación nueva y pegala acá."
     );
+  }
+  if (/imap.*(disabled|not enabled|turned off)|(disabled|not enabled|turned off).*imap/.test(text)) {
+    return new MailTransportError("disabled", "Tu proveedor tiene desactivado el acceso por IMAP, que es lo que uso para leer los mails. Activalo en la configuración de tu correo y volvé a probar.");
   }
   if (e.code === "CERT_HAS_EXPIRED" || e.code === "DEPTH_ZERO_SELF_SIGNED_CERT" || /certificate|self.signed|ssl|tls/.test(text)) {
     return new MailTransportError("tls", "El certificado del servidor de correo no es válido, así que no me conecté (por tu seguridad).");
+  }
+  if (/too many|rate.?limit|try again later|throttl/.test(text)) {
+    return new MailTransportError("busy", "Tu proveedor frenó los intentos por un rato. Esperá unos minutos y volvé a probar.");
   }
   if (["ENOTFOUND", "ECONNREFUSED", "ETIMEDOUT", "ECONNRESET", "EHOSTUNREACH", "ESOCKET", "ETIMEOUT", "NoConnection"].includes(e.code ?? "") || /timeout|timed out|connect|getaddrinfo/.test(text)) {
     return new MailTransportError("network", "No pude conectarme al servidor de correo. Revisá los datos del servidor o probá de nuevo en unos minutos.");

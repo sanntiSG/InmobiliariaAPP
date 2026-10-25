@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     const deadline = Date.now() + BUDGET_MS;
     if (sendEnabled()) await processOutbox(deadline);
     const outcome = await pollMailbox(String(mailbox._id), { deadline });
-    return NextResponse.json({ outcome, overview: await getOverview(a.agencyId, a.canManage) }, { headers: NO_STORE });
+    return NextResponse.json({ outcome, overview: await getOverview(a.agencyId, a.canManage, a.isAdmin) }, { headers: NO_STORE });
   } catch (err) {
     console.error("POST /api/dashboard/mail/poll failed:", (err as Error)?.message);
     return NextResponse.json({ error: "No se pudo revisar el correo ahora." }, { status: 503, headers: NO_STORE });

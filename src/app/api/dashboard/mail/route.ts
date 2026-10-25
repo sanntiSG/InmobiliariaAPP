@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   const a = await mailAccess(req);
   if (a instanceof NextResponse) return a;
   try {
-    return NextResponse.json(await getOverview(a.agencyId, a.canManage), { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json(await getOverview(a.agencyId, a.canManage, a.isAdmin), { headers: { "Cache-Control": "no-store" } });
   } catch (err) {
     console.error("GET /api/dashboard/mail failed:", err);
     return NextResponse.json({ error: "No se pudo cargar el estado del correo." }, { status: 503 });

@@ -5,14 +5,18 @@
  */
 export type MailProviderId = "gmail" | "yahoo" | "icloud" | "custom";
 
+/** Un paso para conseguir la contraseña de aplicación; con `url`, la página exacta donde se hace (se abre en otra pestaña). */
+export type MailPresetStep = { text: string; url?: string; action?: string };
+
 export type MailPreset = {
   id: MailProviderId;
   label: string;
   imap: { host: string; port: number };
   smtp: { host: string; port: number };
   /** Pasos para conseguir la contraseña de aplicación, en orden. */
-  steps: string[];
-  helpUrl?: string;
+  steps: MailPresetStep[];
+  /** Respuestas a lo que más suele trabar ("no me aparece la opción"). */
+  trouble: { q: string; a: string }[];
   note?: string;
 };
 
@@ -23,13 +27,23 @@ export const PRESETS: Record<Exclude<MailProviderId, "custom">, MailPreset> = {
     imap: { host: "imap.gmail.com", port: 993 },
     smtp: { host: "smtp.gmail.com", port: 465 },
     steps: [
-      "Entrá a tu cuenta de Google y activá la verificación en 2 pasos (si todavía no la tenés).",
-      "Abrí myaccount.google.com/apppasswords.",
-      "Creá una contraseña de aplicación con el nombre “Recorrr”.",
-      "Copiá las 16 letras que te muestra y pegalas acá (los espacios no importan).",
+      {
+        text: "Activá la verificación en 2 pasos de tu cuenta de Google. Si ya la tenés, saltá al paso siguiente.",
+        url: "https://myaccount.google.com/signinoptions/two-step-verification",
+        action: "Abrir verificación en 2 pasos",
+      },
+      {
+        text: "Entrá a Contraseñas de aplicaciones, escribí el nombre “Recorrr” y tocá Crear.",
+        url: "https://myaccount.google.com/apppasswords",
+        action: "Abrir contraseñas de aplicaciones",
+      },
+      { text: "Google te muestra 16 letras en un recuadro amarillo. Copialas y pegalas en el paso siguiente (los espacios no importan)." },
     ],
-    helpUrl: "https://myaccount.google.com/apppasswords",
-    note: "Si tu cuenta es de trabajo (Google Workspace), puede que tu administrador tenga que habilitar las contraseñas de aplicación.",
+    trouble: [
+      { q: "No me aparece “Contraseñas de aplicaciones”", a: "Casi siempre falta la verificación en 2 pasos: activala con el primer enlace y volvé a abrir el segundo. Si usás una cuenta de trabajo o de un colegio, puede que quien administra tu dominio la tenga bloqueada." },
+      { q: "Me dice que la contraseña es incorrecta", a: "Tiene que ser la de 16 letras que creó Google, no la de tu cuenta. Si dudás, creá una nueva y borrá la anterior." },
+    ],
+    note: "Esta contraseña sirve sólo para esta aplicación: podés borrarla cuando quieras desde la misma página y tu contraseña de siempre no se comparte.",
   },
   yahoo: {
     id: "yahoo",
@@ -37,12 +51,17 @@ export const PRESETS: Record<Exclude<MailProviderId, "custom">, MailPreset> = {
     imap: { host: "imap.mail.yahoo.com", port: 993 },
     smtp: { host: "smtp.mail.yahoo.com", port: 465 },
     steps: [
-      "Entrá a tu cuenta de Yahoo y abrí “Seguridad de la cuenta”.",
-      "Elegí “Generar contraseña de aplicación” (o “Administrar contraseñas de aplicaciones”).",
-      "Ponele el nombre “Recorrr” y generala.",
-      "Copiá la contraseña y pegala acá.",
+      {
+        text: "Entrá a la seguridad de tu cuenta de Yahoo. Si todavía no está activa, activá la verificación en 2 pasos.",
+        url: "https://login.yahoo.com/account/security",
+        action: "Abrir seguridad de Yahoo",
+      },
+      { text: "Buscá “Conexiones externas” y tocá “Crear contraseña de aplicación”. Ponele el nombre “Recorrr” y generala." },
+      { text: "Copiá la contraseña que aparece y pegala en el paso siguiente." },
     ],
-    helpUrl: "https://login.yahoo.com/account/security",
+    trouble: [
+      { q: "No encuentro “Crear contraseña de aplicación”", a: "Yahoo la muestra sólo con la verificación en 2 pasos activa. Usá un navegador donde ya hayas entrado a Yahoo otras veces (no una ventana privada)." },
+    ],
   },
   icloud: {
     id: "icloud",
@@ -50,12 +69,17 @@ export const PRESETS: Record<Exclude<MailProviderId, "custom">, MailPreset> = {
     imap: { host: "imap.mail.me.com", port: 993 },
     smtp: { host: "smtp.mail.me.com", port: 587 },
     steps: [
-      "Entrá a appleid.apple.com con tu Apple ID.",
-      "Abrí “Inicio de sesión y seguridad” y elegí “Contraseñas específicas de la app”.",
-      "Creá una con el nombre “Recorrr”.",
-      "Copiá la contraseña (con el formato xxxx-xxxx-xxxx-xxxx) y pegala acá.",
+      {
+        text: "Entrá a tu cuenta de Apple. Hace falta tener activa la autenticación de dos factores.",
+        url: "https://account.apple.com",
+        action: "Abrir cuenta de Apple",
+      },
+      { text: "Abrí “Inicio de sesión y seguridad”, elegí “Contraseñas específicas de la app” y creá una con el nombre “Recorrr”." },
+      { text: "Copiá la contraseña (con el formato xxxx-xxxx-xxxx-xxxx) y pegala en el paso siguiente." },
     ],
-    helpUrl: "https://appleid.apple.com",
+    trouble: [
+      { q: "No me deja crear la contraseña", a: "Apple la pide sólo con la autenticación de dos factores activa. Activala desde “Inicio de sesión y seguridad” y volvé a intentar." },
+    ],
   },
 };
 

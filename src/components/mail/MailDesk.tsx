@@ -10,6 +10,7 @@ import { formatRelativeTime } from "@/lib/utils/format";
 import { MAIL_CATEGORY_LABELS, MAIL_STATUS_LABELS } from "@/lib/mail/constants";
 import type { MailOverview } from "@/lib/mail/overview";
 import type { MailDetail, MailListItem, MailTab } from "@/lib/mail/messages";
+import { MailSetupNotice, setupState } from "./MailSetupNotice";
 import { mailApi, MailApiError } from "./mail-api";
 
 const TABS: { id: MailTab; label: string; empty: string }[] = [
@@ -206,7 +207,9 @@ export function MailDesk({
   return (
     <div className="flex min-w-0 flex-col gap-4">
       {/* Estado de la casilla */}
-      {!mb ? (
+      {!mb && setupState(overview) !== "ready" ? (
+        <MailSetupNotice overview={overview} agencyId={agencyId} />
+      ) : !mb ? (
         <section className="flex flex-col gap-3 rounded-card bg-surface p-5 shadow-card">
           <div className="flex items-start gap-3">
             <span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent-soft text-accent" aria-hidden>
@@ -320,7 +323,7 @@ export function MailDesk({
               {TABS.find((t) => t.id === tab)!.empty}
             </p>
           ) : (
-            <ul className="rise-group flex flex-col divide-y divide-border overflow-hidden rounded-card bg-surface shadow-card">
+            <ul className="swap-in flex flex-col divide-y divide-border overflow-hidden rounded-card bg-surface shadow-card">
               {items.map((m) => (
                 <li key={m.id}>
                   <button type="button" onClick={() => setOpenMail(m.id)} className="flex w-full flex-col gap-1 px-4 py-3.5 text-left transition-colors duration-150 hover:bg-surface-2/70 active:bg-surface-2">

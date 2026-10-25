@@ -1439,6 +1439,22 @@ body {
   }
 }
 
+/* Cambio de filtro o pestaña: la lista nueva entra en un instante (se repite muchas veces, por eso es cortísima). */
+@keyframes swap-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 4px, 0);
+  }
+}
+.swap-in {
+  animation: swap-in 140ms var(--ease-out) backwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .swap-in {
+    animation: none;
+  }
+}
+
 /* Encabezado de página: eyebrow + título + bajada. */
 .page-header {
   align-items: flex-start;

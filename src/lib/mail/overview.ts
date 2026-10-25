@@ -6,8 +6,8 @@ import { Types } from "mongoose";
 import { connectDB } from "@/lib/db/connect";
 import { Mailbox } from "@/lib/db/models/Mailbox";
 import { MailMessage } from "@/lib/db/models/MailMessage";
-import { secretBox } from "@/lib/security/secret-box";
-import { pollerEnabled, sendEnabled } from "./access";
+import { mainSiteUrl } from "./heartbeat";
+import { mailRuntime } from "./runtime";
 import type { MailboxStatus } from "./constants";
 import type { MailProviderId } from "./presets";
 import { loadSettings, type MailSettingsView } from "./settings";
@@ -18,7 +18,13 @@ export type MailOverview = {
   /** Este despliegue puede enviar mails (donde no, las respuestas quedan en cola). */
   sendEnabled: boolean;
   pollerEnabled: boolean;
+  /** "backup" = la web de respaldo (Render): ahí se ve y se confirma, pero la casilla se conecta desde la principal. */
+  platform: "main" | "backup";
+  /** Dirección de la web principal, sólo en el respaldo y si ya se sabe. */
+  mainSiteUrl: string | null;
   canManage: boolean;
+  /** Quien mira es admin de la plataforma (no el dueño): puede activar el correo, no hace falta pedírselo a nadie. */
+  viewerIsAdmin: boolean;
   mailbox: null | {
     email: string;
     provider: MailProviderId;
@@ -31,7 +37,7 @@ export type MailOverview = {
   counts: { awaiting: number; sent: number; failed: number; ignored: number; queued: number };
 };
 
-export async function getOverview(agencyId: string, canManage: boolean): Promise<MailOverview> {
+export async function getOverview(agencyId: string, canManage: boolean, viewerIsAdmin = false): Promise<MailOverview> {
   await connectDB();
   const [mailbox, settings, grouped] = await Promise.all([
     Mailbox.findOne({ agencyId }).select("email provider status lastError lastPollAt consentAt createdAt").lean(),
@@ -39,11 +45,15 @@ export async function getOverview(agencyId: string, canManage: boolean): Promise
     MailMessage.aggregate<{ _id: string; n: number }>([{ $match: { agencyId: new Types.ObjectId(agencyId) } }, { $group: { _id: "$status", n: { $sum: 1 } } }]),
   ]);
   const n = (s: string) => grouped.find((g) => g._id === s)?.n ?? 0;
+  const runtime = mailRuntime();
   return {
-    cryptoReady: secretBox.ready(),
-    sendEnabled: sendEnabled(),
-    pollerEnabled: pollerEnabled(),
+    cryptoReady: runtime.keyReady,
+    sendEnabled: runtime.sender,
+    pollerEnabled: runtime.poller,
+    platform: runtime.platform,
+    mainSiteUrl: runtime.platform === "backup" ? await mainSiteUrl() : null,
     canManage,
+    viewerIsAdmin,
     mailbox: mailbox
       ? {
           email: mailbox.email,
