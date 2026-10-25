@@ -5,8 +5,9 @@
  * calcula (`getIntelligence`); acá se agrupan, se priorizan y se explican.
  */
 import { benchFor } from "@/lib/intelligence/benchmarks";
-import { THRESHOLDS, type Diagnostic } from "@/lib/intelligence/diagnostics";
+import { THRESHOLDS } from "@/lib/intelligence/diagnostics";
 import { consultas, ratio } from "@/lib/intelligence/metrics";
+import { groupDiagnostics, ruleOf } from "@/lib/agents/knowledge/diagnostics";
 import { rankForPromotion, promotionNote } from "@/lib/agents/knowledge/promote";
 import { dedupeSuggestions, sug } from "../../compose/suggest";
 import { count, daysAgo, list, n0, plural, pick, quote } from "../../compose/format";
@@ -16,52 +17,9 @@ import type { AgencyHandler } from "../types";
 import { DEFAULT_LIST, MAX_LIST, MIN_VIEWS, editHref, filterRows, hasThinData, propRef, THIN_DATA_TEXT } from "./shared";
 
 const DAY_MS = 86_400_000;
-const SEVERITY = { high: 3, medium: 2, low: 1 } as const;
-const KIND = { attention: 3, opportunity: 2, positive: 0 } as const;
 const limitOf = (n: number | undefined, fallback = DEFAULT_LIST) => Math.min(MAX_LIST, Math.max(1, n ?? fallback));
 
 // ─── Acciones recomendadas ───────────────────────────────────────────────────
-
-/** El hallazgo se agrupa por regla: "sumá 360°" en 5 propiedades es UNA acción, no cinco. */
-const ruleOf = (d: Diagnostic) => (d.id.startsWith("agency-") ? d.id : d.id.split(":")[0]!);
-
-/**
- * Agrupa hallazgos por regla y devuelve los `n` más importantes: "no tiene recorrido 360°" en 5
- * propiedades pasa a ser UN hallazgo ("…(5 propiedades)") con los nombres como evidencia.
- */
-function groupByRule(candidates: Diagnostic[], n: number): Diagnostic[] {
-  type Group = { rule: string; items: Diagnostic[]; weight: number };
-  const groups = new Map<string, Group>();
-  for (const d of candidates) {
-    const rule = ruleOf(d);
-    const g = groups.get(rule) ?? { rule, items: [], weight: 0 };
-    g.items.push(d);
-    groups.set(rule, g);
-  }
-  for (const g of groups.values()) {
-    const top = Math.max(...g.items.map((d) => SEVERITY[d.severity] * 3 + KIND[d.kind]));
-    g.weight = top + Math.min(4, g.items.length - 1);
-  }
-
-  return [...groups.values()]
-    .sort((a, b) => b.weight - a.weight)
-    .slice(0, n)
-    .map((g) => {
-      const first = g.items[0]!;
-      if (g.items.length === 1) return first;
-      const names = g.items.slice(0, 3).map((d) => d.propertyTitle).filter(Boolean) as string[];
-      return {
-        ...first,
-        id: `group:${g.rule}`,
-        propertyId: undefined,
-        propertyTitle: undefined,
-        title: `${first.title} (${g.items.length} ${plural(g.items.length, "propiedad", "propiedades")})`,
-        explanation: first.explanation,
-        evidence: [{ label: "Propiedades", value: `${names.map((t) => quote(t, 28)).join(", ")}${g.items.length > 3 ? " y otras" : ""}` }],
-        href: g.items.every((d) => d.href === first.href) ? first.href : "/dashboard/propiedades",
-      };
-    });
-}
 
 export const actions: AgencyHandler = (env) => {
   const { portfolio: p, now } = env;
@@ -72,7 +30,7 @@ export const actions: AgencyHandler = (env) => {
   const candidates = p.intel.opportunities.filter(
     (d) => d.kind !== "positive" && (!scoped || !d.propertyId || pool.has(d.propertyId))
   );
-  const items = groupByRule(candidates, n);
+  const items = groupDiagnostics(candidates, n);
 
   // Sin ningún movimiento en 30 días, la propia inactividad es una pista.
   const lastActivity = p.activity.find((e) => e.kind === "property_updated" || e.kind === "property_created");
@@ -322,7 +280,7 @@ export const opportunities: AgencyHandler = (env) => {
   const { portfolio: p } = env;
   const scoped = env.slots.zones?.length || env.slots.types?.length;
   const pool = new Set(filterRows(p.rows, env.slots).map((r) => r.id));
-  const items = groupByRule(
+  const items = groupDiagnostics(
     p.intel.opportunities.filter((d) => d.kind === "opportunity" && (!scoped || !d.propertyId || pool.has(d.propertyId))),
     limitOf(env.slots.count, 6)
   );

@@ -1,43 +1,33 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils/cn";
+import { PanelNav, type NavGroup } from "@/components/panel/PanelNav";
 
-const BASE_LINKS = [
-  { href: "/dashboard", label: "Resumen", exact: true },
-  { href: "/dashboard/propiedades", label: "Propiedades" },
-  { href: "/dashboard/clientes", label: "Clientes" },
-  { href: "/dashboard/oportunidades", label: "Oportunidades" },
-  { href: "/dashboard/contenido", label: "Contenido para redes" },
-  { href: "/dashboard/agentes", label: "Agentes" },
-  { href: "/dashboard/inmobiliaria", label: "Mi inmobiliaria" },
+/**
+ * Menú del panel de la inmobiliaria. Las secciones se agrupan por lo que se hace en ellas: ver cómo viene el día, gestionar
+ * lo que se publica y se consulta, hacer crecer la visibilidad, y los datos de la cuenta.
+ */
+const GROUPS: NavGroup[] = [
+  { items: [{ href: "/dashboard", label: "Hoy", exact: true }] },
+  {
+    title: "Gestión",
+    items: [
+      { href: "/dashboard/propiedades", label: "Propiedades" },
+      { href: "/dashboard/clientes", label: "Clientes y consultas" },
+    ],
+  },
+  {
+    title: "Crecimiento",
+    items: [
+      { href: "/dashboard/rendimiento", label: "Rendimiento", alsoActive: ["/dashboard/oportunidades"] },
+      { href: "/dashboard/contenido", label: "Contenido para redes" },
+      { href: "/dashboard/agentes", label: "Agentes" },
+    ],
+  },
+  { title: "Cuenta", items: [{ href: "/dashboard/inmobiliaria", label: "Mi inmobiliaria" }] },
 ];
 
-const ADMIN_LINK = { href: "/admin", label: "Inmobiliarias", exact: false };
+const ADMIN_GROUP: NavGroup = { title: "Administración", items: [{ href: "/admin/inmobiliarias", label: "Volver al admin", alsoActive: ["/admin"] }] };
 
 export function DashboardNav({ isAdmin = false }: { isAdmin?: boolean }) {
-  const pathname = usePathname();
-  const links = isAdmin ? [...BASE_LINKS, ADMIN_LINK] : BASE_LINKS;
-
-  return (
-    <nav className="flex gap-1 overflow-x-auto lg:w-56 lg:shrink-0 lg:flex-col lg:overflow-visible">
-      {links.map((link) => {
-        const active = link.exact ? pathname === link.href : pathname.startsWith(link.href);
-        return (
-          <Link
-            key={link.href}
-            href={link.href}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              "nav-dot shrink-0 rounded-pill px-4 py-2.5 text-sm font-medium transition-colors lg:rounded-media",
-              active ? "bg-accent-soft text-accent" : "text-text-muted hover:bg-surface-2 hover:text-text"
-            )}
-          >
-            {link.label}
-          </Link>
-        );
-      })}
-    </nav>
-  );
+  return <PanelNav groups={isAdmin ? [...GROUPS, ADMIN_GROUP] : GROUPS} ariaLabel="Panel de la inmobiliaria" keepAgency={isAdmin} />;
 }

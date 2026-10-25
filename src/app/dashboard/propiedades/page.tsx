@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Types } from "mongoose";
 import { BarChart3, Plus } from "lucide-react";
 import { requireDashboardAccess } from "@/lib/auth/require-dashboard-access";
 import { connectDB } from "@/lib/db/connect";
@@ -20,7 +21,9 @@ export default async function DashboardPropertiesPage({
   if (!access) redirect("/ingresar");
 
   const params = (await searchParams) as { agencyId?: string } | undefined;
-  const filterAgencyId = access.isAdmin ? params?.agencyId?.trim() : undefined;
+  // Un `?agencyId=` que no sea un id válido se ignora (antes rompía la página con un error 500).
+  const requestedAgency = access.isAdmin ? params?.agencyId?.trim() : undefined;
+  const filterAgencyId = requestedAgency && Types.ObjectId.isValid(requestedAgency) ? requestedAgency : undefined;
 
   await connectDB();
   const query = access.isAdmin

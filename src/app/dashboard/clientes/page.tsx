@@ -8,7 +8,7 @@ import { AgencyFilterSelect } from "@/components/dashboard/AgencyFilterSelect";
 import { LeadsBoard } from "@/components/dashboard/LeadsBoard";
 import { toLeadRow } from "@/lib/leads/serialize";
 
-export const metadata = { title: "Clientes" };
+export const metadata = { title: "Clientes y consultas" };
 
 export default async function DashboardLeadsPage({ searchParams }: PageProps<"/dashboard/clientes">) {
   const access = await requireDashboardAccess();
@@ -33,8 +33,8 @@ export default async function DashboardLeadsPage({ searchParams }: PageProps<"/d
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold text-text">Clientes</h1>
-          <p className="text-sm text-text-muted">
+          <h1 className="font-display text-2xl font-bold text-text">Clientes y consultas</h1>
+          <p className="max-w-2xl text-sm text-text-muted">
             Las personas que consultaron por tus propiedades, ordenadas por etapa. Respondé rápido: los contactos
             sin seguimiento se enfrían.
           </p>

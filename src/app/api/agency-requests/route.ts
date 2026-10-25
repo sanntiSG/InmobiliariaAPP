@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
         type: "agency_request",
         title: "Un usuario solicitó permiso para crear/gestionar una inmobiliaria.",
         body: `${dbUser.name} · ${parsed.data.agencyName} · ${parsed.data.zone}`,
-        href: "/admin/solicitudes",
+        href: "/admin/altas?vista=solicitudes",
         dedupeKey: `agency_request:${request._id}`,
       })
     );

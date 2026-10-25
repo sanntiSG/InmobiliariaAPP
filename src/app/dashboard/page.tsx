@@ -7,23 +7,24 @@ import { agencyScope } from "@/lib/auth/agency-scope";
 import { connectDB } from "@/lib/db/connect";
 import { Agency } from "@/lib/db/models/Agency";
 import { getIntelligence } from "@/lib/intelligence/opportunities";
-import { avgDwellSec, consultas, deltaPct, getDailySeries, type Totals } from "@/lib/intelligence/metrics";
+import { consultas, deltaPct, getDailySeries, type Totals } from "@/lib/intelligence/metrics";
 import { maybeSendOpportunityNotifications } from "@/lib/intelligence/notify";
+import { buildTodayList } from "@/lib/intelligence/today";
+import { GLOSSARY, interestText } from "@/config/glossary";
 import { StatTile } from "@/components/dashboard/StatTile";
-import { DiagnosticCard } from "@/components/dashboard/DiagnosticCard";
+import { TodayList } from "@/components/dashboard/TodayList";
 import { DashboardReveal } from "@/components/dashboard/DashboardReveal";
 import { AgencyFilterSelect } from "@/components/dashboard/AgencyFilterSelect";
 import { TrendChart } from "@/components/dashboard/charts/TrendChart";
-import { Meter } from "@/components/dashboard/charts/Meter";
 import { BarList } from "@/components/dashboard/charts/BarList";
 import { buttonClasses } from "@/components/ui/Button";
 
-export const metadata = { title: "Resumen" };
+export const metadata = { title: "Hoy" };
 
-const pctText = (n: number | null) => (n == null ? "—" : `${(n * 100).toFixed(n < 0.1 ? 1 : 0)}%`);
 const nf = new Intl.NumberFormat("es-AR");
+const dateFmt = new Intl.DateTimeFormat("es-AR", { weekday: "long", day: "numeric", month: "long", timeZone: "America/Argentina/Buenos_Aires" });
 
-export default async function DashboardOverviewPage({ searchParams }: PageProps<"/dashboard">) {
+export default async function DashboardTodayPage({ searchParams }: PageProps<"/dashboard">) {
   const access = await requireDashboardAccess();
   if (!access) redirect("/ingresar");
 
@@ -34,46 +35,28 @@ export default async function DashboardOverviewPage({ searchParams }: PageProps<
   await connectDB();
   const [intel, series, agencies] = await Promise.all([
     getIntelligence(scope.agencyId),
-    getDailySeries({ agencyId: scope.agencyId }, 30),
+    getDailySeries({ agencyId: scope.agencyId }, 14),
     access.isAdmin ? Agency.find({}).select("name").sort({ name: 1 }).lean() : Promise.resolve(null),
   ]);
 
   // Avisos de oportunidades importantes a la inmobiliaria, fuera del render.
   if (!access.isAdmin && scope.agencyId) after(() => maybeSendOpportunityNotifications(scope.agencyId!));
 
-  const { w7, p7, d30 } = intel.totals;
-  const metric = (pick: (t: Totals) => number) => ({
-    current: pick(w7),
-    previous: pick(p7),
-    deltaPct: deltaPct(pick(w7), pick(p7)),
-  });
-  const last14 = series.slice(-14);
-  const trendOf = (pick: (p: (typeof series)[number]) => number) => last14.map(pick);
+  const { w7, p7 } = intel.totals;
+  const metric = (pick: (t: Totals) => number) => ({ current: pick(w7), previous: pick(p7), deltaPct: deltaPct(pick(w7), pick(p7)) });
+  const trendOf = (pick: (p: (typeof series)[number]) => number) => series.map(pick);
 
-  const dwellNow = avgDwellSec(w7);
-  const dwellBefore = avgDwellSec(p7);
-  const dwellMetric = {
-    current: dwellNow ?? 0,
-    previous: dwellBefore ?? 0,
-    deltaPct: dwellNow != null && dwellBefore != null ? deltaPct(dwellNow, dwellBefore) : null,
-  };
-
-  const hasTraffic = d30.views > 0;
-  const attention = intel.opportunities.filter((o) => o.kind === "attention");
-  const positives = intel.opportunities.filter((o) => o.kind === "positive");
-  const topOpportunities = intel.opportunities.filter((o) => o.kind !== "positive").slice(0, 3);
-  const f = intel.funnels;
+  const today = buildTodayList({ opportunities: intel.opportunities, staleClients: intel.leads.stale });
+  const hasTraffic = intel.totals.d30.views > 0;
+  const date = dateFmt.format(new Date());
 
   return (
     <DashboardReveal className="flex flex-col gap-8">
       <div data-reveal className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold text-text">Resumen</h1>
+          <h1 className="font-display text-2xl font-bold text-text">Hoy</h1>
           <p className="text-sm text-text-muted">
-            {access.isAdmin && !scope.agencyId
-              ? "Toda la plataforma. "
-              : ""}
-            Esta semana contra la anterior, con la tendencia de los últimos 30 días.
+            <span className="first-letter:uppercase">{date}</span>. {access.isAdmin && !scope.agencyId ? "Toda la plataforma. " : ""}Lo más importante, en un vistazo.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -95,8 +78,7 @@ export default async function DashboardOverviewPage({ searchParams }: PageProps<
           <div>
             <h2 className="font-display text-lg font-semibold text-text">Primeros pasos</h2>
             <p className="text-sm text-text-muted">
-              Desde acá manejás todo lo de tu inmobiliaria. Empezá por estos tres pasos; en cuanto publiques la primera
-              propiedad, este panel te muestra cómo le va.
+              Desde acá manejás todo lo de tu inmobiliaria. Empezá por estos tres pasos; en cuanto publiques la primera propiedad, este panel te muestra cómo le va.
             </p>
           </div>
           <ol className="grid gap-3 md:grid-cols-3">
@@ -136,138 +118,76 @@ export default async function DashboardOverviewPage({ searchParams }: PageProps<
 
       {intel.published > 0 && !hasTraffic && (
         <p data-reveal className="rounded-card bg-accent-soft p-4 text-sm text-text">
-          Todavía no se registraron visitas en los últimos 30 días. Los números y los diagnósticos aparecen apenas
-          lleguen las primeras.
+          Todavía no se registraron visitas en los últimos 30 días. Los números y las recomendaciones aparecen apenas lleguen las primeras.
         </p>
       )}
 
-      <section aria-label="Indicadores de la semana">
-        <div className="grid grid-cols-1 gap-4 min-[480px]:grid-cols-2 xl:grid-cols-3">
+      <section aria-label="Lo esencial de la semana">
+        <div className="grid grid-cols-1 gap-4 min-[480px]:grid-cols-2 xl:grid-cols-4">
+          <StatTile label={GLOSSARY.views.label} help={GLOSSARY.views.help} metric={metric((t) => t.views)} trend={trendOf((p) => p.views)} />
+          <StatTile label={GLOSSARY.inquiries.label} help={GLOSSARY.inquiries.help} metric={metric(consultas)} trend={trendOf((p) => p.inquiries + p.contacts)} />
           <StatTile
-            label="Propiedades publicadas"
+            label={GLOSSARY.staleClients.label}
+            help={GLOSSARY.staleClients.help}
+            metric={{ current: intel.leads.stale, previous: 0, deltaPct: null }}
+            hint={intel.leads.stale > 0 ? "Respondelos hoy" : "Estás al día"}
+            href="/dashboard/clientes"
+          />
+          <StatTile
+            label={GLOSSARY.published.label}
+            help={GLOSSARY.published.help}
             metric={{ current: intel.published, previous: 0, deltaPct: null }}
             hint="Visibles en el mapa y el listado"
+            href="/dashboard/propiedades"
           />
-          <StatTile label="Visitas" metric={metric((t) => t.views)} trend={trendOf((p) => p.views)} />
-          <StatTile label="Visitas únicas" metric={metric((t) => t.uniqueViews)} trend={trendOf((p) => p.uniqueViews)} />
-          <StatTile label="Favoritos" metric={metric((t) => t.saves)} trend={trendOf((p) => p.saves)} />
-          <StatTile label="Me gusta" metric={metric((t) => t.likes)} trend={trendOf((p) => p.likes)} />
-          <StatTile label="Consultas" metric={metric(consultas)} trend={trendOf((p) => p.inquiries + p.contacts)} />
-          <StatTile label="Compartidas" metric={metric((t) => t.shares)} trend={trendOf((p) => p.shares)} />
-          <StatTile label="Visitas a recorridos 360°" metric={metric((t) => t.tourOpens)} trend={trendOf((p) => p.tourOpens)} />
-          <StatTile label="Tiempo promedio en la ficha" metric={dwellMetric} format="seconds" hint="Todavía sin lecturas medidas" />
         </div>
+        <p className="mt-2 text-xs text-text-muted">Visitas y consultas: esta semana contra la anterior.</p>
       </section>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <section data-reveal className="min-w-0 rounded-card bg-surface p-5 shadow-card lg:col-span-2">
-          <div className="mb-3 flex items-baseline justify-between gap-3">
-            <h2 className="font-display text-lg font-semibold text-text">Visitas de los últimos 30 días</h2>
-            <span className="text-sm text-text-muted">{nf.format(d30.views)} en total</span>
-          </div>
-          <TrendChart points={series} label="Visitas por día" />
-        </section>
-
-        <section data-reveal className="min-w-0 flex flex-col gap-5 rounded-card bg-surface p-5 shadow-card">
+      <div className="grid gap-4 lg:grid-cols-5">
+        <section data-reveal className="flex min-w-0 flex-col gap-4 rounded-card bg-surface p-5 shadow-card lg:col-span-3">
           <div>
-            <h2 className="font-display text-lg font-semibold text-text">¿Se convierte el interés?</h2>
-            <p className="text-sm text-text-muted">Últimos 30 días, contra propiedades similares.</p>
+            <h2 className="font-display text-lg font-semibold text-text">Qué hacer hoy</h2>
+            <p className="text-sm text-text-muted">Lo que más puede mover tus resultados, de lo más urgente a lo menos.</p>
           </div>
-          <Meter
-            label="Visitas → favoritos"
-            value={f.visitsToSaves}
-            reference={intel.benchmark.saveRate}
-            valueText={pctText(f.visitsToSaves)}
-            caption={`${nf.format(d30.saves)} de ${nf.format(d30.views)} visitas`}
-          />
-          <Meter
-            label="Visitas → consultas"
-            value={f.visitsToConsultas}
-            reference={intel.benchmark.inquiryRate}
-            valueText={pctText(f.visitsToConsultas)}
-            caption={`${nf.format(consultas(d30))} de ${nf.format(d30.views)} visitas`}
-          />
-          <Meter
-            label="Consultas → visitas presenciales"
-            value={f.consultasToVisits}
-            valueText={pctText(f.consultasToVisits)}
-            caption={`${nf.format(intel.leads.visitDone)} de ${nf.format(intel.leads.total)} clientes`}
-          />
-        </section>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section data-reveal className="min-w-0 flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
-          <div>
-            <h2 className="font-display text-lg font-semibold text-text">¿Qué está funcionando?</h2>
-            <p className="text-sm text-text-muted">Las propiedades que más interés generan.</p>
-          </div>
-          <BarList
-            emptyText="Cuando lleguen las primeras visitas, acá vas a ver cuáles destacan."
-            items={intel.working.map((p) => ({
-              label: p.title,
-              value: p.score,
-              valueText: `${nf.format(p.score)} pts`,
-              sublabel: p.dominant ? `Sobre todo ${p.dominant}` : undefined,
-              href: `/dashboard/propiedades/${p.id}/estadisticas`,
-            }))}
-          />
-          {positives.slice(0, 2).map((d) => (
-            <DiagnosticCard key={d.id} diagnostic={d} compact />
-          ))}
-        </section>
-
-        <section data-reveal className="min-w-0 flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
-          <div>
-            <h2 className="font-display text-lg font-semibold text-text">¿Qué necesita atención?</h2>
-            <p className="text-sm text-text-muted">Lo que no está funcionando como debería.</p>
-          </div>
-          {attention.length === 0 ? (
-            <p className="rounded-media bg-success-soft p-4 text-sm text-text">
-              Todo en orden: no detectamos nada que requiera atención.
-            </p>
-          ) : (
-            <ul className="flex flex-col gap-3">
-              {attention.slice(0, 4).map((d) => (
-                <li key={d.id} className="rounded-media bg-surface-2 p-4">
-                  <p className="text-sm font-semibold text-text">{d.title}</p>
-                  {d.propertyTitle && <p className="text-xs text-text-muted">{d.propertyTitle}</p>}
-                  <p className="mt-1 text-sm text-text-muted">{d.explanation}</p>
-                  {d.propertyId && (
-                    <Link
-                      href={`/dashboard/propiedades/${d.propertyId}/estadisticas`}
-                      className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
-                    >
-                      Ver diagnóstico <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-                    </Link>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      </div>
-
-      <section data-reveal className="flex flex-col gap-4">
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <h2 className="font-display text-lg font-semibold text-text">Oportunidades</h2>
-            <p className="text-sm text-text-muted">Dónde hay margen para mejorar, ordenadas por prioridad.</p>
-          </div>
-          <Link href="/dashboard/oportunidades" className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline">
-            Ver todas ({intel.opportunities.filter((o) => o.kind !== "positive").length}) <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+          <TodayList items={today} />
+          <Link href="/dashboard/rendimiento?vista=mejorar" className="group inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-accent">
+            Ver todo lo que se puede mejorar
+            <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden />
           </Link>
+        </section>
+
+        <div className="flex min-w-0 flex-col gap-4 lg:col-span-2">
+          <section data-reveal className="min-w-0 rounded-card bg-surface p-5 shadow-card">
+            <div className="mb-3">
+              <h2 className="font-display text-lg font-semibold text-text">Visitas de los últimos 14 días</h2>
+              <p className="text-sm text-text-muted">{nf.format(series.reduce((sum, p) => sum + p.views, 0))} en total</p>
+            </div>
+            <TrendChart points={series} label="Visitas por día" />
+          </section>
+
+          <section data-reveal className="flex min-w-0 flex-col gap-3 rounded-card bg-surface p-5 shadow-card">
+            <div>
+              <h2 className="font-display text-lg font-semibold text-text">Lo que va bien</h2>
+              <p className="text-sm text-text-muted">Las propiedades que más interés despiertan.</p>
+            </div>
+            <BarList
+              emptyText="Cuando lleguen las primeras visitas, acá vas a ver cuáles destacan."
+              items={intel.working.slice(0, 3).map((p) => ({
+                label: p.title,
+                value: p.score,
+                valueText: interestText(p.score),
+                sublabel: p.dominant ? `Sobre todo ${p.dominant}` : undefined,
+                href: `/dashboard/propiedades/${p.id}/estadisticas`,
+              }))}
+            />
+            <Link href="/dashboard/rendimiento" className="group inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-accent">
+              Ver todos los números
+              <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden />
+            </Link>
+          </section>
         </div>
-        {topOpportunities.length === 0 ? (
-          <p className="rounded-card bg-surface p-5 text-sm text-text-muted shadow-card">No hay oportunidades pendientes por ahora.</p>
-        ) : (
-          <div className="grid gap-4 lg:grid-cols-1">
-            {topOpportunities.map((d) => (
-              <DiagnosticCard key={d.id} diagnostic={d} compact />
-            ))}
-          </div>
-        )}
-      </section>
+      </div>
     </DashboardReveal>
   );
 }

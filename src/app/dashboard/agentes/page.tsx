@@ -37,7 +37,7 @@ export default async function DashboardAgentsPage() {
       {agents.length === 0 ? (
         <p className="rounded-card bg-surface p-6 text-sm text-text-muted shadow-card">Todavía no hay agentes activos para tu inmobiliaria.</p>
       ) : (
-        <ul className="flex flex-col divide-y divide-border rounded-card bg-surface shadow-card">
+        <ul className="rise-group flex flex-col divide-y divide-border rounded-card bg-surface shadow-card">
           {agents.map((id) => {
             const def = AGENTS[id];
             const cfg = published[id];

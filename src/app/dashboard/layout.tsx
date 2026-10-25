@@ -5,6 +5,7 @@ import { requireDashboardAccess } from "@/lib/auth/require-dashboard-access";
 import { connectDB } from "@/lib/db/connect";
 import { Agency } from "@/lib/db/models/Agency";
 import { DashboardNav } from "@/components/dashboard/DashboardNav";
+import { AdminContextBanner } from "@/components/panel/AdminContextBanner";
 import { Logo } from "@/components/layout/Logo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { UserMenu } from "@/components/auth/UserMenu";
@@ -22,7 +23,11 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
   if (access.needsOnboarding) redirect("/publicar");
 
   let scopeLabel = "Panel — todas las inmobiliarias";
-  if (!access.isAdmin) {
+  let agencies: { id: string; name: string }[] = [];
+  if (access.isAdmin) {
+    await connectDB();
+    agencies = (await Agency.find({}).select("name").sort({ name: 1 }).limit(300).lean()).map((a) => ({ id: String(a._id), name: a.name }));
+  } else {
     await connectDB();
     const agency = await Agency.findById(access.agencyId).select("name").lean();
     if (!agency) redirect("/");
@@ -50,7 +55,10 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
 
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:flex-row">
         <DashboardNav isAdmin={access.isAdmin} />
-        <main className="min-w-0 flex-1">{children}</main>
+        <main className="min-w-0 flex-1">
+          {access.isAdmin && <AdminContextBanner agencies={agencies} />}
+          {children}
+        </main>
       </div>
     </div>
   );

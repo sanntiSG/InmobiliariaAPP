@@ -198,7 +198,7 @@ async function compute(): Promise<AdminIntelligence> {
         stalePending.length > 0
           ? `${stalePending.length} ${stalePending.length === 1 ? "lleva" : "llevan"} más de 48 horas sin resolverse.`
           : "Hablá con las personas y aprobalas o rechazalas.",
-      href: "/admin/solicitudes",
+      href: "/admin/altas?vista=solicitudes",
       severity: stalePending.length > 0 ? "high" : "medium",
     });
   }
@@ -217,7 +217,7 @@ async function compute(): Promise<AdminIntelligence> {
       id: "inactive-agencies",
       title: `${noViews.length} ${noViews.length === 1 ? "inmobiliaria" : "inmobiliarias"} con propiedades publicadas y sin visitas en 14 días`,
       detail: noViews.slice(0, 3).map((a) => a.name).join(", ") + (noViews.length > 3 ? "…" : ""),
-      href: "/admin",
+      href: "/admin/inmobiliarias",
       severity: "medium",
     });
   }
@@ -227,7 +227,7 @@ async function compute(): Promise<AdminIntelligence> {
       id: "agencies-without-listings",
       title: `${noListings.length} ${noListings.length === 1 ? "inmobiliaria activa" : "inmobiliarias activas"} sin propiedades publicadas`,
       detail: noListings.slice(0, 3).map((a) => a.name).join(", ") + (noListings.length > 3 ? "…" : ""),
-      href: "/admin",
+      href: "/admin/inmobiliarias",
       severity: "low",
     });
   }

@@ -7,6 +7,9 @@ import { matchPreferences, type PrefProperty } from "../src/lib/agents/knowledge
 import { isFreeIntent } from "../src/lib/advisor/types";
 import { normalizeContent, toPublicConfig } from "../src/lib/advisor/config";
 import { promotionNote, rankForPromotion, type PromotionRow } from "../src/lib/agents/knowledge/promote";
+import { interestBand, interestText, perHundred } from "../src/config/glossary";
+import { buildTodayList } from "../src/lib/intelligence/today";
+import type { Diagnostic } from "../src/lib/intelligence/diagnostics";
 import type { Benchmarks } from "../src/lib/intelligence/benchmarks";
 import { emptyTotals } from "../src/lib/intelligence/metrics";
 import { buildCaption, captionToString, hashtagify } from "../src/lib/social/caption";
@@ -322,6 +325,46 @@ check("recommend sí lo gasta", !isFreeIntent("explorer.recommend"));
   check("sufijo: alquiler → /mes", suffix("alquiler", "mensual") === "/mes" && suffix("alquiler", "total") === "/mes");
   check("sufijo: venta → nada", suffix("venta", "total") === "");
   check("sufijo: alquiler temporal por estadía → nada; mensual → /mes", suffix("alquiler_temporal", "total") === "" && suffix("alquiler_temporal", "mensual") === "/mes");
+}
+
+// ── Lenguaje simple y "qué hacer hoy" del panel ─────────────────────────────
+{
+  check("interés: bandas alto / medio / bajo", interestBand(5) === "bajo" && interestBand(30) === "medio" && interestBand(119) === "medio" && interestBand(120) === "alto");
+  check("interés: se lee 'Interés alto', sin 'pts'", interestText(200) === "Interés alto" && !/pts/.test(interestText(10)));
+  check("perHundred: cuenta como se habla", perHundred(0.05) === "5 de cada 100" && perHundred(0.034) === "3,4 de cada 100" && perHundred(0.5) === "50 de cada 100", [perHundred(0.05), perHundred(0.034), perHundred(0.5)]);
+  check("perHundred: sin dato → null", perHundred(null) === null && perHundred(Number.NaN) === null);
+
+  const diag = (id: string, kind: Diagnostic["kind"], severity: Diagnostic["severity"], over: Partial<Diagnostic> = {}): Diagnostic => ({
+    id,
+    kind,
+    severity,
+    title: `Hallazgo ${id}`,
+    explanation: "Qué pasa.",
+    action: "Qué hacer.",
+    href: "/dashboard/propiedades",
+    evidence: [],
+    ...over,
+  });
+  const many = [
+    diag("no-tour:a", "opportunity", "medium", { propertyId: "a", propertyTitle: "Casa A" }),
+    diag("no-tour:b", "opportunity", "medium", { propertyId: "b", propertyTitle: "Casa B" }),
+    diag("no-tour:c", "opportunity", "medium", { propertyId: "c", propertyTitle: "Casa C" }),
+    diag("low-views:d", "attention", "high", { propertyId: "d", propertyTitle: "Casa D" }),
+    diag("good:e", "positive", "low", { propertyId: "e" }),
+    diag("few-photos:f", "attention", "medium", { propertyId: "f" }),
+    diag("no-video:g", "opportunity", "low", { propertyId: "g" }),
+    diag("no-desc:h", "opportunity", "low", { propertyId: "h" }),
+  ];
+  const list = buildTodayList({ opportunities: many, staleClients: 4 });
+  check("hoy: máximo 5 y sin repetidos", list.length === 5 && new Set(list.map((i) => i.id)).size === 5, list.map((i) => i.id));
+  check("hoy: los clientes sin seguimiento van primero (urgente con 3 o más)", list[0]!.id === "stale-clients" && list[0]!.severity === "high" && /4 clientes/.test(list[0]!.title), list[0]);
+  check("hoy: lo que va bien no es una tarea", !list.some((i) => i.id.startsWith("good")));
+  check("hoy: tres propiedades sin 360° son UNA sola acción", list.filter((i) => /no-tour/.test(i.id)).length === 1 && list.some((i) => /3 propiedades/.test(i.title)), list.map((i) => i.title));
+  check("hoy: el problema grave va antes que las oportunidades", list.findIndex((i) => i.id.startsWith("low-views")) < list.findIndex((i) => /no-tour/.test(i.id)), list.map((i) => i.id));
+  const one = buildTodayList({ opportunities: [], staleClients: 1 });
+  check("hoy: un cliente → singular y no urgente", one.length === 1 && /1 cliente sin seguimiento/.test(one[0]!.title) && one[0]!.severity === "medium", one);
+  check("hoy: sin nada pendiente → lista vacía", buildTodayList({ opportunities: [many[4]!], staleClients: 0 }).length === 0);
+  check("hoy: lleva al diagnóstico de la propiedad cuando es una sola", list.find((i) => i.id.startsWith("low-views"))?.href === "/dashboard/propiedades/d/estadisticas");
 }
 
 console.log(`\n${total - failed}/${total} pruebas correctas`);

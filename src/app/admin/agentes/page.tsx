@@ -32,7 +32,7 @@ export default async function AgentsPage() {
         </p>
       </header>
 
-      <ul className="flex flex-col divide-y divide-border rounded-card bg-surface shadow-card">
+      <ul className="rise-group flex flex-col divide-y divide-border rounded-card bg-surface shadow-card">
         {AGENT_IDS.map((id, i) => {
           const def = AGENTS[id];
           const s = states[i]!;

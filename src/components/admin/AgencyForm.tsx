@@ -89,7 +89,7 @@ export function AgencyForm({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.issues?.[0]?.message ?? data.error ?? "No se pudo guardar.");
-      router.push("/admin");
+      router.push("/admin/inmobiliarias");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar.");
@@ -187,7 +187,7 @@ export function AgencyForm({
       )}
 
       <div className="flex justify-end gap-3">
-        <Button type="button" variant="secondary" onClick={() => router.push("/admin")}>
+        <Button type="button" variant="secondary" onClick={() => router.push("/admin/inmobiliarias")}>
           Cancelar
         </Button>
         <Button type="submit" disabled={saving}>
