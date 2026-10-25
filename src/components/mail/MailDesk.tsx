@@ -150,7 +150,7 @@ export function MailDesk({
     }
   };
 
-  const act = async (action: "confirm" | "discard" | "not_inquiry" | "retry") => {
+  const act = async (action: "confirm" | "discard" | "not_inquiry" | "retry" | "was_inquiry") => {
     if (!detail) return;
     setBusy("action");
     setError(null);
@@ -163,6 +163,8 @@ export function MailDesk({
       setNotice(
         action === "discard"
           ? "Descartada."
+          : action === "was_inquiry"
+          ? "Listo: lo pasé a “Para confirmar” con la respuesta preparada."
           : action === "not_inquiry"
             ? r.blocked
               ? "Listo: no era una consulta. Como pasó dos veces, no le voy a responder más a esa persona."
@@ -253,11 +255,11 @@ export function MailDesk({
             </Button>
             {overview.canManage &&
               (onManage ? (
-                <button type="button" onClick={onManage} className="text-sm font-semibold text-accent hover:underline">
+                <button type="button" onClick={onManage} className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline">
                   Configurar
                 </button>
               ) : (
-                <Link href={connectHref} className="text-sm font-semibold text-accent hover:underline">
+                <Link href={connectHref} className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline">
                   Configurar
                 </Link>
               ))}
@@ -306,7 +308,7 @@ export function MailDesk({
                     setTab(t.id);
                   }}
                   className={cn(
-                    "inline-flex shrink-0 items-center gap-2 rounded-pill px-4 py-2 text-sm font-medium transition-[background-color,color,transform] duration-150 [transition-timing-function:var(--ease-out)] active:scale-[0.97]",
+                    "inline-flex min-h-11 shrink-0 items-center gap-2 rounded-pill px-4 py-2 text-sm font-medium transition-[background-color,color,transform] duration-150 [transition-timing-function:var(--ease-out)] active:scale-[0.97]",
                     on ? "bg-accent text-accent-contrast" : "bg-surface text-text-muted shadow-pop hover:text-text"
                   )}
                 >
@@ -339,7 +341,7 @@ export function MailDesk({
                       <span className="shrink-0 text-xs text-text-muted">{formatRelativeTime(m.receivedAt)}</span>
                     </span>
                     <span className="truncate text-sm text-text">{m.subject || "(sin asunto)"}</span>
-                    {m.snippet && <span className="line-clamp-1 text-xs text-text-muted">{m.snippet}</span>}
+                    {tab === "ignored" && m.reason ? <span className="line-clamp-2 text-xs text-text-muted">{m.reason}</span> : m.snippet && <span className="line-clamp-1 text-xs text-text-muted">{m.snippet}</span>}
                     <span className="mt-1 flex flex-wrap gap-1.5">
                       <span className="rounded-pill bg-accent-soft px-2 py-0.5 text-[11px] font-medium text-accent">{MAIL_CATEGORY_LABELS[m.category]}</span>
                       {tab === "sent" && (
@@ -376,7 +378,7 @@ export function MailDesk({
             </div>
 
             <section aria-label="Por qué lo detecté" className="flex flex-col gap-2">
-              <h3 className="font-display text-sm font-bold text-text">Por qué lo detecté así</h3>
+              <h3 className="font-display text-sm font-bold text-text">{detail.status === "ignored" ? "Por qué lo ignoré" : "Por qué lo detecté así"}</h3>
               <ul className="flex flex-wrap gap-1.5">
                 <li className="rounded-pill bg-accent-soft px-2.5 py-1 text-xs font-medium text-accent">{MAIL_CATEGORY_LABELS[detail.category]}</li>
                 {detail.reasons.map((r) => (
@@ -474,6 +476,13 @@ export function MailDesk({
                   </Button>
                 </>
               )}
+              {detail.status === "ignored" && detail.text && (
+                <Button disabled={busy !== null} onClick={() => act("was_inquiry")}>
+                  <UserRoundCheck className="h-4 w-4" aria-hidden />
+                  {busy === "action" ? "Preparando…" : "Era una consulta"}
+                </Button>
+              )}
+              {detail.status === "ignored" && !detail.text && <p className="text-xs text-text-muted">De este mail no guardé el texto, así que no puedo prepararte una respuesta.</p>}
               {detail.status === "failed" && (
                 <Button disabled={busy !== null} onClick={() => act("retry")}>
                   <RefreshCw className="h-4 w-4" aria-hidden />

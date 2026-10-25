@@ -58,7 +58,7 @@ export type PipelineCtx = {
 const expiresIn = (days: number) => new Date(Date.now() + days * DAY_MS);
 
 /** Anota (o suma a) el cliente que escribió. Una nueva consulta del mismo contacto por la misma propiedad en el día se junta en un solo cliente. */
-async function recordLead(ctx: PipelineCtx, args: { propertyId: string; name: string; email: string; text: string }): Promise<string | null> {
+export async function recordLead(ctx: PipelineCtx, args: { propertyId: string; name: string; email: string; text: string }): Promise<string | null> {
   try {
     const since = new Date(Date.now() - DAY_MS);
     const message = { text: args.text.slice(0, 1000), at: new Date() };
@@ -101,9 +101,10 @@ export async function processMail(ctx: PipelineCtx, mail: FetchedMail, counts: C
     authFailed: mail.auth === "fail",
   };
 
-  const ignore = async (category: MailCategory, reasons: string[], confidence = 0.9) => {
-    // De lo que se ignora no se guarda el texto (menos datos personales) y se borra antes.
-    await MailMessage.create({ ...base, category, confidence, reasons, status: "ignored", text: "", expiresAt: expiresIn(MAIL_LIMITS.retentionIgnoredDays) });
+  const ignore = async (category: MailCategory, reasons: string[], confidence = 0.9, keepText = false) => {
+    // De lo automático (listas, rebotes, spam, la propia casilla) no se guarda el texto. De lo que escribió una persona y no se
+    // entendió sí, 14 días y acotado: así el equipo lo ve y puede marcarlo "Era una consulta".
+    await MailMessage.create({ ...base, category, confidence, reasons, status: "ignored", text: keepText ? text.slice(0, 4000) : "", expiresAt: expiresIn(MAIL_LIMITS.retentionIgnoredDays) });
     counts.ignored++;
   };
 
@@ -117,7 +118,7 @@ export async function processMail(ctx: PipelineCtx, mail: FetchedMail, counts: C
     seed: mail.messageId,
     portal: pre.portal,
   });
-  if (!isInquiry(cls.category)) return void (await ignore(cls.category, cls.reasons, cls.confidence));
+  if (!isInquiry(cls.category)) return void (await ignore(cls.category, cls.reasons, cls.confidence, cls.category === "other"));
 
   // ¿Puede salir sola?
   const [sentToday, senderRecently, threadAnswered] = await Promise.all([

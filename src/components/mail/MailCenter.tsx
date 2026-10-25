@@ -58,7 +58,7 @@ export function MailCenter({ agencyId, openId }: { agencyId: string | null; open
               aria-selected={view === id}
               onClick={() => setView(id)}
               className={cn(
-                "rounded-pill px-4 py-2 text-sm font-medium transition-[background-color,color,transform] duration-150 [transition-timing-function:var(--ease-out)] active:scale-[0.97]",
+                "min-h-11 rounded-pill px-4 py-2 text-sm font-medium transition-[background-color,color,transform] duration-150 [transition-timing-function:var(--ease-out)] active:scale-[0.97]",
                 view === id ? "bg-accent text-accent-contrast" : "bg-surface text-text-muted shadow-pop hover:text-text"
               )}
             >

@@ -7,6 +7,7 @@ import { mailAccess, sendEnabled } from "@/lib/mail/access";
 import { noteAdminView } from "@/lib/mail/audit";
 import { messageDetail } from "@/lib/mail/messages";
 import { sendQueued } from "@/lib/mail/outbox";
+import { rescueIgnored } from "@/lib/mail/rescue";
 import { loadSettings, saveSettings } from "@/lib/mail/settings";
 import { limitOr429 } from "@/lib/security/rate-limit";
 
@@ -43,6 +44,7 @@ const bodySchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("confirm"), subject: oneLine.optional(), body: z.string().min(1).max(6000).optional() }),
   z.object({ action: z.literal("discard") }),
   z.object({ action: z.literal("not_inquiry") }),
+  z.object({ action: z.literal("was_inquiry") }),
   z.object({ action: z.literal("retry") }),
 ]);
 
@@ -84,6 +86,14 @@ export async function POST(req: NextRequest, { params }: Ctx) {
       // Donde se puede enviar, sale en el momento; si no, queda en cola y la manda el servidor que sí puede.
       const result = sendEnabled() ? await sendQueued(id) : { ok: false, status: "queued" as const };
       return NextResponse.json({ ok: true, status: result.status, error: "error" in result ? (result.error ?? null) : null }, { headers: NO_STORE });
+    }
+
+    // "Era una consulta": se vuelve a entender el mail ignorado (si hay texto guardado) y pasa a "Para confirmar".
+    if (input.action === "was_inquiry") {
+      const r = await rescueIgnored(a.agencyId, id, a.userId);
+      if (r.ok) return NextResponse.json({ ok: true, status: "awaiting_confirmation" }, { headers: NO_STORE });
+      if (r.reason === "no_text") return NextResponse.json({ error: "De este mail no guardé el texto (era automático o llegó antes de esta mejora)." }, { status: 400, headers: NO_STORE });
+      return conflict();
     }
 
     if (input.action === "retry") {

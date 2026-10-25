@@ -26,6 +26,8 @@ export type MailListItem = {
   needsHuman: boolean;
   auto: boolean;
   receivedAt: string;
+  /** Por qué se ignoró (sólo en lo ignorado). */
+  reason: string | null;
 };
 
 export type MailDetail = MailListItem & {
@@ -47,7 +49,7 @@ const snippetOf = (text: string): string => text.replace(/\s+/g, " ").trim().sli
 export async function listMessages(agencyId: string, tab: MailTab, limit = 40): Promise<MailListItem[]> {
   await connectDB();
   const docs = await MailMessage.find({ agencyId, status: { $in: TAB_STATUSES[tab] } })
-    .select("from subject text category status needsHuman auto receivedAt")
+    .select("from subject text category status needsHuman auto receivedAt reasons")
     .sort({ receivedAt: -1 })
     .limit(limit)
     .lean();
@@ -61,6 +63,7 @@ export async function listMessages(agencyId: string, tab: MailTab, limit = 40): 
     needsHuman: !!d.needsHuman,
     auto: !!d.auto,
     receivedAt: iso(d.receivedAt) ?? new Date().toISOString(),
+    reason: tab === "ignored" ? ((d.reasons ?? []).slice(-1)[0] ?? null) : null,
   }));
 }
 
@@ -80,6 +83,7 @@ export async function messageDetail(agencyId: string, id: string): Promise<MailD
     needsHuman: !!d.needsHuman,
     auto: !!d.auto,
     receivedAt: iso(d.receivedAt) ?? new Date().toISOString(),
+    reason: d.status === "ignored" ? ((d.reasons ?? []).slice(-1)[0] ?? null) : null,
     text: d.text ?? "",
     reasons: d.reasons ?? [],
     confidence: d.confidence ?? 0,

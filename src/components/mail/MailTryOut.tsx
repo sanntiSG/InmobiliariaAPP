@@ -52,9 +52,14 @@ function PreviewResult({ r }: { r: Preview }) {
   return (
     <div className="swap-in flex flex-col gap-4 rounded-media bg-surface-2 p-4 sm:p-5" role="status">
       <p className="text-sm text-text">
-        {r.inquiry ? (
+        {r.inquiry && r.uncertain ? (
           <>
-            Lo entendí como: <strong className="font-semibold">{r.categoryLabel}</strong> · seguridad {confidenceText(r.confidence)}.
+            <strong className="font-semibold">Creo que es una consulta, pero no estoy seguro de qué necesita.</strong> No la descarto: te la dejaría para que la revises.
+          </>
+        ) : r.inquiry ? (
+          <>
+            Lo entendí como: <strong className="font-semibold">{r.categoryLabel}</strong> · seguridad {confidenceText(r.confidence)}
+            {r.searchLabel ? <> · busca {r.searchLabel}</> : null}.
           </>
         ) : (
           <>

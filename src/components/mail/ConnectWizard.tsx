@@ -286,7 +286,7 @@ export function ConnectWizard({ agencyId, onConnected, onCancel }: { agencyId: s
           <label className="flex items-start gap-3 rounded-media bg-surface-2 p-3.5 text-sm text-text">
             <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-1 size-4 accent-[var(--accent)]" />
             <span>
-              Entiendo que el agente <strong>lee sólo los mails que lleguen desde ahora</strong> (nunca los anteriores), guarda el texto de las consultas durante 60 días (14 si las ignora) y
+              Entiendo que el agente <strong>lee sólo los mails que lleguen desde ahora</strong> (nunca los anteriores), guarda el texto de las consultas durante 60 días (14 el de los mails que no entiende, para que puedas rescatarlos) y
               <strong> borra todo al desconectar</strong>. Empieza en modo <strong>con confirmación</strong>: nada se envía sin que lo confirme una persona.
             </span>
           </label>

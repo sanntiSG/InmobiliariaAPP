@@ -6,7 +6,7 @@
  */
 import { list, pick, seedOf } from "@/lib/advisor/compose/format";
 import { describeLine, factItems, firstSentences, highlights, placeOf, type PropertyFacts } from "@/lib/agents/knowledge/facts";
-import type { Classification } from "./classify";
+import { SELLER_TOPIC, type Classification } from "./classify";
 import { firstNameOf } from "./prefilter";
 
 export type ReplyProperty = { facts: PropertyFacts; /** Enlace a la ficha, o `null` si no hay dirección pública configurada. */ url: string | null };
@@ -29,6 +29,8 @@ export type ComposeInput = {
   seed: string;
   /** La respuesta sale sola (sin que una persona la revise): se agrega el aviso de asistente automático. */
   auto: boolean;
+  /** Lo que pidió ("casas en venta en Ezeiza"), si pidió algo concreto; `fallback`: lo que se sugiere no coincide, es lo más reciente. */
+  search?: { label: string; fallback: boolean };
 };
 
 const FEATURE_ICONS = new Set(["rooms", "bedrooms", "bathrooms", "area", "garage", "age", "floor", "orientation", "amenity"]);
@@ -70,6 +72,7 @@ export function composeReply(input: ComposeInput): { subject: string; body: stri
   const top = c.topics[0] ?? c.category;
   const details = c.topics.includes("features") || top === "features";
 
+  const seller = c.humanTopics.includes(SELLER_TOPIC);
   const parts: string[] = [name ? `Hola ${name},` : "Hola,"];
   parts.push(settings.greeting.trim() || pick(["Gracias por escribirnos.", "Gracias por tu consulta.", "Gracias por comunicarte con nosotros."], seed));
 
@@ -98,15 +101,27 @@ export function composeReply(input: ComposeInput): { subject: string; body: stri
     } else {
       parts.push("Si querés, contanos qué estás buscando (zona, tipo de propiedad y presupuesto) y te enviamos opciones.");
     }
+  } else if (alternatives.length > 0 && input.search?.fallback) {
+    parts.push(`Por ahora no tenemos nada publicado para ${input.search.label}. Mientras tanto, estas son algunas de nuestras propiedades:`);
+    parts.push(alternatives.map((p) => propertyBlock(p, false)).join("\n\n"));
+    parts.push("Si querés, contanos tu presupuesto y qué es lo más importante para vos, y te avisamos cuando haya algo que encaje.");
+  } else if (alternatives.length > 0 && input.search?.label) {
+    parts.push(pick([`Para ${input.search.label}, esto es lo que tenemos disponible:`, `Sobre ${input.search.label}, tenemos disponible:`], seed >>> 2));
+    parts.push(alternatives.map((p) => propertyBlock(p, false)).join("\n\n"));
+    parts.push(`Si alguna te interesa, escribinos y coordinamos una visita${alternatives[0] ? ` (por ejemplo, en ${placeOf(alternatives[0].facts)})` : ""}.`);
   } else if (alternatives.length > 0) {
     parts.push(pick(["Según lo que nos contás, estas propiedades pueden interesarte:", "Con lo que buscás, te sugerimos estas propiedades:"], seed >>> 2));
     parts.push(alternatives.map((p) => propertyBlock(p, false)).join("\n\n"));
     parts.push(`Si alguna te interesa, escribinos y coordinamos una visita${alternatives[0] ? ` (por ejemplo, en ${placeOf(alternatives[0].facts)})` : ""}.`);
+  } else if (seller) {
+    parts.push("Gracias por pensar en nosotros para tu propiedad. Una persona del equipo se va a comunicar con vos para coordinar la tasación y los pasos que siguen.");
+  } else if (input.search?.label) {
+    parts.push(`Por ahora no tenemos nada publicado para ${input.search.label}. Si querés, contanos tu presupuesto y qué es lo más importante para vos, y te avisamos cuando haya algo que encaje.`);
   } else {
     parts.push("Para ayudarte mejor, ¿nos contás cuál propiedad te interesó o qué estás buscando (zona, tipo de propiedad y presupuesto)? Con eso te enviamos opciones.");
   }
 
-  if (c.needsHuman && c.humanTopics.length > 0) {
+  if (c.needsHuman && c.humanTopics.length > 0 && !seller) {
     parts.push(`Sobre ${list(c.humanTopics)}, te lo confirmamos a la brevedad: lo va a revisar una persona del equipo.`);
   }
 

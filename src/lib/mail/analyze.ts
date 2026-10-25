@@ -4,7 +4,8 @@
  * respondería" (`preview.ts`), así las dos se comportan igual. No escribe nada: sólo lee el catálogo publicado de ESA
  * inmobiliaria.
  */
-import { classifyMail, type Classification } from "./classify";
+import { classifyMail, SELLER_TOPIC, UNSURE_REASON, type Classification } from "./classify";
+import { isInquiry } from "./constants";
 import { composeReply, type ReplyProperty } from "./compose";
 import { selectForMail, type MailSelection } from "./select";
 import type { MailSettingsView } from "./settings";
@@ -23,6 +24,11 @@ export type AnalyzeInput = {
   portal?: boolean;
 };
 
+export type AnalyzeOptions = {
+  /** Una persona dijo "era una consulta": se responde aunque el agente no la hubiera tomado como tal. */
+  forceInquiry?: boolean;
+};
+
 export type Analysis = {
   selection: MailSelection;
   classification: Classification;
@@ -35,15 +41,23 @@ export type Analysis = {
 /** Enlace público a la ficha de una propiedad, o null si no hay dirección pública configurada. */
 export const propertyUrl = (siteUrl: string | null, slug: string): string | null => (siteUrl ? `${siteUrl}/propiedades/${encodeURIComponent(slug)}` : null);
 
-export async function analyzeMail(ctx: AnalyzeCtx, input: AnalyzeInput): Promise<Analysis> {
+export async function analyzeMail(ctx: AnalyzeCtx, input: AnalyzeInput, opts: AnalyzeOptions = {}): Promise<Analysis> {
   const selection = await selectForMail(ctx.agencyId, { subject: input.subject, text: input.text }, siteHosts(), ctx.settings.maxProperties);
-  const classification = classifyMail({
+  let classification = classifyMail({
     subject: input.subject,
     text: input.text,
     hasPropertyRef: selection.properties.length > 0 || selection.unavailable,
-    searchHits: selection.alternatives.length > 0,
+    // Sólo cuenta como "coincide con lo publicado" si lo que se sugiere sí es lo que pidió (no un reemplazo).
+    searchHits: selection.alternatives.length > 0 && !selection.fallback,
     portal: input.portal,
+    search: selection.search,
   });
+  if (opts.forceInquiry && !isInquiry(classification.category)) {
+    classification = { ...classification, category: "general", topics: ["general"], confidence: 0.5, uncertain: true, needsHuman: true, reasons: [UNSURE_REASON] };
+  }
+
+  // A quien quiere vender o tasar no se le ofrecen propiedades del catálogo: lo atiende una persona.
+  const seller = classification.humanTopics.includes(SELLER_TOPIC);
 
   const siteUrl = publicSiteUrl();
   const toReply = (f: MailSelection["properties"][number]): ReplyProperty => ({ facts: f, url: propertyUrl(siteUrl, f.slug) });
@@ -54,11 +68,12 @@ export async function analyzeMail(ctx: AnalyzeCtx, input: AnalyzeInput): Promise
       classification,
       properties: selection.properties.map(toReply),
       unavailable: selection.unavailable,
-      alternatives: selection.alternatives.map(toReply),
+      alternatives: seller ? [] : selection.alternatives.map(toReply),
       settings: ctx.settings,
       agencyName: ctx.agencyName,
       seed: input.seed,
       auto,
+      search: !seller && selection.search.strength > 0 ? { label: selection.search.label, fallback: selection.fallback } : undefined,
     });
 
   return { selection, classification, siteUrl, compose };

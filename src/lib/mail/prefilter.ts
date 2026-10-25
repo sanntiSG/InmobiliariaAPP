@@ -55,7 +55,7 @@ export function prefilter(h: MailHeaders, ctx: PrefilterContext): PrefilterResul
   const portal = isPortalDomain(domain);
 
   if (!from.includes("@")) return { skip: true, category: "other", reason: "No tiene un remitente válido." };
-  if (from === ctx.ownEmail.toLowerCase()) return { skip: true, category: "other", reason: "Lo mandó la propia casilla del buzón." };
+  if (from === ctx.ownEmail.toLowerCase()) return { skip: true, category: "other", reason: "Lo mandaste vos desde esta misma casilla: sólo respondo mails de otras personas." };
   if (isBlocked(from, ctx.blocked) || (reply && isBlocked(reply, ctx.blocked))) return { skip: true, category: "other", reason: "El remitente está bloqueado." };
 
   if (/^(mailer-daemon|postmaster)@/i.test(from) || /multipart\/report/i.test(h.contentType ?? "") || (h.returnPath ?? "").trim() === "<>") {

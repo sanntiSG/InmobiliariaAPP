@@ -8,11 +8,10 @@ import { Types } from "mongoose";
 import { Property } from "@/lib/db/models/Property";
 import { memo } from "@/lib/intelligence/cache";
 import { buildSearchFilter } from "@/lib/advisor/data/market";
-import { buildEntityIndex, extractSlots, type EntityIndex } from "@/lib/advisor/nlu/entities";
-import { detectConcepts } from "@/lib/advisor/nlu/lexicon";
-import { normalizeText, tokenize } from "@/lib/advisor/nlu/normalize";
+import { buildEntityIndex, type EntityIndex } from "@/lib/advisor/nlu/entities";
 import { toFacts, type PropertyDocLike, type PropertyFacts } from "@/lib/agents/knowledge/facts";
 import { extractSlugs } from "./refs";
+import { readRequest, searchSignal, type SearchSignal } from "./signals";
 
 const FIELDS = "status slug title description type operation price address features amenities media.hasTour3d media.hasAmbientCover media.videos";
 
@@ -23,6 +22,10 @@ export type MailSelection = {
   unavailable: boolean;
   /** Sugerencias (parecidas a la que ya no está, o lo que encaja con lo que pide). */
   alternatives: PropertyFacts[];
+  /** Lo que pide el mail (tipo, operación, lugar…), leído con las zonas y títulos reales de la inmobiliaria. */
+  search: SearchSignal;
+  /** Las sugerencias no coinciden con lo que pidió: son lo más reciente de la inmobiliaria. */
+  fallback: boolean;
 };
 
 function agencyIndex(agencyId: string): Promise<EntityIndex> {
@@ -43,23 +46,23 @@ export async function selectForMail(agencyId: string, mail: { subject: string; t
   // 1) Enlaces a nuestras fichas.
   const slugs = extractSlugs(body, siteHosts);
   let unavailable = false;
+  // Lo que pide se lee siempre (con las zonas y títulos reales de la inmobiliaria): sirve para entender y para redactar.
+  const index = await agencyIndex(agencyId);
+  const { slots } = readRequest(mail.subject, mail.text, index);
+  const search = searchSignal(slots, body);
+
   if (slugs.length > 0) {
     const docs = await load({ agencyId: agency, slug: { $in: slugs } }, 10);
     const published = docs.filter((d) => d.status === "published");
     unavailable = docs.length > published.length;
-    if (published.length > 0) return { properties: factsOf(published).slice(0, max), unavailable: false, alternatives: [] };
+    if (published.length > 0) return { properties: factsOf(published).slice(0, max), unavailable: false, alternatives: [], search, fallback: false };
   }
 
   // 2) El nombre de una publicación, o lo que pide.
-  const index = await agencyIndex(agencyId);
-  const norm = normalizeText(body.slice(0, 2000));
-  const tokens = tokenize(norm);
-  const slots = extractSlots(norm, tokens, detectConcepts(tokens), index);
-
   const ids = (slots.propertyIds ?? []).filter((id) => Types.ObjectId.isValid(id)).slice(0, max);
   if (ids.length > 0) {
     const docs = await load({ _id: { $in: ids.map((i) => new Types.ObjectId(i)) }, agencyId: agency, status: "published" }, max);
-    if (docs.length > 0) return { properties: factsOf(docs), unavailable: false, alternatives: [] };
+    if (docs.length > 0) return { properties: factsOf(docs), unavailable: false, alternatives: [], search, fallback: false };
   }
 
   const wants = !!(slots.zones?.length || slots.types?.length || slots.operation || slots.priceMax || slots.rooms != null);
@@ -68,7 +71,13 @@ export async function selectForMail(agencyId: string, mail: { subject: string; t
     const filter = wants ? { ...buildSearchFilter(slots), agencyId: agency } : { status: "published", agencyId: agency };
     let docs = await load(filter, max);
     if (docs.length === 0 && wants) docs = await load({ ...buildSearchFilter({ ...slots, priceMax: undefined, priceMin: undefined, rooms: undefined, amenities: undefined }), agencyId: agency }, max);
-    return { properties: [], unavailable, alternatives: factsOf(docs) };
+    let fallback = false;
+    // Si nada coincide con lo que pidió, se muestra lo más reciente de ESTA inmobiliaria (y se dice que no es lo que pidió).
+    if (docs.length === 0 && wants && !unavailable) {
+      docs = await load({ status: "published", agencyId: agency }, max);
+      fallback = docs.length > 0;
+    }
+    return { properties: [], unavailable, alternatives: factsOf(docs), search, fallback };
   }
-  return { properties: [], unavailable, alternatives: [] };
+  return { properties: [], unavailable, alternatives: [], search, fallback: false };
 }

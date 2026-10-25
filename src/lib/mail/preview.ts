@@ -27,6 +27,10 @@ export type Preview = {
   reasons: string[];
   needsHuman: boolean;
   humanTopics: string[];
+  /** Parece una consulta pero no está seguro de qué necesita: la dejaría para que la revise una persona. */
+  uncertain: boolean;
+  /** Lo que pidió ("casas en venta en Ezeiza"), si pidió algo concreto. */
+  searchLabel: string;
   properties: PreviewProperty[];
   /** Nombra una propiedad que ya no está publicada. */
   unavailable: boolean;
@@ -55,6 +59,8 @@ export async function previewMail(agencyId: string, input: { subject: string; te
     reasons: cls.reasons,
     needsHuman: cls.needsHuman,
     humanTopics: cls.humanTopics,
+    uncertain: cls.uncertain,
+    searchLabel: analysis.selection.search.strength > 0 ? analysis.selection.search.label : "",
     properties: analysis.selection.properties.map(link),
     unavailable: analysis.selection.unavailable,
     alternatives: analysis.selection.alternatives.map(link),

@@ -18,6 +18,7 @@ import { composeReply, replySubject, type ComposeInput, type ReplyProperty } fro
 import { argentinaClock, decideAuto, inSchedule, type AutoInput } from "../src/lib/mail/decide";
 import { presetFor, providerFromEmail, smtpImplicitTls } from "../src/lib/mail/presets";
 import { buildSample } from "../src/lib/mail/preview";
+import { CORPUS, THRESHOLDS, classifySample, runCorpus } from "./mail-corpus";
 import { propertyUrl } from "../src/lib/mail/analyze";
 import type { PropertyFacts } from "../src/lib/agents/knowledge/facts";
 
@@ -261,7 +262,7 @@ async function hosts() {
     { name: "promoción", text: "Descuentos exclusivos en muebles. Para darse de baja haga clic aquí. Promoción imperdible", expect: "newsletter" },
     { name: "estafa", text: "¡Ganaste un premio! Verifica tu cuenta haciendo clic aquí ahora", expect: "spam" },
     { name: "rebote", subject: "Delivery Status Notification (Failure)", text: "El mensaje no se pudo entregar. Undeliverable.", expect: "bounce" },
-    { name: "tasación (no es consulta)", text: "Tengo una casa para vender, ¿pueden tasarla?", expect: "other" },
+    { name: "quiere vender o tasar (lo atiende una persona)", text: "Tengo una casa para vender, ¿pueden tasarla?", expect: "general", human: ["tasación o venta de su propiedad"] },
     { name: "búsqueda sin enlace (plural: salen)", text: "Hola, ¿tienen departamentos en venta en Palermo? ¿Cuánto salen?", hits: true, expect: "price" },
     { name: "búsqueda sin precio", text: "Buenas tardes, estoy buscando una casa en alquiler en Tigre, ¿tienen algo?", hits: true, expect: "general" },
     { name: "menciona la zona pero no es una consulta", text: "Nos vemos el domingo en Palermo, llevo las medialunas", hits: true, expect: "other" },
@@ -279,11 +280,30 @@ async function hosts() {
   const multi = classifyMail({ subject: "", text: "¿Sigue disponible? ¿Cuánto sale? Quisiera visitarla", hasPropertyRef: true });
   check("clasifica: junta todos los temas que toca", ["availability", "price", "visit"].every((t) => multi.topics.includes(t as never)), multi.topics);
   const noise = classifyMail({ subject: "", text: "Hola, pasó algo con la propiedad", hasPropertyRef: false });
-  check("clasifica: sin señales claras y sin propiedad → no es consulta", noise.category === "other");
+  check("clasifica: algo dudoso del rubro de una persona → se deja para revisar, no se tira", noise.category === "general" && noise.uncertain && noise.needsHuman && noise.confidence < 0.6, noise);
   const reasons = classifyMail({ subject: "", text: "¿Sigue disponible?", hasPropertyRef: true });
   check("clasifica: explica por qué", reasons.reasons.length >= 2 && reasons.reasons.some((x) => /nombra una de tus propiedades/.test(x)), reasons.reasons);
   const longSpam = classifyMail({ subject: "", text: "Consulta: ¿cuánto sale? " + "Ganaste un premio, clic aquí. ".repeat(3), hasPropertyRef: false });
   check("clasifica: el engaño le gana a una pregunta suelta", longSpam.category === "spam", longSpam);
+}
+
+// ── Banco de mails: qué tanto entiende (ver scripts/mail-corpus.ts) ───────────
+{
+  const r = runCorpus();
+  const pct = (n: number) => `${(n * 100).toFixed(1)} %`;
+  const detail = (rows: { s: { s?: string; t: string }; outcome: string }[]) => rows.slice(0, 6).map((x) => `${x.s.s ? `[${x.s.s}] ` : ""}${x.s.t.slice(0, 70)} → ${x.outcome}`);
+  check(`corpus (${r.total} mails): entiende al menos ${pct(THRESHOLDS.inquiryRecall)} de las consultas (hoy ${pct(r.inquiryRecall)})`, r.inquiryRecall >= THRESHOLDS.inquiryRecall, detail(r.missedInquiries));
+  check(`corpus: al menos ${pct(THRESHOLDS.clearRecall)} de las consultas claras salen como claras (hoy ${pct(r.clearRecall)})`, r.clearRecall >= THRESHOLDS.clearRecall, detail(r.notClear));
+  check(`corpus: descarta al menos ${pct(THRESHOLDS.noiseRejected)} de lo que no es consulta (hoy ${pct(r.noiseRejected)})`, r.noiseRejected >= THRESHOLDS.noiseRejected, detail(r.falseAlarms));
+  check("corpus: ninguna consulta con palabras del rubro se descarta en silencio", r.missedInquiries.length === 0, detail(r.missedInquiries));
+
+  // Los dos mails reales que se ignoraron en la primera prueba.
+  const sol = classifySample({ l: "clear", s: "Casas en venta en Ezeiza", t: "" });
+  check("real: 'Casas en venta en Ezeiza' (sólo asunto) es una consulta clara", sol.outcome === "clear" && sol.category === "general" && sol.reasons.some((x) => /casas en venta en Ezeiza/.test(x)), sol);
+  check("real: la búsqueda se explica con lo que pidió", sol.reasons.join(" ").includes("busca casas en venta en Ezeiza"), sol.reasons);
+  const fwd = classifySample({ l: "no", s: "Fwd: Casas en venta en ezeiza", t: "" });
+  check("real: el mismo asunto reenviado también se entiende (lo ignora el prefiltro por ser de la propia casilla)", fwd.outcome === "clear");
+  check("corpus: tiene variedad (≥ 150 mails)", CORPUS.length >= 150, CORPUS.length);
 }
 
 // ── Enlaces a nuestras fichas ───────────────────────────────────────────────
