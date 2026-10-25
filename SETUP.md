@@ -149,6 +149,38 @@ health-check ya completos, sólo pide las variables secretas en un formulario).
    alta la primera inmobiliaria real; subir una foto desde ese dashboard confirma
    que Cloudinary quedó bien configurado.
 
+## 8. Agente de correo (opcional)
+
+El agente de correo lee las consultas que llegan a la casilla de una inmobiliaria y le deja la respuesta lista. Está **apagado** hasta que
+el admin lo publica en *Admin → Agentes → Correo*, y **no hace nada** hasta que se cargan estas variables. Ninguna va en el repo:
+se cargan en el panel de cada plataforma.
+
+| Variable | Dónde | Para qué |
+|---|---|---|
+| `MAIL_CREDENTIALS_KEY` | Netlify (y Render, si querés conectar o revisar desde ahí) | Clave que cifra las contraseñas de aplicación. 32 bytes en base64: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`. **Guardá una copia fuera del repo**: si se pierde, hay que reconectar todas las casillas. |
+| `CRON_SECRET` | Netlify **y** como secreto de GitHub | Clave de la revisión programada (mínimo 32 caracteres): `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. |
+| `PUBLIC_SITE_URL` | Netlify (y Render) | La dirección pública con https, por ejemplo `https://tu-sitio.netlify.app`. Los enlaces a las fichas dentro de los mails salen de acá, nunca del encabezado de la petición. |
+| `MAIL_SITE_HOSTS` | opcional | Otros dominios propios (separados por coma) para reconocer enlaces a tus fichas. |
+| `MAIL_POLLER_ENABLED=true` | **sólo Netlify** | Habilita la ruta `/api/cron/mail-poll`. En los demás despliegues la ruta no existe. |
+| `MAIL_SEND_ENABLED=true` | **sólo Netlify** | Habilita el envío por SMTP. Render gratis bloquea SMTP: ahí las respuestas quedan en cola y las manda Netlify. |
+
+**Revisión programada.** En GitHub → *Settings → Secrets and variables → Actions* cargá `CRON_SECRET` (el mismo valor) y `MAIL_POLL_URL`
+(`https://tu-sitio.netlify.app/api/cron/mail-poll`). El flujo `.github/workflows/mail-poll.yml` llama cada 5 minutos; también se puede
+disparar a mano (*Actions → Revisar el correo de las inmobiliarias → Run workflow*). GitHub desactiva los flujos programados tras 60 días
+sin actividad en el repo: si pasa, hay que volver a activarlo. El botón **Revisar ahora** del panel sirve de respaldo.
+
+**Conectar una casilla.** La hace el dueño de la inmobiliaria desde *Agentes → Correo*, con una **contraseña de aplicación** (Gmail exige
+verificación en 2 pasos; Yahoo e iCloud también las ofrecen). El asistente explica cada paso. Outlook/Hotmail queda para una segunda etapa.
+
+**Qué hace y qué no.** Sólo lee la bandeja de entrada en modo lectura y sólo los mails que llegan *después* de conectar; no borra ni mueve
+nada. Guarda el texto (sin adjuntos) 60 días (14 si lo ignoró) y todo se borra al desconectar. Empieza en modo *con confirmación*: nada
+se envía sin que una persona lo confirme. El modo automático sólo responde consultas claras, con una propiedad identificada, de remitentes
+que pasan las verificaciones SPF/DKIM/DMARC y dentro de los topes configurados. Las pruebas de la lógica (sin red ni base): `npm run mail:check`.
+
+**Datos personales (Ley 25.326).** El agente trata nombre, email y texto de las consultas de terceros. La finalidad (atender la consulta),
+la retención (60 días) y el borrado al desconectar están en el aviso que acepta quien conecta la casilla; la política de privacidad del
+sitio la redacta el dueño de la plataforma.
+
 ## Nota de seguridad
 
 `CLAUDE.md` en la raíz del repo tenía una contraseña de GitHub en texto plano — ya se sacó del archivo, pero como estuvo ahí (y el repo se sube a GitHub), **cambiala en github.com → Settings → Password and authentication** y activá 2FA si todavía no lo tenés. No vuelvas a escribir credenciales reales en archivos versionados — usá `gh auth login` o un Personal Access Token para el push, nunca la contraseña de la cuenta.

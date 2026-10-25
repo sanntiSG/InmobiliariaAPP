@@ -13,6 +13,8 @@ export type SheetProps = {
   title?: string;
   /** "bottom": drawer mobile-first (usado también para el panel de filtros). */
   side?: "bottom" | "right";
+  /** Ancho del cajón lateral: "md" (el de siempre) o "lg" (para editar textos largos). */
+  size?: "md" | "lg";
   /**
    * "page" (por defecto): sobre el contenido de la página. "overlay": también por encima del escenario de los agentes
    * (que ocupa toda la pantalla), para abrir un detalle sin cerrarlo.
@@ -26,7 +28,7 @@ const EXIT_MS = 200;
  * Drawer accesible: se desmonta EXIT_MS después de cerrar para poder animar
  * la salida (más rápida que la entrada — ver .impeccable.md / emil-design-eng).
  */
-export function Sheet({ open, onClose, children, title, side = "bottom", layer = "page" }: SheetProps) {
+export function Sheet({ open, onClose, children, title, side = "bottom", size = "md", layer = "page" }: SheetProps) {
   const [shown, setShown] = useState(false);
   const [lingering, setLingering] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -100,7 +102,8 @@ export function Sheet({ open, onClose, children, title, side = "bottom", layer =
             ),
           side === "right" &&
             cn(
-              "inset-y-0 right-0 h-full w-full max-w-sm",
+              "inset-y-0 right-0 h-full w-full",
+              size === "lg" ? "max-w-2xl" : "max-w-sm",
               shown ? "translate-x-0" : "translate-x-full"
             )
         )}

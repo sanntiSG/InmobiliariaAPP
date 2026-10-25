@@ -1,0 +1,56 @@
+# Revisión programada del correo de las inmobiliarias (agente de correo).
+#
+# Llama cada 5 minutos a una ruta protegida del sitio (`/api/cron/mail-poll`) con una clave secreta. La ruta sólo existe
+# en el despliegue que tiene MAIL_POLLER_ENABLED=true (Netlify) y responde únicamente conteos: nunca contenido de mails.
+#
+# Requiere dos secretos en el repositorio (Settings -> Secrets and variables -> Actions):
+#   MAIL_POLL_URL  Dirección completa de la ruta, por ejemplo https://tu-sitio.netlify.app/api/cron/mail-poll
+#   CRON_SECRET    La misma clave que está en las variables de entorno del sitio (mínimo 32 caracteres).
+# Sin los secretos, este flujo no hace nada. Ver SETUP.md, sección "Agente de correo".
+#
+# Seguridad: sin permisos del repositorio, sin descargar código, sin disparadores de pull requests; las claves sólo
+# se usan como variables de entorno del script (nunca se interpolan en el texto del comando).
+name: Revisar el correo de las inmobiliarias
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: mail-poll
+  cancel-in-progress: false
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Llamar a la ruta de revisión
+        env:
+          MAIL_POLL_URL: ${{ secrets.MAIL_POLL_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -eu
+          if [ -z "${MAIL_POLL_URL:-}" ] || [ -z "${CRON_SECRET:-}" ]; then
+            echo "Faltan los secretos MAIL_POLL_URL o CRON_SECRET: no se revisa nada."
+            exit 0
+          fi
+          case "$MAIL_POLL_URL" in
+            https://*) ;;
+            *) echo "MAIL_POLL_URL tiene que empezar con https://"; exit 1 ;;
+          esac
+          # Cada llamada revisa un lote; si quedan mails (more=true) se vuelve a llamar, hasta 10 veces.
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            body=$(curl --silent --show-error --fail --max-time 25 -X POST -H "Authorization: Bearer ${CRON_SECRET}" "$MAIL_POLL_URL") || {
+              echo "La llamada falló (intento $i)."
+              exit 1
+            }
+            echo "$body"
+            case "$body" in
+              *'"more":true'*) ;;
+              *) exit 0 ;;
+            esac
+          done

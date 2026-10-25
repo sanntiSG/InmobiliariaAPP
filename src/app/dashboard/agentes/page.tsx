@@ -15,6 +15,7 @@ export const dynamic = "force-dynamic";
 /** Dónde se ajusta cada agente dentro del panel (si tiene un lugar propio). */
 const SETTINGS: Partial<Record<string, { href: string; label: string }>> = {
   marketing: { href: "/dashboard/contenido", label: "Ver contenido para redes" },
+  mail: { href: "/dashboard/agentes/correo", label: "Configurar el correo" },
 };
 
 export default async function DashboardAgentsPage() {

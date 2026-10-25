@@ -20,6 +20,11 @@ export type AutoInput = {
   needsHuman: boolean;
   /** El servidor del remitente no pasó SPF/DKIM/DMARC. */
   authFailed: boolean;
+  /**
+   * El mail pide que se responda a OTRA dirección (`Reply-To` distinto del remitente) y no viene de un portal conocido.
+   * Quien escribe controla ese encabezado: una respuesta automática podría terminar en la casilla de un tercero.
+   */
+  replyElsewhere: boolean;
   /** Propiedades publicadas que se identificaron en el mail. */
   availableProperties: number;
   /** Respuestas automáticas ya enviadas hoy desde este buzón. */
@@ -54,6 +59,7 @@ export function decideAuto(i: AutoInput): AutoDecision {
   if (i.confidence < AUTO_MIN_CONFIDENCE) return hold("No estoy del todo seguro de qué pregunta.");
   if (i.needsHuman) return hold("Hay algo que tiene que contestar una persona.");
   if (i.authFailed) return hold("El remitente no pasó las verificaciones del correo (puede ser falso).");
+  if (i.replyElsewhere) return hold("Pide que se responda a otra dirección distinta de la que escribió.");
   if (i.availableProperties < 1) return hold("No identifiqué de qué propiedad habla.");
   if (i.settings.schedule.enabled && !inSchedule(i.now, i.settings.schedule.from, i.settings.schedule.to)) return hold("Está fuera del horario de respuesta automática.");
   if (i.sentToday >= i.settings.autoPerDay) return hold("Ya se llegó al tope de respuestas automáticas de hoy.");

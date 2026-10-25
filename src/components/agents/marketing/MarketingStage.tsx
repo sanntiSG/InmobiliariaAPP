@@ -7,8 +7,8 @@ import { useGSAP } from "@gsap/react";
 import { ArrowRight, Download, ImageOff, Palette, RefreshCw, Share2, Sparkles } from "lucide-react";
 import { Button, buttonClasses } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { StreamedText } from "@/components/advisor/StreamedText";
 import { useStage } from "@/components/advisor/StageFrame";
+import { Step, agencyFromLocation } from "@/components/agents/step-kit";
 import { useAdvisorState } from "@/components/advisor/store";
 import { MODES, ModeCard } from "@/components/social/ModeCard";
 import { PropertyPicker } from "@/components/social/PropertyPicker";
@@ -22,17 +22,8 @@ import { PostResult } from "./PostResult";
 import { TemplateThumb } from "./TemplateThumb";
 import { useBlobImage } from "./useBlobImage";
 
-/** Lo que el agente ya "dijo" en esta sesión: al reabrir el escenario no vuelve a escribirlo palabra por palabra. */
-const spoken = new Set<string>();
 /** La última inmobiliaria elegida por el admin (al reabrir sigue en la misma). */
 let lastAgencyId: string | null = null;
-
-/** La inmobiliaria que el admin viene mirando en el panel (`?agencyId=` de la dirección actual, que cambia sin cambiar de página). */
-function agencyFromLocation(): string | null {
-  if (typeof window === "undefined" || !window.location.pathname.startsWith("/dashboard")) return null;
-  const id = new URLSearchParams(window.location.search).get("agencyId");
-  return id && /^[a-f0-9]{24}$/i.test(id) ? id : null;
-}
 
 const clip = (s: string, n = 56) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
 const slug = (s: string) =>
@@ -58,63 +49,6 @@ function useHold(active: boolean, ms: number): boolean {
     return () => window.clearTimeout(t);
   }, [active, ms]);
   return active || held;
-}
-
-/** Lo que dice el agente, escrito palabra por palabra la primera vez (mientras, la mascota "habla"). */
-function Speech({ text, keepTalking = false }: { text: string; keepTalking?: boolean }) {
-  const { setTalking } = useStage();
-  return (
-    <StreamedText
-      key={text}
-      text={text}
-      fresh={!spoken.has(text)}
-      onStart={() => setTalking(true)}
-      onEnd={() => {
-        spoken.add(text);
-        // Mientras trabaja, la mascota sigue "hablando" aunque el texto ya esté completo.
-        if (!keepTalking) setTalking(false);
-      }}
-      className="advisor-lead"
-    />
-  );
-}
-
-/** Marco común de un paso: lo que dice, el contenido y la barra de acciones que siempre se ve abajo. */
-function Step({
-  speech,
-  keepTalking,
-  children,
-  dock,
-  thread,
-}: {
-  speech?: string;
-  keepTalking?: boolean;
-  children?: ReactNode;
-  dock?: ReactNode;
-  thread: React.RefObject<HTMLDivElement | null>;
-}) {
-  const { userScrolledRef, track } = useStage();
-  return (
-    <section className="advisor-thread-wrap">
-      <div
-        ref={thread}
-        className="advisor-thread"
-        onWheel={() => (userScrolledRef.current = true)}
-        onTouchMove={() => (userScrolledRef.current = true)}
-        onScroll={(e) => {
-          if (userScrolledRef.current) track(e.currentTarget.scrollTop);
-        }}
-      >
-        {speech && (
-          <div data-step>
-            <Speech text={speech} keepTalking={keepTalking} />
-          </div>
-        )}
-        {children}
-      </div>
-      {dock && <div className="advisor-dock">{dock}</div>}
-    </section>
-  );
 }
 
 const dockRow = "flex flex-wrap items-center gap-2";

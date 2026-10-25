@@ -164,7 +164,7 @@ async function hosts() {
 
 // ── Clasificación: mails de ejemplo ─────────────────────────────────────────
 {
-  type Case = { name: string; subject?: string; text: string; ref?: boolean; portal?: boolean; expect: string; human?: string[]; minConf?: number };
+  type Case = { name: string; subject?: string; text: string; ref?: boolean; hits?: boolean; portal?: boolean; expect: string; human?: string[]; minConf?: number };
   const cases: Case[] = [
     { name: "disponibilidad con enlace", subject: "Casa en Canning", text: "Hola, ¿sigue disponible la casa de Canning? Gracias", ref: true, expect: "availability", minConf: 0.75 },
     { name: "disponibilidad sin enlace", text: "Buenas tardes, ¿todavía está en venta el departamento de Palermo?", expect: "availability" },
@@ -190,12 +190,15 @@ async function hosts() {
     { name: "estafa", text: "¡Ganaste un premio! Verifica tu cuenta haciendo clic aquí ahora", expect: "spam" },
     { name: "rebote", subject: "Delivery Status Notification (Failure)", text: "El mensaje no se pudo entregar. Undeliverable.", expect: "bounce" },
     { name: "tasación (no es consulta)", text: "Tengo una casa para vender, ¿pueden tasarla?", expect: "other" },
+    { name: "búsqueda sin enlace (plural: salen)", text: "Hola, ¿tienen departamentos en venta en Palermo? ¿Cuánto salen?", hits: true, expect: "price" },
+    { name: "búsqueda sin precio", text: "Buenas tardes, estoy buscando una casa en alquiler en Tigre, ¿tienen algo?", hits: true, expect: "general" },
+    { name: "menciona la zona pero no es una consulta", text: "Nos vemos el domingo en Palermo, llevo las medialunas", hits: true, expect: "other" },
     { name: "saludo corto", text: "Hola", expect: "other" },
     { name: "agradecimiento", text: "Gracias por la información!", expect: "other" },
     { name: "mail personal", text: "Nos vemos el domingo en el asado, llevo el vino.", expect: "other" },
   ];
   for (const c of cases) {
-    const r = classifyMail({ subject: c.subject ?? "", text: c.text, hasPropertyRef: !!c.ref, portal: c.portal });
+    const r = classifyMail({ subject: c.subject ?? "", text: c.text, hasPropertyRef: !!c.ref, searchHits: c.hits, portal: c.portal });
     check(`clasifica: ${c.name} → ${c.expect}`, r.category === c.expect, { got: r.category, conf: r.confidence, topics: r.topics, reasons: r.reasons });
     if (c.human) check(`clasifica: ${c.name} → necesita a una persona (${c.human.join(", ")})`, r.needsHuman && c.human.every((h) => r.humanTopics.includes(h)), r.humanTopics);
     else if (!["spam", "newsletter", "bounce", "automated", "other"].includes(c.expect)) check(`clasifica: ${c.name} → no necesita a una persona`, !r.needsHuman, r.humanTopics);
@@ -309,6 +312,7 @@ async function hosts() {
     confidence: 0.9,
     needsHuman: false,
     authFailed: false,
+    replyElsewhere: false,
     availableProperties: 1,
     sentToday: 0,
     senderRepliedRecently: false,
@@ -322,6 +326,7 @@ async function hosts() {
   check("auto: confianza baja → confirmar", held({ confidence: 0.74 }) && !held({ confidence: 0.75 }));
   check("auto: si hay algo para una persona → confirmar", held({ needsHuman: true }));
   check("auto: remitente que falla SPF/DKIM/DMARC → confirmar", held({ authFailed: true }));
+  check("auto: Reply-To a otra dirección → confirmar (no se puede usar para mandar mails a un tercero)", held({ replyElsewhere: true }));
   check("auto: sin propiedad identificada → confirmar", held({ availableProperties: 0 }));
   check("auto: tope diario", held({ sentToday: 20 }) && !held({ sentToday: 19 }));
   check("auto: a la misma persona no se le responde dos veces en un día", held({ senderRepliedRecently: true }));

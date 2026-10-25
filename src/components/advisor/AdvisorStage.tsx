@@ -2,17 +2,17 @@
 
 import dynamic from "next/dynamic";
 import { RotateCcw } from "lucide-react";
-import { AgentSoon } from "@/components/agents/AgentSoon";
 import { AdvisorThread } from "./AdvisorThread";
 import { StageFrame } from "./StageFrame";
 import { resetThread, stageConfig, useAdvisorState } from "./store";
 
 // Cada agente trae su escenario cuando se abre (el de marketing no pesa para quien sólo usa al asesor).
 const MarketingStage = dynamic(() => import("@/components/agents/marketing/MarketingStage"), { ssr: false });
+const MailStage = dynamic(() => import("@/components/agents/mail/MailStage"), { ssr: false });
 
 /**
  * El escenario del agente que está abierto: el marco común (`StageFrame`) con el contenido de ese agente adentro. El asesor
- * es una conversación; marketing y correo traen su propio escenario (hoy, un aviso provisorio).
+ * es una conversación; marketing (pasos guiados) y correo (el escritorio de mails) traen el suyo.
  */
 export default function AdvisorStage() {
   const s = useAdvisorState();
@@ -38,7 +38,7 @@ export default function AdvisorStage() {
         ) : null
       }
     >
-      {advisor ? <AdvisorThread mode={mode} /> : s.agent === "marketing" ? <MarketingStage /> : <AgentSoon />}
+      {advisor ? <AdvisorThread mode={mode} /> : s.agent === "marketing" ? <MarketingStage /> : <MailStage />}
     </StageFrame>
   );
 }

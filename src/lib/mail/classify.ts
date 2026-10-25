@@ -30,7 +30,8 @@ const RULES: Rule[] = [
   { re: /\bse (alquila|vende)\b/, cat: "availability", w: 2, why: "pregunta si se alquila o se vende" },
   // Precio
   { re: /\b(precio|valor|costo|cotizacion)\b/, cat: "price", w: 3, why: "pregunta por el precio" },
-  { re: /\bcuanto (sale|cuesta|es|vale|piden|se pide|cobran|hay que pagar)\b/, cat: "price", w: 3, why: "pregunta cuánto cuesta" },
+  { re: /\bcuanto (sale|salen|cuesta|cuestan|es|son|vale|valen|piden|se pide|cobran|hay que pagar)\b/, cat: "price", w: 3, why: "pregunta cuánto cuesta" },
+  { re: /\b(precios?|valores)\b/, cat: "price", w: 3, why: "pregunta por el precio" },
   { re: /\b(expensas|abl|impuestos|gastos)\b/, cat: "price", w: 2, why: "pregunta por expensas o gastos" },
   // Características
   { re: /\b(ambientes?|dormitorios?|habitaciones?|banos?|cochera|garage|balcon|terraza|patio|jardin|pileta|piscina|quincho|parrilla|ascensor|baulera|amoblad[oa]|luminos[oa]|orientacion|antiguedad|superficie|m2|metros|cubiert[oa]s?|calefaccion|aire acondicionado|gas natural|apto profesional)\b/, cat: "features", w: 1.5, why: "pregunta por las características" },
@@ -41,6 +42,7 @@ const RULES: Rule[] = [
   { re: /\bhorarios? de (visita|atencion)\b/, cat: "visit", w: 2, why: "pregunta por horarios" },
   // Consulta general
   { re: /\b(consulta|consultar|informacion|info|interesad[oa]|me interesa|me gustaria|quisiera|queria saber|necesito saber)\b/, cat: "general", w: 1.5, why: "pide información" },
+  { re: /\b(tienen|tenes|tienes|hay|busco|buscando|estoy buscando|necesito|quiero|quisiera)\b.{0,40}\b(departamentos?|deptos?|dptos?|casas?|ph|locales?|oficinas?|terrenos?|lotes?|quintas?|propiedades|alquileres|en venta|en alquiler)\b/, cat: "general", w: 2, why: "busca una propiedad" },
   // No son consultas
   { re: /\b(darse de baja|desuscrib\w+|unsubscribe|newsletter)\b/, cat: "newsletter", w: 4, why: "tiene un enlace para darse de baja (lista de correo)" },
   { re: /\b(oferta imperdible|descuentos? exclusiv\w+|promocion\w*|ofertas? de la semana)\b/, cat: "newsletter", w: 2, why: "tiene señales de promoción" },
@@ -65,7 +67,15 @@ const HUMAN: { re: RegExp; topic: string }[] = [
 const FEATURE_CAP = 4.5;
 const PRIORITY: MailCategory[] = ["visit", "price", "availability", "features", "general"];
 
-export function classifyMail(input: { subject: string; text: string; hasPropertyRef: boolean; portal?: boolean }): Classification {
+export function classifyMail(input: {
+  subject: string;
+  text: string;
+  /** Nombra una de las propiedades (enlace o título). */
+  hasPropertyRef: boolean;
+  /** Lo que pide ("departamentos en Palermo") coincide con propiedades del catálogo. */
+  searchHits?: boolean;
+  portal?: boolean;
+}): Classification {
   const plain = stripAccents(`${input.subject}\n${input.text}`.toLowerCase());
   const scores = new Map<MailCategory, number>();
   const why = new Map<MailCategory, string[]>();
@@ -88,7 +98,7 @@ export function classifyMail(input: { subject: string; text: string; hasProperty
   const bestInquiry = [...inquiryScores].sort((a, b) => b[1] - a[1] || PRIORITY.indexOf(a[0]) - PRIORITY.indexOf(b[0]))[0]!;
 
   const questions = Math.min(2, (input.text.match(/[?¿]/g) ?? []).length);
-  const bonus = (input.hasPropertyRef ? 2 : 0) + (input.portal ? 2 : 0) + questions * 0.5;
+  const bonus = (input.hasPropertyRef ? 2 : 0) + (input.searchHits ? 1.5 : 0) + (input.portal ? 2 : 0) + questions * 0.5;
   const inquiryScore = bestInquiry[1] > 0 ? bestInquiry[1] + bonus : 0;
   const topics = inquiryScores
     .filter(([, s]) => s >= 2)
@@ -102,6 +112,7 @@ export function classifyMail(input: { subject: string; text: string; hasProperty
   if (inquiryScore >= 3) {
     const reasons = [...(why.get(bestInquiry[0]) ?? [])];
     if (input.hasPropertyRef) reasons.push("nombra una de tus propiedades");
+    else if (input.searchHits) reasons.push("pide algo que tenés publicado");
     if (input.portal) reasons.push("llegó por un portal inmobiliario");
     // Más señales distintas = más seguridad; los temas que toca ayudan a redactar.
     return { ...base, category: bestInquiry[0], confidence: Math.min(0.97, 0.4 + 0.06 * inquiryScore), reasons };

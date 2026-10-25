@@ -16,6 +16,11 @@ export const ACTIVITY_KINDS = [
   "lead_stage_changed",
   "lead_note_added",
   "social_mode_changed",
+  "mail_connected",
+  "mail_disconnected",
+  "mail_settings_changed",
+  /** El admin abrió el contenido del correo de una inmobiliaria ("viendo como"): queda registro para que la inmobiliaria lo sepa. */
+  "mail_admin_viewed",
 ] as const;
 export type ActivityKind = (typeof ACTIVITY_KINDS)[number];
 
