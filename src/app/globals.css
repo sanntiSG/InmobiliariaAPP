@@ -1791,6 +1791,36 @@ body {
   opacity: 0;
 }
 
+/* ── Agente de marketing: la espera mientras se dibuja la publicación ────────────────────────────
+   Un barrido de luz sobre el lienzo vacío (sólo transform) y un punto que late en el paso actual. */
+.agent-sweep {
+  background: linear-gradient(100deg, transparent 30%, color-mix(in oklab, var(--text) 9%, transparent) 50%, transparent 70%);
+  transform: translateX(-100%);
+  animation: agent-sweep 1.5s ease-in-out infinite;
+}
+@keyframes agent-sweep {
+  to {
+    transform: translateX(100%);
+  }
+}
+.agent-pulse {
+  animation: agent-pulse 1s ease-in-out infinite;
+}
+/* La imagen terminada se descubre de arriba hacia abajo (clip-path: no mueve nada del layout). */
+.agent-reveal {
+  clip-path: inset(0 0 100% 0);
+  transition: clip-path 700ms var(--ease-out);
+}
+.agent-reveal[data-shown="true"] {
+  clip-path: inset(0 0 0 0);
+}
+@keyframes agent-pulse {
+  50% {
+    transform: scale(1.7);
+    opacity: 0.55;
+  }
+}
+
 /* Imagen u orbe que ocupa el lugar de la mascota mientras carga el 3D (o si no hay WebGL). */
 .advisor-mascot {
   position: relative;

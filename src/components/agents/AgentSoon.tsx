@@ -3,10 +3,6 @@
 import { useStage } from "@/components/advisor/StageFrame";
 
 const COPY: Record<string, { lead: string; detail: string }> = {
-  marketing: {
-    lead: "Todavía estoy aprendiendo mi trabajo.",
-    detail: "Pronto te voy a preparar, paso a paso, la imagen y el texto de tus publicaciones para redes.",
-  },
   mail: {
     lead: "Todavía estoy aprendiendo mi trabajo.",
     detail: "Pronto voy a leer las consultas que lleguen a tu casilla y te voy a dejar las respuestas listas para confirmar.",
@@ -16,7 +12,7 @@ const COPY: Record<string, { lead: string; detail: string }> = {
 /** Cuerpo provisorio de un agente cuyo escenario todavía no está listo (se reemplaza por el definitivo en cada etapa). */
 export function AgentSoon() {
   const { config } = useStage();
-  const copy = COPY[config.id] ?? COPY.marketing!;
+  const copy = COPY[config.id] ?? COPY.mail!;
   return (
     <section className="advisor-thread-wrap">
       <div className="advisor-thread">

@@ -19,6 +19,8 @@ export type StageApi = {
   shown: boolean;
   /** La mascota "habla" mientras aparece el texto. */
   setTalking: (talking: boolean) => void;
+  /** Lo que se muestra en la etiqueta de estado mientras el agente trabaja ("Preparando"); `null` para volver a "Listo". */
+  setBusyLabel: (label: string | null) => void;
   /** La mascota se sorprende (una vez por llamada). */
   surprise: () => void;
   /** La persona deslizó el contenido a mano: sólo entonces la mascota se achica. */
@@ -100,6 +102,7 @@ export function StageFrame({ open, origin, config, preview, busyLabel, ariaLabel
 
   // Mascota: "habla" mientras aparece el texto; sorprendida si la respuesta trae algo fuera de lo común.
   const [talking, setTalking] = useState(false);
+  const [innerBusy, setBusyLabel] = useState<string | null>(null);
   const [surpriseKey, setSurpriseKey] = useState(0);
   const surprise = useCallback(() => setSurpriseKey((k) => k + 1), []);
   // La mascota se achica sólo cuando la PERSONA desliza el contenido, no cuando el escenario baja solo a una respuesta nueva.
@@ -193,13 +196,13 @@ export function StageFrame({ open, origin, config, preview, busyLabel, ariaLabel
   }, [origin]);
 
   const api = useMemo<StageApi | null>(
-    () => (config ? { config, shown, setTalking, surprise, userScrolledRef, track, release, close: closeAdvisor } : null),
+    () => (config ? { config, shown, setTalking, setBusyLabel, surprise, userScrolledRef, track, release, close: closeAdvisor } : null),
     [config, shown, surprise, track, release]
   );
 
   if (!mounted || !config || !api) return null;
 
-  const status = busyLabel ? busyLabel : talking ? "Respondiendo" : "Listo";
+  const status = busyLabel ?? innerBusy ?? (talking ? "Respondiendo" : "Listo");
 
   return createPortal(
     <div

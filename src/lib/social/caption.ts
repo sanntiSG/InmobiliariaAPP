@@ -34,25 +34,42 @@ export function hashtagify(raw: string): string | null {
     .split(/[^A-Za-z0-9]+/)
     .filter(Boolean);
   if (words.length === 0) return null;
-  const body = words.map((w) => `${w.charAt(0).toUpperCase()}${w.slice(1).toLowerCase()}`).join("").slice(0, MAX_TAG_LENGTH);
+  // Las siglas cortas se respetan ("CABA", "PH"); el resto va en CamelCase.
+  const camel = (w: string) => (/^[A-Z]{2,4}$/.test(w) ? w : `${w.charAt(0).toUpperCase()}${w.slice(1).toLowerCase()}`);
+  const body = words.map(camel).join("").slice(0, MAX_TAG_LENGTH);
   return /^\d+$/.test(body) ? null : `#${body}`;
 }
+
+/** Se vive en ella: el gancho puede hablar de "hogar" o de "mudarse". Los demás tipos (oficina, local, galpón, terreno) son para trabajar o construir. */
+const RESIDENTIAL = new Set(["casa", "departamento", "ph", "quinta"]);
 
 function hook(p: PropertyFacts, seed: number): string {
   const op = p.operation as Operation;
   const noun = typeLabel(p.type, false);
   const article = typeGender(p.type).the === "las" ? "una" : "un";
   const place = placeOf(p);
+  const home = RESIDENTIAL.has(p.type);
   if (op === "venta") {
     return pick(
-      [`Tu próximo hogar está en ${place}.`, `Hay ${article} ${noun} en venta en ${place} que tenés que conocer.`, `Una oportunidad para vivir en ${place}.`],
+      home
+        ? [`Tu próximo hogar está en ${place}.`, `Hay ${article} ${noun} en venta en ${place} que tenés que conocer.`, `Una oportunidad para vivir en ${place}.`]
+        : [
+            p.type === "terreno" ? `Tu próximo proyecto empieza en ${place}.` : `Tu próximo negocio está en ${place}.`,
+            `Hay ${article} ${noun} en venta en ${place} que tenés que conocer.`,
+            `Una oportunidad para invertir en ${place}.`,
+          ],
       seed
     );
   }
   if (op === "alquiler_temporal") {
     return pick([`Escapate a ${place}: ${article} ${noun} para tu próxima estadía.`, `Tu próxima estadía en ${place} te está esperando.`], seed);
   }
-  return pick([`Alquilá ${article} ${noun} en ${place}.`, `Tu próximo alquiler está en ${place}.`, `Mudate a ${place}: ${article} ${noun} te espera.`], seed);
+  return pick(
+    home
+      ? [`Alquilá ${article} ${noun} en ${place}.`, `Tu próximo alquiler está en ${place}.`, `Mudate a ${place}: ${article} ${noun} te espera.`]
+      : [`Alquilá ${article} ${noun} en ${place}.`, `Tu próximo alquiler está en ${place}.`],
+    seed
+  );
 }
 
 const ACTION = [
@@ -64,7 +81,7 @@ const ACTION = [
 function tags(p: PropertyFacts, agencyName: string): string[] {
   const op = p.operation as Operation;
   const noun = typeLabel(p.type, false);
-  const base = op === "venta" ? ["EnVenta", "PropiedadesEnVenta"] : op === "alquiler" ? ["EnAlquiler", "Alquileres"] : ["AlquilerTemporal", "Escapadas"];
+  const base = op === "venta" ? ["En Venta", "Propiedades En Venta"] : op === "alquiler" ? ["En Alquiler", "Alquileres"] : ["Alquiler Temporal", "Escapadas"];
   const candidates = [
     hashtagify(`${noun} ${base[0]}`),
     hashtagify(base[1]!),

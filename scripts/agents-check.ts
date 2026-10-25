@@ -235,6 +235,7 @@ check("recommend sí lo gasta", !isFreeIntent("explorer.recommend"));
 {
   check("hashtagify: CamelCase y sin espacios", hashtagify("Villa Urquiza") === "#VillaUrquiza", hashtagify("Villa Urquiza"));
   check("hashtagify: sin tildes ni ñ", hashtagify("Núñez") === "#Nunez" && hashtagify("Cañuelas") === "#Canuelas", [hashtagify("Núñez"), hashtagify("Cañuelas")]);
+  check("hashtagify: respeta las siglas cortas", hashtagify("CABA") === "#CABA" && hashtagify("PH") === "#PH" && hashtagify("Gran Buenos Aires") === "#GranBuenosAires");
   check("hashtagify: vacío y sólo números → null", hashtagify("  ") === null && hashtagify("123") === null);
   check("hashtagify: tope de largo", (hashtagify("a".repeat(80))?.length ?? 99) <= 31);
 
@@ -272,6 +273,9 @@ check("recommend sí lo gasta", !isFreeIntent("explorer.recommend"));
   const rent = buildCaption({ ...capFacts, operation: "alquiler", price: { amount: 850_000, currency: "ARS", period: "mensual" } }, input);
   check("caption: alquiler habla de alquiler y 'por mes'", /lquil/.test(rent.text) && /por mes/.test(rent.text), rent.text);
   check("captionToString junta texto y hashtags", captionToString(cap).endsWith(cap.hashtags.join(" ")));
+  check("hashtags: 'en venta' queda en CamelCase", cap.hashtags.includes("#CasaEnVenta"), cap.hashtags);
+  const office = Array.from({ length: 12 }, (_, i) => buildCaption({ ...capFacts, type: "oficina", city: "Rosario", neighborhood: null }, { ...input, seed: `o${i}` }).text).join("\n");
+  check("caption: una oficina nunca 'es para vivir' ni 'mudarse'", !/vivir|hogar|Mudate/.test(office), office.slice(0, 300));
 }
 
 // ── Qué promocionar ─────────────────────────────────────────────────────────

@@ -1,10 +1,14 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { RotateCcw } from "lucide-react";
 import { AgentSoon } from "@/components/agents/AgentSoon";
 import { AdvisorThread } from "./AdvisorThread";
 import { StageFrame } from "./StageFrame";
 import { resetThread, stageConfig, useAdvisorState } from "./store";
+
+// Cada agente trae su escenario cuando se abre (el de marketing no pesa para quien sólo usa al asesor).
+const MarketingStage = dynamic(() => import("@/components/agents/marketing/MarketingStage"), { ssr: false });
 
 /**
  * El escenario del agente que está abierto: el marco común (`StageFrame`) con el contenido de ese agente adentro. El asesor
@@ -34,7 +38,7 @@ export default function AdvisorStage() {
         ) : null
       }
     >
-      {advisor ? <AdvisorThread mode={mode} /> : <AgentSoon />}
+      {advisor ? <AdvisorThread mode={mode} /> : s.agent === "marketing" ? <MarketingStage /> : <AgentSoon />}
     </StageFrame>
   );
 }
