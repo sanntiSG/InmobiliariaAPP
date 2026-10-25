@@ -48,12 +48,14 @@ npx auth secret
 ## 4. Cargar datos de prueba
 
 ```bash
-npm run seed
+npm run seed -- --wipe
 ```
+
+> ⚠️ El seed **borra** todos los usuarios, inmobiliarias, propiedades e interacciones de la base antes de crear los datos demo. Por eso exige `--wipe`: usalo **solo** contra una base de pruebas, nunca contra una con datos reales.
 
 Esto crea ~4 inmobiliarias y ~40 propiedades demo distribuidas en CABA/AMBA (coordenadas reales), con features variadas y ~30% con recorrido 3D (mitad con un mesh `.glb` de muestra vía `<model-viewer>`, mitad con un link de Matterport de demo), para poder ver el mapa y los dos tipos de recorrido poblados sin cargar nada a mano.
 
-**Cuentas demo creadas por el seed** (todas con contraseña `Umbral2026!`):
+**Cuentas demo creadas por el seed** (la contraseña es **distinta en cada corrida**: el seed la imprime una sola vez al terminar; con la variable `SEED_PASSWORD` podés fijar una propia en tu máquina — nunca la escribas en un archivo del repo, que es público):
 
 | Rol | Email | Para qué |
 |---|---|---|

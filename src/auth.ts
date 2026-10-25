@@ -43,6 +43,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) return null;
 
+        // El admin de la plataforma entra con Google (email verificado). Una cuenta admin con contraseña y email sin
+        // verificar es justo lo que alguien podría haber registrado de antemano: no se acepta por contraseña.
+        if (user.role === "admin" && !user.emailVerified) return null;
+
         return {
           id: String(user._id),
           name: user.name,
@@ -74,6 +78,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
       const access = await resolveAccessForEmail(email);
 
+      // Registro con contraseña SIN verificar el email: cualquiera pudo haberlo hecho con el email de otra persona. Quien
+      // entra ahora con Google sí demuestra que el email es suyo, así que esa contraseña (que nunca se probó que fuera
+      // suya) se anula antes de darle el rol. Si era realmente suya, sigue entrando con Google.
+      const previous = await User.findOne({ email }).select("passwordHash emailVerified").lean();
+      const clearedPassword = !!previous?.passwordHash && !previous.emailVerified;
+      if (clearedPassword) await User.updateOne({ email }, { $set: { passwordHash: null } });
+
       // Upsert: crear si no existe, actualizar datos de Google si ya existe.
       // `role`/`agencyId` siempre se fijan explícitamente (nunca quedan
       // huérfanos de un estado anterior) con el valor ya resuelto.
@@ -95,6 +106,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         },
         { upsert: true, new: true }
       );
+
+      if (clearedPassword) {
+        const { createNotification } = await import("@/lib/notifications/create");
+        await createNotification({
+          userId: String(dbUser._id),
+          type: "system",
+          title: "Por seguridad, ahora entrás con Google",
+          body: "Tu cuenta tenía una contraseña cuyo email nunca se verificó, así que la desactivamos. Seguí entrando con el botón de Google.",
+          href: "/perfil",
+          dedupeKey: `pw-cleared:${String(dbUser._id)}`,
+        });
+      }
 
       // Inyectar datos en el objeto user para que el callback jwt los reciba
       user.id = String(dbUser._id);

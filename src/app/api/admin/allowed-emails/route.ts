@@ -68,14 +68,15 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const { allowedEmailId } = await grantAgencyAccess({
+    const { allowedEmailId, deferredToGoogle } = await grantAgencyAccess({
       email: parsed.data.email,
       agencyId: agencyId ?? null,
       role,
       grantedByUserId: admin.id,
     });
 
-    return NextResponse.json({ _id: allowedEmailId }, { status: 201 });
+    // `deferredToGoogle`: esa cuenta existía con contraseña sin verificar; el permiso se activa cuando entre con Google.
+    return NextResponse.json({ _id: allowedEmailId, deferredToGoogle }, { status: 201 });
   } catch (err) {
     if (err instanceof GrantAccessError) {
       return NextResponse.json({ error: err.message }, { status: err.status });

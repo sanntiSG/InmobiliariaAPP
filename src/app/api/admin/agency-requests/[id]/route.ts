@@ -54,13 +54,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     // Aprobar: mismo flujo que "Accesos". Si el admin ya había autorizado ese
     // email por esa vía, alcanza con dejar la solicitud como aprobada.
+    let deferredToGoogle = false;
     try {
-      await grantAgencyAccess({
+      ({ deferredToGoogle } = await grantAgencyAccess({
         email: request.email,
         agencyId: null,
         role: "agency_owner",
         grantedByUserId: admin.id,
-      });
+      }));
     } catch (err) {
       const alreadyGranted = err instanceof GrantAccessError && (await AllowedEmail.exists({ email: request.email }));
       if (!alreadyGranted) {
@@ -76,7 +77,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       }
     }
 
-    return NextResponse.json({ ok: true, status: "approved" });
+    // La cuenta se registró con contraseña y nunca verificó su email: se le anuló la contraseña y el permiso se activa al
+    // entrar con Google. Como no va a recibir el aviso de "aprobado" hasta entonces, se le explica ahora.
+    if (deferredToGoogle) {
+      await createNotification({
+        userId: String(request.userId),
+        type: "system",
+        title: "Tu solicitud fue aprobada: entrá con Google",
+        body: "Para activar tu permiso, iniciá sesión con el botón de Google usando este mismo email.",
+        href: "/ingresar",
+        dedupeKey: `agency_deferred:${String(request._id)}`,
+      });
+    }
+
+    return NextResponse.json({ ok: true, status: "approved", deferredToGoogle });
   } catch (err) {
     console.error("PATCH /api/admin/agency-requests/[id] failed:", err);
     return NextResponse.json({ error: "No se pudo resolver la solicitud." }, { status: 503 });

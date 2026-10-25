@@ -57,7 +57,7 @@ export function approvalNotification(userId: string, hasAgency: boolean, grantId
  */
 export async function grantAgencyAccess(
   input: GrantAgencyAccessInput
-): Promise<{ createdUser: boolean; allowedEmailId: string }> {
+): Promise<{ createdUser: boolean; allowedEmailId: string; deferredToGoogle: boolean }> {
   await connectDB();
 
   const email = input.email.toLowerCase();
@@ -94,6 +94,16 @@ export async function grantAgencyAccess(
     createdUser = true;
   }
 
+  // Una cuenta que ya existía con contraseña y SIN email verificado puede haberla registrado cualquiera con el email
+  // de otra persona (el registro no verifica nada). Darle el rol acá sería entregarle la inmobiliaria a quien la
+  // registró: se anula esa contraseña y el permiso queda pendiente hasta que la persona entre con Google, que sí
+  // demuestra que el email es suyo (ver el callback `signIn` de src/auth.ts).
+  const deferredToGoogle = !!user && !createdUser && !!user.passwordHash && !user.emailVerified;
+  if (deferredToGoogle && user) {
+    await User.updateOne({ _id: user._id }, { $set: { passwordHash: null } });
+    user = null;
+  }
+
   // pending: nunca inició sesión. awaiting_agency: ya inició sesión (o se le
   // creó la cuenta acá) pero falta inmobiliaria. active: ya tiene las dos cosas.
   const status = !user ? "pending" : agencyId ? "active" : "awaiting_agency";
@@ -120,5 +130,5 @@ export async function grantAgencyAccess(
     await createNotification(approvalNotification(String(user._id), Boolean(agencyId), String(record._id)));
   }
 
-  return { createdUser, allowedEmailId: String(record._id) };
+  return { createdUser, allowedEmailId: String(record._id), deferredToGoogle };
 }

@@ -33,6 +33,8 @@ const nextConfig: NextConfig = {
         source: "/:path*",
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },
+          // Sólo HTTPS durante un año (sin includeSubDomains ni preload: no se compromete lo que no se controla).
+          { key: "Strict-Transport-Security", value: "max-age=31536000" },
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           {

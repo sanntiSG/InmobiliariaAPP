@@ -1,13 +1,19 @@
 /**
  * Seed de datos demo: ~4 inmobiliarias + ~40 propiedades repartidas por
  * CABA/AMBA, con coordenadas reales, para poder ver el mapa poblado sin
- * cargar nada a mano. Ejecutar con `npm run seed` (ver SETUP.md).
+ * cargar nada a mano. Ejecutar con `npm run seed -- --wipe` (ver SETUP.md).
+ *
+ * ⚠️ BORRA inmobiliarias, usuarios, propiedades e interacciones antes de crear los datos demo: por eso exige el
+ * indicador `--wipe` y nunca debe correrse contra una base con datos reales. Las cuentas demo reciben una contraseña
+ * AL AZAR por corrida (se imprime una sola vez; con `SEED_PASSWORD` se puede fijar una propia en tu máquina). El repo es
+ * público: ninguna contraseña real ni de ejemplo debe escribirse en archivos.
  */
 import { config } from "dotenv";
 config({ path: ".env.local" });
 
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
+import { randomBytes } from "node:crypto";
 import { Agency } from "../src/lib/db/models/Agency";
 import { User } from "../src/lib/db/models/User";
 import { Property } from "../src/lib/db/models/Property";
@@ -110,6 +116,14 @@ async function main() {
     process.exit(1);
   }
 
+  if (!process.argv.includes("--wipe")) {
+    console.error(
+      "El seed BORRA todos los usuarios, inmobiliarias, propiedades e interacciones de la base. " +
+        "Si de verdad es una base de pruebas, corré: npm run seed -- --wipe"
+    );
+    process.exit(1);
+  }
+
   await mongoose.connect(uri);
   console.log("Conectado a MongoDB. Limpiando datos demo previos...");
   await Promise.all([
@@ -119,15 +133,19 @@ async function main() {
     Interaction.deleteMany({}),
   ]);
 
-  const passwordHash = await bcrypt.hash("Umbral2026!", 10);
+  // Contraseña al azar por corrida (nunca una fija en el código: el repo es público).
+  const demoPassword = process.env.SEED_PASSWORD || randomBytes(12).toString("base64url");
+  const passwordHash = await bcrypt.hash(demoPassword, 10);
+  const verifiedAt = new Date(); // cuentas de prueba creadas por el dueño del entorno: no hay email que verificar
 
   await User.create({
     name: "Admin Umbral",
     email: "admin@umbral.app",
     passwordHash,
     role: "admin",
+    emailVerified: verifiedAt,
   });
-  console.log("Usuario admin creado: admin@umbral.app / Umbral2026!");
+  console.log("Usuario admin demo creado: admin@umbral.app");
 
   const agencies = [];
   for (const seed of AGENCY_SEEDS) {
@@ -148,6 +166,7 @@ async function main() {
       passwordHash,
       role: "agency_owner",
       agencyId: agency._id,
+      emailVerified: verifiedAt,
     });
     agency.owners = [owner._id];
     await agency.save();
@@ -242,7 +261,8 @@ async function main() {
   }
 
   console.log(`Listo: ${agencies.length} inmobiliarias, ${created} propiedades.`);
-  console.log(`Login demo (cuando exista auth): admin@<slug-inmobiliaria>.com.ar / Umbral2026!`);
+  console.log("Cuentas demo: admin@umbral.app y admin@<slug-inmobiliaria>.com.ar");
+  console.log(`Contraseña de esta corrida (anotala ahora, no se vuelve a mostrar): ${demoPassword}`);
   await mongoose.disconnect();
 }
 
