@@ -23,7 +23,7 @@ export type PostData = {
 type PropertyInput = {
   type: string;
   operation: string;
-  price?: { amount?: number | null; currency?: string | null } | null;
+  price?: { amount?: number | null; currency?: string | null; period?: string | null } | null;
   address?: { neighborhood?: string | null; city?: string | null } | null;
   features?: {
     rooms?: number | null;
@@ -88,7 +88,8 @@ export function buildPostData(
       .join(", "),
     operation: op === "venta" ? "En venta" : op === "alquiler" ? "En alquiler" : OPERATION_LABELS[op] ?? "",
     price: formatPrice(property.price?.amount ?? 0, property.price?.currency ?? "USD"),
-    priceSuffix: op === "venta" ? "" : "/mes",
+    // "/mes" sólo si se paga por mes (el alquiler temporal suele ser por estadía y el precio va sin sufijo).
+    priceSuffix: op === "alquiler" || property.price?.period === "mensual" ? "/mes" : "",
     specs,
     agencyName: agency.name,
     agencyLogo,

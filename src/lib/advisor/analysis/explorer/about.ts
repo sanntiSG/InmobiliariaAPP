@@ -6,7 +6,7 @@
 import { Types } from "mongoose";
 import { Property } from "@/lib/db/models/Property";
 import { User } from "@/lib/db/models/User";
-import { describeLine, factItems, firstSentences, highlights, type PropertyFacts } from "@/lib/agents/knowledge/facts";
+import { describeLine, factItems, firstSentences, highlights, toFacts, type PropertyDocLike, type PropertyFacts } from "@/lib/agents/knowledge/facts";
 import { matchPreferences, type Fit, type PrefInput } from "@/lib/agents/knowledge/preferences";
 import { getTasteProfile } from "@/lib/intelligence/user-profile";
 import { list, pick, quote } from "../../compose/format";
@@ -16,61 +16,6 @@ import type { AdvisorAction, AdvisorBlock, Slots, SuggestionQuery } from "../../
 import type { Handler, HandlerResult } from "../types";
 
 const lcFirst = (s: string): string => s.charAt(0).toLowerCase() + s.slice(1);
-
-type ListedDoc = {
-  _id: Types.ObjectId;
-  slug: string;
-  title: string;
-  description?: string | null;
-  type: string;
-  operation: string;
-  price: { amount: number; currency?: string | null; expenses?: number | null; period?: string | null };
-  address?: { neighborhood?: string | null; city?: string | null } | null;
-  features?: {
-    rooms?: number | null;
-    bedrooms?: number | null;
-    bathrooms?: number | null;
-    garages?: number | null;
-    coveredArea?: number | null;
-    totalArea?: number | null;
-    age?: number | null;
-    floor?: number | null;
-    orientation?: string | null;
-  } | null;
-  amenities?: string[] | null;
-  media?: { hasTour3d?: boolean | null; hasAmbientCover?: boolean | null; videos?: unknown[] | null } | null;
-  agencyId?: { name?: string | null; slug?: string | null } | Types.ObjectId | null;
-};
-
-function toFacts(doc: ListedDoc): PropertyFacts {
-  const agency = doc.agencyId && !(doc.agencyId instanceof Types.ObjectId) ? doc.agencyId : null;
-  return {
-    id: String(doc._id),
-    slug: doc.slug,
-    title: doc.title,
-    description: doc.description ?? "",
-    type: doc.type,
-    operation: doc.operation,
-    price: { amount: doc.price.amount, currency: doc.price.currency ?? "USD", expenses: doc.price.expenses, period: doc.price.period },
-    neighborhood: doc.address?.neighborhood ?? null,
-    city: doc.address?.city ?? "",
-    rooms: doc.features?.rooms,
-    bedrooms: doc.features?.bedrooms,
-    bathrooms: doc.features?.bathrooms,
-    garages: doc.features?.garages,
-    coveredArea: doc.features?.coveredArea,
-    totalArea: doc.features?.totalArea,
-    age: doc.features?.age,
-    floor: doc.features?.floor,
-    orientation: doc.features?.orientation,
-    amenities: (doc.amenities ?? []) as string[],
-    hasTour: !!doc.media?.hasTour3d,
-    hasAmbient: !!doc.media?.hasAmbientCover,
-    videoCount: doc.media?.videos?.length ?? 0,
-    agencyName: agency?.name ?? null,
-    agencySlug: agency?.slug ?? null,
-  };
-}
 
 /** Sugerencias después de contar una propiedad: ¿está bien de precio?, otras parecidas, y recomendaciones si hay cuenta. */
 function followUpsFor(p: PropertyFacts, signedIn: boolean): SuggestionQuery[] {
@@ -198,7 +143,7 @@ export const aboutProperty: Handler = async (env): Promise<HandlerResult> => {
   const doc = (await Property.findOne({ _id: id, status: "published" })
     .select("title slug description type operation price address.neighborhood address.city features amenities media.hasTour3d media.hasAmbientCover media.videos agencyId")
     .populate({ path: "agencyId", select: "name slug" })
-    .lean()) as ListedDoc | null;
+    .lean()) as PropertyDocLike | null;
 
   if (!doc) {
     return {

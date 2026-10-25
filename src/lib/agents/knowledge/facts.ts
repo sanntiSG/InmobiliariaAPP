@@ -46,11 +46,71 @@ export function placeOf(p: Pick<PropertyFacts, "neighborhood" | "city">): string
   return p.city;
 }
 
+/** ¿Se paga por mes? Alquiler, o cualquier operación cargada con período mensual (el alquiler temporal suele ser por estadía). */
+export const isMonthly = (p: Pick<PropertyFacts, "operation" | "price">): boolean => p.operation === "alquiler" || p.price.period === "mensual";
+
 /** "US$175.000" en venta; "$850.000 por mes" en alquiler. */
 export function priceText(p: Pick<PropertyFacts, "operation" | "price">): string {
   const base = money(p.price.amount, p.price.currency);
-  const monthly = p.operation !== "venta" || p.price.period === "mensual";
-  return monthly ? `${base} por mes` : base;
+  return isMonthly(p) ? `${base} por mes` : base;
+}
+
+/** Un documento de propiedad tal como sale de la base (con la inmobiliaria poblada o no), con lo que hace falta para contarla. */
+export type PropertyDocLike = {
+  _id: { toString(): string };
+  slug: string;
+  title: string;
+  description?: string | null;
+  type: string;
+  operation: string;
+  price?: { amount?: number | null; currency?: string | null; expenses?: number | null; period?: string | null } | null;
+  address?: { neighborhood?: string | null; city?: string | null } | null;
+  features?: {
+    rooms?: number | null;
+    bedrooms?: number | null;
+    bathrooms?: number | null;
+    garages?: number | null;
+    coveredArea?: number | null;
+    totalArea?: number | null;
+    age?: number | null;
+    floor?: number | null;
+    orientation?: string | null;
+  } | null;
+  amenities?: string[] | null;
+  media?: { hasTour3d?: boolean | null; hasAmbientCover?: boolean | null; videos?: unknown[] | null } | null;
+  agencyId?: unknown;
+};
+
+/** Datos de una propiedad listos para contarse, a partir de su documento (la inmobiliaria sólo se toma si viene poblada). */
+export function toFacts(doc: PropertyDocLike): PropertyFacts {
+  const raw = doc.agencyId;
+  const agency = raw && typeof raw === "object" && "name" in raw ? (raw as { name?: string | null; slug?: string | null }) : null;
+  return {
+    id: String(doc._id),
+    slug: doc.slug,
+    title: doc.title,
+    description: doc.description ?? "",
+    type: doc.type,
+    operation: doc.operation,
+    price: { amount: doc.price?.amount ?? 0, currency: doc.price?.currency ?? "USD", expenses: doc.price?.expenses, period: doc.price?.period },
+    neighborhood: doc.address?.neighborhood ?? null,
+    city: doc.address?.city ?? "",
+    rooms: doc.features?.rooms,
+    bedrooms: doc.features?.bedrooms,
+    bathrooms: doc.features?.bathrooms,
+    garages: doc.features?.garages,
+    coveredArea: doc.features?.coveredArea,
+    totalArea: doc.features?.totalArea,
+    age: doc.features?.age,
+    floor: doc.features?.floor,
+    orientation: doc.features?.orientation,
+    amenities: (doc.amenities ?? []) as string[],
+    hasTour: !!doc.media?.hasTour3d,
+    hasAmbient: !!doc.media?.hasAmbientCover,
+    videoCount: doc.media?.videos?.length ?? 0,
+    agencyName: agency?.name ?? null,
+    agencySlug: agency?.slug ?? null,
+  };
 }
 
 /** Superficie que se muestra: la cubierta si hay; si no, la total. */

@@ -91,11 +91,12 @@ export type RenderInput = {
 
 /** Dibuja la publicación (PNG 1080×1350). Devuelve `null` si la foto no se puede leer. */
 export async function renderPost(input: RenderInput): Promise<ImageResponse | null> {
-  const photo = await resolveImage(input.photoUrl, { w: POST_WIDTH, h: POST_HEIGHT, fill: true });
+  // La foto y el logo se bajan a la vez (antes uno esperaba al otro).
+  const [photo, logo] = await Promise.all([
+    resolveImage(input.photoUrl, { w: POST_WIDTH, h: POST_HEIGHT, fill: true }),
+    input.agency.logo ? resolveImage(input.agency.logo, { w: 120, h: 120, fill: false }) : Promise.resolve(null),
+  ]);
   if (!photo) return null;
-  const logo = input.agency.logo
-    ? await resolveImage(input.agency.logo, { w: 120, h: 120, fill: false })
-    : null;
   const data = buildPostData(input.property, input.agency, photo, logo);
   const template = TEMPLATES[((input.templateId % TEMPLATE_COUNT) + TEMPLATE_COUNT) % TEMPLATE_COUNT];
   return new ImageResponse(template(data), {

@@ -6,6 +6,9 @@ import { createNotificationForMany } from "@/lib/notifications/create";
 import { agencyMemberIds } from "@/lib/notifications/agency-members";
 import { dayStart } from "@/lib/tracking/record";
 import { TEMPLATE_COUNT } from "./templates";
+import type { GenerateRequest, SocialMode, SocialState } from "./types";
+
+export type { SocialState } from "./types";
 
 export const DAILY_REGENERATIONS = 3;
 const RECENT_MAX = 6;
@@ -20,7 +23,7 @@ export class SocialError extends Error {
   }
 }
 
-type Mode = "auto" | "manual";
+type Mode = SocialMode;
 type Doc = SocialContentDoc & { _id: Types.ObjectId; updatedAt: Date };
 type Eligible = { id: string; title: string; photos: string[] };
 type Pick = { propertyId: string; photoUrl: string; templateId: number };
@@ -67,12 +70,14 @@ function shuffle<T>(arr: T[]): T[] {
 
 type Recent = NonNullable<SocialContentDoc["recent"]>;
 type Avoid = { propertyIds?: string[]; photoUrls?: string[]; templateIds?: number[] };
+/** Lo que la persona pidió a propósito (ya validado): se respeta tal cual y no entra en la rotación al azar. */
+type Want = { photoUrl?: string; templateId?: number };
 
 /**
  * Elige propiedad → foto → template sin repetir enseguida.
  * Con `propertyId` fijo sólo elige foto y template. Devuelve `null` si no hay con qué.
  */
-function pick(elig: Eligible[], recent: Recent, avoid: Avoid, propertyId?: string): Pick | null {
+function pick(elig: Eligible[], recent: Recent, avoid: Avoid, propertyId?: string, want: Want = {}): Pick | null {
   let pool = propertyId ? elig.filter((p) => p.id === propertyId) : elig;
   if (!propertyId && avoid.propertyIds?.length) {
     const rest = pool.filter((p) => !avoid.propertyIds!.includes(p.id));
@@ -87,13 +92,16 @@ function pick(elig: Eligible[], recent: Recent, avoid: Avoid, propertyId?: strin
   const blockedPhotos = new Set([...(avoid.photoUrls ?? []), ...recent.photoUrls]);
   const fresh = prop.photos.filter((u) => !blockedPhotos.has(u));
   const notAvoided = prop.photos.filter((u) => !(avoid.photoUrls ?? []).includes(u));
-  const photoUrl = shuffle(fresh.length ? fresh : notAvoided.length ? notAvoided : prop.photos)[0]!;
+  const photoUrl =
+    want.photoUrl && prop.photos.includes(want.photoUrl)
+      ? want.photoUrl
+      : shuffle(fresh.length ? fresh : notAvoided.length ? notAvoided : prop.photos)[0]!;
 
   const all = Array.from({ length: TEMPLATE_COUNT }, (_, i) => i);
   const blockedTpl = new Set([...(avoid.templateIds ?? []), ...recent.templateIds.slice(-2)]);
   const freeTpl = all.filter((t) => !blockedTpl.has(t));
   const hardFree = all.filter((t) => !(avoid.templateIds ?? []).includes(t));
-  const templateId = shuffle(freeTpl.length ? freeTpl : hardFree.length ? hardFree : all)[0]!;
+  const templateId = want.templateId != null && all.includes(want.templateId) ? want.templateId : shuffle(freeTpl.length ? freeTpl : hardFree.length ? hardFree : all)[0]!;
 
   return { propertyId: prop.id, photoUrl, templateId };
 }
@@ -212,12 +220,20 @@ export async function ensureToday(agencyId: string): Promise<Doc> {
   return load(agencyId);
 }
 
-/** Regenera la publicación de hoy (otro template/foto) o, en manual, elige otra propiedad. */
-export async function generateCurrent(args: {
-  agencyId: string;
-  propertyId?: string;
-  isAdmin: boolean;
-}): Promise<Doc> {
+/**
+ * Regenera la publicación de hoy (otro diseño/foto) o elige otra propiedad. `templateId` y `photoUrl` fijan el diseño y la
+ * foto a propósito (si no vienen, los elige la plataforma sin repetir). Cada cambio, como cada regeneración, gasta uno de
+ * los intentos del día.
+ */
+export async function generateCurrent(
+  args: GenerateRequest & {
+    agencyId: string;
+    isAdmin: boolean;
+  }
+): Promise<Doc> {
+  if (args.templateId != null && !(Number.isInteger(args.templateId) && args.templateId >= 0 && args.templateId < TEMPLATE_COUNT)) {
+    throw new SocialError(400, "Ese diseño no existe.");
+  }
   await connectDB();
   for (let attempt = 0; attempt < 3; attempt++) {
     const doc = await ensureToday(args.agencyId);
@@ -229,13 +245,17 @@ export async function generateCurrent(args: {
     if (elig.length === 0) throw new SocialError(422, "No hay propiedades publicadas con fotos para promocionar.");
 
     let target = cur ? String(cur.propertyId) : undefined;
-    if (doc.mode === "manual" && args.propertyId) {
+    // Elegir otra propiedad vale en los dos modos (en automático, la plataforma sigue preparando las de los días que vienen).
+    if (args.propertyId) {
       if (!Types.ObjectId.isValid(args.propertyId) || !elig.some((e) => e.id === args.propertyId)) {
         throw new SocialError(404, "Propiedad no encontrada.");
       }
       target = args.propertyId;
     }
     if (doc.mode === "manual" && !target) throw new SocialError(400, "Elegí qué propiedad querés promocionar.");
+    if (args.photoUrl && !elig.find((e) => e.id === target)?.photos.includes(args.photoUrl)) {
+      throw new SocialError(400, "Esa foto no es de la propiedad elegida.");
+    }
 
     // La primera del día es gratis; después cada regeneración o cambio consume una (el admin no tiene tope).
     const sameDay = doc.regen?.day && +doc.regen.day === +today;
@@ -249,7 +269,8 @@ export async function generateCurrent(args: {
       elig,
       doc.recent!,
       cur ? { photoUrls: [cur.photoUrl], templateIds: [cur.templateId] } : {},
-      target
+      target,
+      { photoUrl: args.photoUrl, templateId: args.templateId }
     );
     if (!p) throw new SocialError(422, "No hay fotos disponibles para esa propiedad.");
 
@@ -273,15 +294,6 @@ export async function setMode(agencyId: string, mode: Mode): Promise<Doc> {
   return ensureToday(agencyId);
 }
 
-export type SocialState = {
-  mode: Mode | null;
-  current: { propertyId: string; title: string; templateId: number; version: number } | null;
-  nextReady: boolean;
-  /** `null` = sin límite (admin). */
-  regenLeft: number | null;
-  properties: { id: string; title: string; photo: string }[];
-};
-
 /** Estado para la pantalla (avanza el día si hace falta). */
 export async function getState(agencyId: string, isAdmin: boolean): Promise<SocialState> {
   const doc = await ensureToday(agencyId);
@@ -297,6 +309,8 @@ export async function getState(agencyId: string, isAdmin: boolean): Promise<Soci
           title: elig.find((e) => e.id === String(cur.propertyId))?.title ?? "",
           templateId: cur.templateId,
           version: cur.version ?? 1,
+          photoUrl: cur.photoUrl,
+          photos: elig.find((e) => e.id === String(cur.propertyId))?.photos.slice(0, 12) ?? [],
         }
       : null,
     nextReady: !!doc.next,

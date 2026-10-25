@@ -6,6 +6,13 @@ import { describeLine, factItems, firstSentences, highlights, priceText, type Pr
 import { matchPreferences, type PrefProperty } from "../src/lib/agents/knowledge/preferences";
 import { isFreeIntent } from "../src/lib/advisor/types";
 import { normalizeContent, toPublicConfig } from "../src/lib/advisor/config";
+import { promotionNote, rankForPromotion, type PromotionRow } from "../src/lib/agents/knowledge/promote";
+import type { Benchmarks } from "../src/lib/intelligence/benchmarks";
+import { emptyTotals } from "../src/lib/intelligence/metrics";
+import { buildCaption, captionToString, hashtagify } from "../src/lib/social/caption";
+import { buildPostData } from "../src/lib/social/content";
+import { TEMPLATE_META } from "../src/lib/social/template-meta";
+import { TEMPLATE_COUNT } from "../src/lib/social/templates";
 import { AGENTS, AGENT_IDS, agentsForAudience, audienceOf, isAgentId } from "../src/lib/agents/registry";
 import type { TasteProfileData } from "../src/lib/intelligence/user-profile";
 
@@ -222,6 +229,95 @@ check("recommend sí lo gasta", !isFreeIntent("explorer.recommend"));
   check("público con nombre: usa el nombre", named.displayName === "Lupe" && named.ctaTo === "a Lupe", named);
   const defaultPub = toPublicConfig(normalizeContent({}));
   check("sin indicar agente sigue siendo el asesor", defaultPub.id === "advisor" && defaultPub.ctaTo === "al asesor" && defaultPub.displayName === "Asesor", defaultPub);
+}
+
+// ── Texto y hashtags de las publicaciones ───────────────────────────────────
+{
+  check("hashtagify: CamelCase y sin espacios", hashtagify("Villa Urquiza") === "#VillaUrquiza", hashtagify("Villa Urquiza"));
+  check("hashtagify: sin tildes ni ñ", hashtagify("Núñez") === "#Nunez" && hashtagify("Cañuelas") === "#Canuelas", [hashtagify("Núñez"), hashtagify("Cañuelas")]);
+  check("hashtagify: vacío y sólo números → null", hashtagify("  ") === null && hashtagify("123") === null);
+  check("hashtagify: tope de largo", (hashtagify("a".repeat(80))?.length ?? 99) <= 31);
+
+  const capFacts: PropertyFacts = {
+    id: "b".repeat(24),
+    slug: "casa-en-palermo",
+    title: "Casa en Palermo",
+    description: "Casa luminosa con jardín.",
+    type: "casa",
+    operation: "venta",
+    price: { amount: 175_000, currency: "USD", expenses: 0, period: "total" },
+    neighborhood: "Núñez",
+    city: "CABA",
+    rooms: 4,
+    bedrooms: 3,
+    bathrooms: 2,
+    garages: 1,
+    coveredArea: 198,
+    totalArea: 238,
+    amenities: ["cochera", "pileta"],
+    hasTour: true,
+    hasAmbient: false,
+    videoCount: 0,
+  };
+  const input = { agencyName: "Umbral Norte Propiedades", seed: "v1", url: "https://recorrr.example/propiedades/casa-en-palermo" };
+  const cap = buildCaption(capFacts, input);
+  check("caption: es determinista con la misma semilla", JSON.stringify(cap) === JSON.stringify(buildCaption(capFacts, input)));
+  const variants = new Set(Array.from({ length: 12 }, (_, i) => buildCaption(capFacts, { ...input, seed: `v${i}` }).text));
+  check("caption: cambia con la semilla (regenerar también cambia el texto)", variants.size >= 2, variants.size);
+  check("caption: trae el precio, la zona, el enlace y la inmobiliaria", /175\.000/.test(cap.text) && /Núñez/.test(cap.text) && cap.text.includes(input.url) && cap.text.includes(input.agencyName), cap.text);
+  check("caption: sin emojis", !/\p{Extended_Pictographic}/u.test(cap.text + cap.hashtags.join("")), cap.text);
+  check("caption: sin enlace no lo menciona", !/Más fotos y datos/.test(buildCaption(capFacts, { ...input, url: null }).text));
+  check("hashtags: entre 5 y 12, sin repetir y bien formados", cap.hashtags.length >= 5 && cap.hashtags.length <= 12 && new Set(cap.hashtags.map((h) => h.toLowerCase())).size === cap.hashtags.length && cap.hashtags.every((h) => /^#[A-Za-z0-9]{1,30}$/.test(h)), cap.hashtags);
+  check("hashtags: zona sin tildes, recorrido 360° y cochera", cap.hashtags.includes("#Nunez") && cap.hashtags.includes("#Recorrido360") && cap.hashtags.includes("#Cochera"), cap.hashtags);
+  const rent = buildCaption({ ...capFacts, operation: "alquiler", price: { amount: 850_000, currency: "ARS", period: "mensual" } }, input);
+  check("caption: alquiler habla de alquiler y 'por mes'", /lquil/.test(rent.text) && /por mes/.test(rent.text), rent.text);
+  check("captionToString junta texto y hashtags", captionToString(cap).endsWith(cap.hashtags.join(" ")));
+}
+
+// ── Qué promocionar ─────────────────────────────────────────────────────────
+{
+  const bench: Benchmarks = { platform: { n: 0, inquiryRate: null, saveRate: null, medianViews30: null, medianDwellSec: null }, byKey: {} };
+  const row = (over: Partial<PromotionRow> & { id: string }): PromotionRow => ({
+    type: "casa",
+    operation: "venta",
+    score: 50,
+    d30: { ...emptyTotals(), views: 40 },
+    w7: emptyTotals(),
+    p7: emptyTotals(),
+    hasTour: false,
+    videos: 0,
+    hasAmbientCover: false,
+    publishedAt: null,
+    images: 6,
+    descriptionLength: 200,
+    diagnostics: [],
+    ...over,
+  });
+  const now = new Date("2026-10-25T12:00:00Z");
+  const plain = row({ id: "plain" });
+  const tour = row({ id: "tour", hasTour: true });
+  const ranked = rankForPromotion([plain, tour], bench, now);
+  check("promover: con recorrido 360° gana a una igual sin él", ranked[0]!.r.id === "tour" && ranked[0]!.reasons.some((x) => /360/.test(x)), ranked.map((x) => [x.r.id, x.score]));
+  const few = rankForPromotion([row({ id: "few", images: 2 })], bench, now)[0]!;
+  check("promover: con menos de 3 fotos queda bloqueada", few.blocked);
+  const grave = rankForPromotion([row({ id: "grave", diagnostics: [{ id: "x", kind: "attention", severity: "high", title: "t", explanation: "e", action: "a", href: "/", evidence: [] }] })], bench, now)[0]!;
+  check("promover: con un problema grave pendiente queda bloqueada", grave.blocked);
+  const again = rankForPromotion([plain, row({ id: "twin" })], bench, now, { promotedDaysAgo: new Map([["plain", 1]]) });
+  check("promover: la que se promocionó hace poco baja", again[0]!.r.id === "twin", again.map((x) => [x.r.id, x.score]));
+  const rising = rankForPromotion([row({ id: "up", w7: { ...emptyTotals(), views: 40 }, p7: { ...emptyTotals(), views: 10 } })], bench, now)[0]!;
+  check("promover: dice cuánto crecieron las visitas", rising.reasons.some((x) => /crecieron \+?300 %/.test(x)), rising.reasons);
+  check("promotionNote: arma la frase con mayúscula y punto", promotionNote(["recibe interés sostenido", "tiene recorrido 360°"]) === "Recibe interés sostenido y tiene recorrido 360°.", promotionNote(["recibe interés sostenido", "tiene recorrido 360°"]));
+  check("promotionNote: sin motivos sigue diciendo algo útil", promotionNote([]).length > 10);
+}
+
+// ── Diseños y datos del posteo ──────────────────────────────────────────────
+{
+  check("hay un nombre por cada diseño, en el mismo orden", TEMPLATE_META.length === TEMPLATE_COUNT && TEMPLATE_META.every((t, i) => t.id === i && t.name.length > 0), TEMPLATE_META.length);
+  const agency = { name: "Umbral", logo: null, branding: null };
+  const suffix = (operation: string, period?: string) => buildPostData({ type: "casa", operation, price: { amount: 100, currency: "ARS", period } }, agency, "data:x", null).priceSuffix;
+  check("sufijo: alquiler → /mes", suffix("alquiler", "mensual") === "/mes" && suffix("alquiler", "total") === "/mes");
+  check("sufijo: venta → nada", suffix("venta", "total") === "");
+  check("sufijo: alquiler temporal por estadía → nada; mensual → /mes", suffix("alquiler_temporal", "total") === "" && suffix("alquiler_temporal", "mensual") === "/mes");
 }
 
 console.log(`\n${total - failed}/${total} pruebas correctas`);

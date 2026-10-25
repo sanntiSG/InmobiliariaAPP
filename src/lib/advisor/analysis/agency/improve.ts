@@ -7,8 +7,9 @@
 import { benchFor } from "@/lib/intelligence/benchmarks";
 import { THRESHOLDS, type Diagnostic } from "@/lib/intelligence/diagnostics";
 import { consultas, ratio } from "@/lib/intelligence/metrics";
+import { rankForPromotion, promotionNote } from "@/lib/agents/knowledge/promote";
 import { dedupeSuggestions, sug } from "../../compose/suggest";
-import { change, count, daysAgo, list, n0, pct, plural, pick, quote, signedPct } from "../../compose/format";
+import { count, daysAgo, list, n0, plural, pick, quote } from "../../compose/format";
 import type { PropertyRow } from "../../data/portfolio";
 import type { AdvisorBlock, SuggestionQuery } from "../../types";
 import type { AgencyHandler } from "../types";
@@ -350,44 +351,7 @@ export const promote: AgencyHandler = (env) => {
   const n = limitOf(env.slots.count, 3);
   const pool = filterRows(p.rows, env.slots);
 
-  const scored = pool
-    .map((r) => {
-      const bench = benchFor(p.bench, r.type, r.operation);
-      const reasons: string[] = [];
-      let score = r.score * 0.5;
-      const rate = ratio(consultas(r.d30), r.d30.views);
-      if (r.d30.views >= MIN_VIEWS) {
-        reasons.push(`recibe interés sostenido (${n0(r.d30.views)} visitas en 30 días)`);
-        if (rate != null && bench.inquiryRate != null && rate >= bench.inquiryRate) {
-          score += 10;
-          reasons.push(`convierte mejor que propiedades similares (${pct(rate, { fromRatio: true })} de consulta)`);
-        }
-      }
-      const rising = change(r.w7.views, r.p7.views);
-      if (rising != null && r.w7.views >= 15 && r.p7.views >= 5 && rising >= THRESHOLDS.risingGrowthPct) {
-        score += 8;
-        reasons.push(`sus visitas crecieron ${signedPct(rising, 0)} esta semana`);
-      }
-      if (r.hasTour) {
-        score += 4;
-        reasons.push("tiene recorrido 360°, que la diferencia");
-      }
-      if (r.videos > 0) score += 2;
-      if (r.hasAmbientCover) {
-        score += 3;
-        reasons.push("tiene portada viva, con la que se destaca");
-      }
-      const isNew = r.publishedAt && now.getTime() - r.publishedAt.getTime() <= 14 * DAY_MS;
-      if (isNew) {
-        score += 4;
-        reasons.push("es una novedad reciente");
-      }
-      const ready = r.images >= THRESHOLDS.minImages && r.descriptionLength >= 100;
-      if (ready) score += 3;
-      const blocked = r.images < 3 || r.diagnostics.some((d) => d.kind === "attention" && d.severity === "high");
-      return { r, score, reasons, ready, blocked };
-    })
-    .sort((a, b) => b.score - a.score);
+  const scored = rankForPromotion(pool, p.bench, now);
 
   const eligible = scored.filter((s) => !s.blocked);
   const shown = eligible.slice(0, n);
@@ -406,7 +370,7 @@ export const promote: AgencyHandler = (env) => {
   const refs = shown.map((s) =>
     propRef(s.r, env, {
       chips: [`${n0(s.r.d30.views)} visitas`, `${n0(consultas(s.r.d30))} consultas`],
-      note: s.reasons.length > 0 ? `${s.reasons[0]!.charAt(0).toUpperCase()}${s.reasons[0]!.slice(1)}${s.reasons[1] ? ` y ${s.reasons[1]}` : ""}.` : "Está bien presentada y lista para difundir.",
+      note: promotionNote(s.reasons),
       tone: "good",
       auto: false,
     })

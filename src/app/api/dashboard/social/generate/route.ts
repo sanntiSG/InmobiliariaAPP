@@ -4,9 +4,15 @@ import { socialAccess } from "@/lib/social/access";
 import { generateCurrent, getState, SocialError } from "@/lib/social/engine";
 import { limitOr429 } from "@/lib/security/rate-limit";
 
-const bodySchema = z.object({ propertyId: z.string().regex(/^[a-f0-9]{24}$/i).optional() });
+const bodySchema = z.object({
+  propertyId: z.string().regex(/^[a-f0-9]{24}$/i).optional(),
+  /** Diseño elegido a propósito (0 a la cantidad de diseños - 1; el motor valida el tope). */
+  templateId: z.number().int().min(0).max(100).optional(),
+  /** Foto elegida: el motor comprueba que sea de la propiedad. */
+  photoUrl: z.string().max(600).optional(),
+});
 
-/** Regenera la publicación de hoy o (modo manual) elige otra propiedad. */
+/** Regenera la publicación de hoy, o elige otra propiedad, otro diseño u otra foto. */
 export async function POST(req: NextRequest) {
   const a = await socialAccess(req);
   if (a instanceof NextResponse) return a;
@@ -17,7 +23,7 @@ export async function POST(req: NextRequest) {
   const parsed = bodySchema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) return NextResponse.json({ error: "Datos inválidos." }, { status: 400 });
   try {
-    await generateCurrent({ agencyId: a.agencyId, propertyId: parsed.data.propertyId, isAdmin: a.isAdmin });
+    await generateCurrent({ agencyId: a.agencyId, ...parsed.data, isAdmin: a.isAdmin });
     return NextResponse.json(await getState(a.agencyId, a.isAdmin));
   } catch (err) {
     if (err instanceof SocialError) return NextResponse.json({ error: err.message }, { status: err.status });
