@@ -7,6 +7,7 @@
 import { connectDB } from "@/lib/db/connect";
 import { AdvisorConfig } from "@/lib/db/models/AdvisorConfig";
 import { memo } from "@/lib/intelligence/cache";
+import { AGENTS, AGENT_IDS, type AgentId } from "@/lib/agents/registry";
 
 export type ClipInfo = { name: string; duration: number };
 export type AdvisorRoles = { idle: string; talking: string[]; surprised: string[]; tap: string[] };
@@ -107,8 +108,13 @@ function normalizeClips(v: unknown): ClipInfo[] {
   return out;
 }
 
-/** Completa y sanea un contenido (de la base o del cliente) con valores válidos. */
-export function normalizeContent(raw: unknown): AdvisorContent {
+/**
+ * Completa y sanea un contenido (de la base o del cliente) con valores válidos. Con `agentId` aplica las reglas de ese
+ * agente: el asesor nace encendido (como siempre); los demás NACEN APAGADOS y sólo se encienden si el admin los marca
+ * a propósito, y nunca para un público al que no sirven (marketing y correo no son para exploradores).
+ */
+export function normalizeContent(raw: unknown, agentId: AgentId = "advisor"): AdvisorContent {
+  const def = AGENTS[agentId];
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
   const m = (r.model && typeof r.model === "object" ? r.model : {}) as Record<string, unknown>;
 
@@ -146,10 +152,14 @@ export function normalizeContent(raw: unknown): AdvisorContent {
   const enabled = (r.enabled && typeof r.enabled === "object" ? r.enabled : {}) as Record<string, unknown>;
   const poster = text(r.poster, 500);
 
+  const isAdvisor = agentId === "advisor";
   return {
     name: text(r.name, 40),
-    description: text(r.description, 300) || DEFAULT_CONTENT.description,
-    enabled: { agency: enabled.agency !== false, explorer: enabled.explorer !== false },
+    description: text(r.description, 300) || def.defaultDescription,
+    enabled: {
+      agency: def.audiences.includes("agency") && (isAdvisor ? enabled.agency !== false : enabled.agency === true),
+      explorer: def.audiences.includes("explorer") && (isAdvisor ? enabled.explorer !== false : enabled.explorer === true),
+    },
     model,
     clips,
     roles: finalRoles,
@@ -167,23 +177,42 @@ export function normalizeContent(raw: unknown): AdvisorContent {
 
 // ─── Lectura ─────────────────────────────────────────────────────────────────
 
-const PUBLISHED_KEY = "advisor:config:published";
+/** Prefijo de caché de todas las configuraciones de agentes (no lo borra `invalidateAgency`, que sólo toca `advisor:<agencia>…`). */
+export const CONFIG_CACHE_PREFIX = "agents:config";
+const PUBLISHED_KEY = `${CONFIG_CACHE_PREFIX}:published`;
 
-/** Lo publicado (lo que ve la gente). Cacheado 60 s; se descarta al publicar. */
-export function getPublishedConfig(): Promise<AdvisorContent> {
+/**
+ * Lo publicado de CADA agente (lo que ve la gente), en una sola consulta. Cacheado 60 s; se descarta al publicar.
+ * Un agente que no es el asesor y nunca se publicó vale "apagado": el `published` por defecto de Mongoose trae
+ * `enabled` en true y lo encendería antes de tiempo, así que sin `publishedAt` no se lee.
+ */
+export function getPublishedAgents(): Promise<Record<AgentId, AdvisorContent>> {
   return memo(PUBLISHED_KEY, 60_000, async () => {
+    const out = {} as Record<AgentId, AdvisorContent>;
+    for (const id of AGENT_IDS) out[id] = normalizeContent({}, id);
     try {
       await connectDB();
-      const doc = await AdvisorConfig.findOne({ key: "default" }).select("published").lean();
-      return normalizeContent(doc?.published);
+      const docs = await AdvisorConfig.find({ key: { $in: AGENT_IDS.map((id) => AGENTS[id].storageKey) } })
+        .select("key published publishedAt")
+        .lean();
+      for (const id of AGENT_IDS) {
+        const doc = docs.find((d) => d.key === AGENTS[id].storageKey);
+        if (doc && (id === "advisor" || doc.publishedAt)) out[id] = normalizeContent(doc.published, id);
+      }
     } catch (err) {
-      console.error("getPublishedConfig failed:", err);
-      return normalizeContent({});
+      console.error("getPublishedAgents failed:", err);
     }
+    return out;
   });
 }
 
+/** Lo publicado de un agente (por defecto, el asesor). */
+export async function getPublishedConfig(agentId: AgentId = "advisor"): Promise<AdvisorContent> {
+  return (await getPublishedAgents())[agentId];
+}
+
 export type AdminConfigState = {
+  agentId: AgentId;
   draft: AdvisorContent;
   published: AdvisorContent;
   library: LibraryEntry[];
@@ -192,15 +221,19 @@ export type AdminConfigState = {
 };
 
 /** Estado completo para el estudio del admin (nunca se manda a clientes comunes). */
-export async function getAdminConfigState(): Promise<AdminConfigState> {
+export async function getAdminConfigState(agentId: AgentId = "advisor"): Promise<AdminConfigState> {
   await connectDB();
-  const doc = await AdvisorConfig.findOne({ key: "default" }).lean();
-  const published = normalizeContent(doc?.published);
-  const draft = doc?.draft ? normalizeContent(doc.draft) : published;
+  const key = AGENTS[agentId].storageKey;
+  const doc = await AdvisorConfig.findOne({ key }).lean();
+  // La biblioteca de modelos 3D es una sola, compartida por todos los agentes (vive en el documento del asesor).
+  const libraryDoc = agentId === "advisor" ? doc : await AdvisorConfig.findOne({ key: AGENTS.advisor.storageKey }).select("library").lean();
+  const published = agentId === "advisor" || doc?.publishedAt ? normalizeContent(doc?.published, agentId) : normalizeContent({}, agentId);
+  const draft = doc?.draft ? normalizeContent(doc.draft, agentId) : published;
   return {
+    agentId,
     draft,
     published,
-    library: (doc?.library ?? []).map((e) => ({
+    library: (libraryDoc?.library ?? []).map((e) => ({
       url: e.url,
       providerId: e.providerId,
       bytes: e.bytes ?? 0,
@@ -217,6 +250,10 @@ export async function getAdminConfigState(): Promise<AdminConfigState> {
 
 /** Lo único que recibe el navegador de cualquier persona. */
 export type PublicAdvisorConfig = {
+  /** Qué agente es (`advisor` si no se indica). */
+  id: AgentId;
+  /** Su rol, para distinguirlo en el selector cuando comparten modelo y no tienen nombre: "Marketing". */
+  roleLabel: string;
   name: string;
   /** El nombre para mostrar: lo que definió el admin o "Asesor". */
   displayName: string;
@@ -232,11 +269,14 @@ export type PublicAdvisorConfig = {
   poster: string | null;
 };
 
-export function toPublicConfig(c: AdvisorContent): PublicAdvisorConfig {
+export function toPublicConfig(c: AdvisorContent, agentId: AgentId = "advisor"): PublicAdvisorConfig {
+  const def = AGENTS[agentId];
   return {
+    id: agentId,
+    roleLabel: def.roleLabel,
     name: c.name,
-    displayName: c.name || "Asesor",
-    ctaTo: c.name ? `a ${c.name}` : "al asesor",
+    displayName: c.name || def.roleLabel,
+    ctaTo: c.name ? `a ${c.name}` : def.ctaFallback,
     description: c.description,
     enabled: c.enabled,
     modelUrl: c.model.url,

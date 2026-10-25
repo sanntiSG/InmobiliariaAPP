@@ -7,8 +7,9 @@ import { connectDB } from "@/lib/db/connect";
 import { AdvisorConfig } from "@/lib/db/models/AdvisorConfig";
 import { invalidate } from "@/lib/intelligence/cache";
 import { requireFreshAdmin } from "@/lib/auth/require-fresh-admin";
+import { AGENTS, isAgentId, type AgentId } from "@/lib/agents/registry";
 import { limitOr429 } from "@/lib/security/rate-limit";
-import { BUNDLED_MODEL_URL, MAX_LIBRARY, getAdminConfigState, normalizeContent, type AdminConfigState, type AdvisorContent, type ClipInfo } from "./config";
+import { BUNDLED_MODEL_URL, CONFIG_CACHE_PREFIX, MAX_LIBRARY, getAdminConfigState, normalizeContent, type AdminConfigState, type AdvisorContent, type ClipInfo } from "./config";
 
 export const NO_STORE = { "Cache-Control": "no-store" } as const;
 
@@ -21,33 +22,49 @@ export async function adminGuard(req: Request): Promise<{ userId: string } | Nex
   return { userId: user.id };
 }
 
-const refresh = () => invalidate("advisor:config");
+const refresh = () => invalidate(CONFIG_CACHE_PREFIX);
+
+/** Documento donde viven los modelos 3D subidos: uno solo para todos los agentes (el del asesor, que ya existe). */
+const LIBRARY_KEY = AGENTS.advisor.storageKey;
+
+/** Agente al que se refiere una petición del estudio: `?agent=marketing`; sin parámetro, el asesor. `null` si es inválido. */
+export function agentFromRequest(req: Request): AgentId | null {
+  const raw = new URL(req.url).searchParams.get("agent");
+  if (raw == null) return "advisor";
+  return isAgentId(raw) ? raw : null;
+}
 
 /** Guarda el borrador. El modelo elegido tiene que ser el incluido o uno de la biblioteca. */
-export async function saveDraft(raw: unknown, userId: string): Promise<AdminConfigState> {
+export async function saveDraft(raw: unknown, userId: string, agentId: AgentId = "advisor"): Promise<AdminConfigState> {
   await connectDB();
-  const doc = await AdvisorConfig.findOne({ key: "default" }).select("library").lean();
-  const owned = new Set([BUNDLED_MODEL_URL, ...(doc?.library ?? []).map((l) => l.url)]);
-  let draft = normalizeContent(raw);
-  if (!owned.has(draft.model.url)) draft = normalizeContent({ ...draft, model: undefined });
-  await AdvisorConfig.updateOne({ key: "default" }, { $set: { draft, updatedBy: userId }, $setOnInsert: { key: "default" } }, { upsert: true });
-  return getAdminConfigState();
+  const key = AGENTS[agentId].storageKey;
+  const lib = await AdvisorConfig.findOne({ key: LIBRARY_KEY }).select("library").lean();
+  const owned = new Set([BUNDLED_MODEL_URL, ...(lib?.library ?? []).map((l) => l.url)]);
+  let draft = normalizeContent(raw, agentId);
+  if (!owned.has(draft.model.url)) draft = normalizeContent({ ...draft, model: undefined }, agentId);
+  // Un agente nuevo se crea con su "publicado" explícito y APAGADO (si no, el valor por defecto de Mongoose lo enciende).
+  const onInsert = agentId === "advisor" ? { key } : { key, published: normalizeContent({}, agentId) };
+  await AdvisorConfig.updateOne({ key }, { $set: { draft, updatedBy: userId }, $setOnInsert: onInsert }, { upsert: true });
+  return getAdminConfigState(agentId);
 }
 
-export async function publishDraft(userId: string): Promise<AdminConfigState> {
+export async function publishDraft(userId: string, agentId: AgentId = "advisor"): Promise<AdminConfigState> {
   await connectDB();
-  const doc = await AdvisorConfig.findOne({ key: "default" }).select("draft published").lean();
-  const published: AdvisorContent = normalizeContent(doc?.draft ?? doc?.published);
-  await AdvisorConfig.updateOne({ key: "default" }, { $set: { published, draft: published, publishedAt: new Date(), updatedBy: userId }, $setOnInsert: { key: "default" } }, { upsert: true });
+  const key = AGENTS[agentId].storageKey;
+  const doc = await AdvisorConfig.findOne({ key }).select("draft published").lean();
+  const published: AdvisorContent = normalizeContent(doc?.draft ?? doc?.published, agentId);
+  await AdvisorConfig.updateOne({ key }, { $set: { published, draft: published, publishedAt: new Date(), updatedBy: userId }, $setOnInsert: { key } }, { upsert: true });
   refresh();
-  return getAdminConfigState();
+  return getAdminConfigState(agentId);
 }
 
-export async function discardDraft(): Promise<AdminConfigState> {
+export async function discardDraft(agentId: AgentId = "advisor"): Promise<AdminConfigState> {
   await connectDB();
-  const doc = await AdvisorConfig.findOne({ key: "default" }).select("published").lean();
-  await AdvisorConfig.updateOne({ key: "default" }, { $set: { draft: normalizeContent(doc?.published) } });
-  return getAdminConfigState();
+  const key = AGENTS[agentId].storageKey;
+  const doc = await AdvisorConfig.findOne({ key }).select("published publishedAt").lean();
+  const published = agentId === "advisor" || doc?.publishedAt ? normalizeContent(doc?.published, agentId) : normalizeContent({}, agentId);
+  await AdvisorConfig.updateOne({ key }, { $set: { draft: published } });
+  return getAdminConfigState(agentId);
 }
 
 export type NewModel = { url: string; providerId: string; bytes: number; label?: string; clips: ClipInfo[] };
@@ -55,33 +72,32 @@ export type NewModel = { url: string; providerId: string; bytes: number; label?:
 export async function addToLibrary(entry: NewModel): Promise<void> {
   await connectDB();
   await AdvisorConfig.updateOne(
-    { key: "default" },
-    { $push: { library: { ...entry, uploadedAt: new Date() } }, $setOnInsert: { key: "default" } },
+    { key: LIBRARY_KEY },
+    { $push: { library: { ...entry, uploadedAt: new Date() } }, $setOnInsert: { key: LIBRARY_KEY } },
     { upsert: true }
   );
 }
 
 export async function libraryCount(): Promise<number> {
   await connectDB();
-  const doc = await AdvisorConfig.findOne({ key: "default" }).select("library").lean();
+  const doc = await AdvisorConfig.findOne({ key: LIBRARY_KEY }).select("library").lean();
   return doc?.library?.length ?? 0;
 }
 
 export const LIBRARY_FULL = `Ya hay ${MAX_LIBRARY} modelos subidos: eliminá uno antes de subir otro.`;
 
-/** ¿Algún modelo en uso (borrador o publicado) apunta a este archivo? */
+/** ¿Algún agente (borrador o publicado) usa este modelo? La biblioteca es compartida, así que se revisan todos. */
 export async function modelInUse(url: string): Promise<boolean> {
   await connectDB();
-  const doc = await AdvisorConfig.findOne({ key: "default" }).select("draft.model.url published.model.url").lean();
-  return doc?.draft?.model?.url === url || doc?.published?.model?.url === url;
+  return !!(await AdvisorConfig.exists({ $or: [{ "draft.model.url": url }, { "published.model.url": url }] }));
 }
 
 export async function removeFromLibrary(providerId: string): Promise<{ url: string } | null> {
   await connectDB();
-  const doc = await AdvisorConfig.findOne({ key: "default" }).select("library").lean();
+  const doc = await AdvisorConfig.findOne({ key: LIBRARY_KEY }).select("library").lean();
   const entry = doc?.library?.find((l) => l.providerId === providerId);
   if (!entry) return null;
-  await AdvisorConfig.updateOne({ key: "default" }, { $pull: { library: { providerId } } });
+  await AdvisorConfig.updateOne({ key: LIBRARY_KEY }, { $pull: { library: { providerId } } });
   return { url: entry.url };
 }
 

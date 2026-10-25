@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { NO_STORE, adminGuard, saveDraft } from "@/lib/advisor/admin";
+import { NO_STORE, adminGuard, agentFromRequest, saveDraft } from "@/lib/advisor/admin";
 import { getAdminConfigState } from "@/lib/advisor/config";
 import { getStorageProvider } from "@/lib/storage";
 
@@ -11,6 +11,8 @@ const POSTER_MAX_BYTES = 2 * 1024 * 1024;
 export async function POST(req: Request) {
   const guard = await adminGuard(req);
   if (guard instanceof NextResponse) return guard;
+  const agent = agentFromRequest(req);
+  if (!agent) return NextResponse.json({ error: "Agente desconocido." }, { status: 404, headers: NO_STORE });
 
   const form = await req.formData().catch(() => null);
   const file = form?.get("file");
@@ -25,8 +27,8 @@ export async function POST(req: Request) {
     }
     const provider = await getStorageProvider();
     const result = await provider.upload({ buffer, filename: "poster.png", folder: "advisor", quality: "best" });
-    const state = await getAdminConfigState();
-    return NextResponse.json(await saveDraft({ ...state.draft, poster: result.url }, guard.userId), { headers: NO_STORE });
+    const state = await getAdminConfigState(agent);
+    return NextResponse.json(await saveDraft({ ...state.draft, poster: result.url }, guard.userId, agent), { headers: NO_STORE });
   } catch (err) {
     console.error("POST /api/admin/advisor/poster failed:", err);
     return NextResponse.json({ error: "No se pudo subir el póster." }, { status: 503, headers: NO_STORE });

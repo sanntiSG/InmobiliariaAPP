@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { LIBRARY_FULL, NO_STORE, addToLibrary, adminGuard, isGlb, libraryCount } from "@/lib/advisor/admin";
+import { LIBRARY_FULL, NO_STORE, addToLibrary, adminGuard, agentFromRequest, isGlb, libraryCount } from "@/lib/advisor/admin";
 import { MAX_LIBRARY, MODEL_MAX_BYTES, getAdminConfigState } from "@/lib/advisor/config";
 import { getStorageProvider } from "@/lib/storage";
 
@@ -15,6 +15,8 @@ const clipsSchema = z.array(z.object({ name: z.string().trim().min(1).max(60), d
 export async function POST(req: Request) {
   const guard = await adminGuard(req);
   if (guard instanceof NextResponse) return guard;
+  const agent = agentFromRequest(req);
+  if (!agent) return NextResponse.json({ error: "Agente desconocido." }, { status: 404, headers: NO_STORE });
 
   const provider = await getStorageProvider();
   if (await provider.signDirectUpload({ folder: "advisor", extension: ".glb", resourceType: "raw" })) {
@@ -38,7 +40,7 @@ export async function POST(req: Request) {
     if (!isGlb(buffer.subarray(0, 4))) return NextResponse.json({ error: "El archivo no es un modelo .glb válido." }, { status: 400, headers: NO_STORE });
     const result = await provider.upload({ buffer, filename: file.name, folder: "advisor", resourceType: "raw" });
     await addToLibrary({ url: result.url, providerId: result.providerId, bytes: buffer.length, label: file.name.slice(0, 80), clips: clips.data });
-    return NextResponse.json(await getAdminConfigState(), { status: 201, headers: NO_STORE });
+    return NextResponse.json(await getAdminConfigState(agent), { status: 201, headers: NO_STORE });
   } catch (err) {
     console.error("POST /api/admin/advisor/model/local failed:", err);
     return NextResponse.json({ error: "No se pudo subir el modelo." }, { status: 503, headers: NO_STORE });

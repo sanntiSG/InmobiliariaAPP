@@ -1,16 +1,17 @@
+import { AGENTS, type AgentId } from "@/lib/agents/registry";
 import { getAdminConfigState, getPublishedConfig } from "./config";
 
-/** Cómo se presenta el asesor en sus textos ("Soy Nubo"). */
+/** Cómo se presenta el agente en sus textos ("Soy Nubo"). */
 export type Persona = { name: string };
 
-const GENERIC = "tu asesor";
-
-/** Persona publicada; con `draft` (sólo para la prueba del admin) usa el borrador. */
-export async function getPersona(opts: { draft?: boolean } = {}): Promise<Persona> {
+/** Persona publicada; con `draft` (sólo para la prueba del admin) usa el borrador. Sin nombre: "tu asesor", "tu agente de correo"… */
+export async function getPersona(opts: { draft?: boolean; agentId?: AgentId } = {}): Promise<Persona> {
+  const agentId = opts.agentId ?? "advisor";
+  const generic = AGENTS[agentId].roleNoun;
   try {
-    const content = opts.draft ? (await getAdminConfigState()).draft : await getPublishedConfig();
-    return { name: content.name || GENERIC };
+    const content = opts.draft ? (await getAdminConfigState(agentId)).draft : await getPublishedConfig(agentId);
+    return { name: content.name || generic };
   } catch {
-    return { name: GENERIC };
+    return { name: generic };
   }
 }

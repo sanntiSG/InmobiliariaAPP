@@ -5,6 +5,8 @@
 import { describeLine, factItems, firstSentences, highlights, priceText, type PropertyFacts } from "../src/lib/agents/knowledge/facts";
 import { matchPreferences, type PrefProperty } from "../src/lib/agents/knowledge/preferences";
 import { isFreeIntent } from "../src/lib/advisor/types";
+import { normalizeContent, toPublicConfig } from "../src/lib/advisor/config";
+import { AGENTS, AGENT_IDS, agentsForAudience, audienceOf, isAgentId } from "../src/lib/agents/registry";
 import type { TasteProfileData } from "../src/lib/intelligence/user-profile";
 
 let failed = 0;
@@ -177,6 +179,50 @@ const emptyTaste = (over: Partial<TasteProfileData> = {}): TasteProfileData => (
 // ── Intenciones gratuitas ───────────────────────────────────────────────────
 check("about_property no gasta el cupo", isFreeIntent("explorer.about_property"));
 check("recommend sí lo gasta", !isFreeIntent("explorer.recommend"));
+
+// ── Registro de agentes ─────────────────────────────────────────────────────
+{
+  check("el asesor conserva la clave 'default' (sin migrar datos)", AGENTS.advisor.storageKey === "default");
+  check("las claves de almacenamiento no se repiten", new Set(AGENT_IDS.map((id) => AGENTS[id].storageKey)).size === AGENT_IDS.length);
+  check("isAgentId acepta los tres y rechaza el resto", AGENT_IDS.every(isAgentId) && !isAgentId("admin") && !isAgentId("") && !isAgentId(null) && !isAgentId({}));
+
+  const admin = audienceOf({ role: "admin", agencyId: null });
+  const owner = audienceOf({ role: "agency_owner", agencyId: "x" });
+  const agent = audienceOf({ role: "agency_agent", agencyId: "x" });
+  const ownerNoAgency = audienceOf({ role: "agency_owner", agencyId: null });
+  const user = audienceOf({ role: "user", agencyId: null });
+  const anon = audienceOf({ role: null, agencyId: null });
+  check("admin y gente con inmobiliaria → agency", admin === "agency" && owner === "agency" && agent === "agency");
+  check("dueño sin inmobiliaria creada, usuario y visitante → explorer", ownerNoAgency === "explorer" && user === "explorer" && anon === "explorer");
+  check("explorador ve sólo al asesor", agentsForAudience("explorer").join() === "advisor", agentsForAudience("explorer"));
+  check("inmobiliaria ve los tres, con el asesor primero", agentsForAudience("agency").join() === "advisor,marketing,mail", agentsForAudience("agency"));
+}
+
+// ── Contenido por agente ────────────────────────────────────────────────────
+{
+  const adv = normalizeContent({});
+  check("asesor: nace encendido para ambos públicos (como siempre)", adv.enabled.agency && adv.enabled.explorer, adv.enabled);
+  const advOff = normalizeContent({ enabled: { agency: false, explorer: true } });
+  check("asesor: se puede apagar un público", !advOff.enabled.agency && advOff.enabled.explorer, advOff.enabled);
+
+  for (const id of ["marketing", "mail"] as const) {
+    const fresh = normalizeContent({}, id);
+    check(`${id}: nace APAGADO`, !fresh.enabled.agency && !fresh.enabled.explorer, fresh.enabled);
+    check(`${id}: sin nombre y con su descripción`, fresh.name === "" && fresh.description === AGENTS[id].defaultDescription, fresh);
+    const on = normalizeContent({ enabled: { agency: true, explorer: true } }, id);
+    check(`${id}: se enciende para inmobiliarias y nunca para exploradores`, on.enabled.agency && !on.enabled.explorer, on.enabled);
+    check(`${id}: "enabled" con basura no lo enciende`, !normalizeContent({ enabled: { agency: "yes" } }, id).enabled.agency);
+    check(`${id}: usa el modelo incluido por defecto (mismo GLB que el asesor)`, fresh.model.url === adv.model.url, fresh.model);
+  }
+
+  const pub = toPublicConfig(normalizeContent({}, "marketing"), "marketing");
+  check("público sin nombre: se muestra el rol", pub.displayName === "Marketing" && pub.roleLabel === "Marketing" && pub.id === "marketing", pub);
+  check("público sin nombre: 'Preguntale al agente de marketing'", pub.ctaTo === "al agente de marketing", pub.ctaTo);
+  const named = toPublicConfig(normalizeContent({ name: "Lupe" }, "marketing"), "marketing");
+  check("público con nombre: usa el nombre", named.displayName === "Lupe" && named.ctaTo === "a Lupe", named);
+  const defaultPub = toPublicConfig(normalizeContent({}));
+  check("sin indicar agente sigue siendo el asesor", defaultPub.id === "advisor" && defaultPub.ctaTo === "al asesor" && defaultPub.displayName === "Asesor", defaultPub);
+}
 
 console.log(`\n${total - failed}/${total} pruebas correctas`);
 process.exit(failed > 0 ? 1 : 0);

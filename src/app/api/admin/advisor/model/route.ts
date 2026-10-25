@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { LIBRARY_FULL, NO_STORE, addToLibrary, adminGuard, isGlb, libraryCount, modelInUse, removeFromLibrary } from "@/lib/advisor/admin";
+import { LIBRARY_FULL, NO_STORE, addToLibrary, adminGuard, agentFromRequest, isGlb, libraryCount, modelInUse, removeFromLibrary } from "@/lib/advisor/admin";
 import { MAX_LIBRARY, MODEL_MAX_BYTES, getAdminConfigState, isAllowedModelUrl } from "@/lib/advisor/config";
 import { getStorageProvider } from "@/lib/storage";
 
@@ -22,6 +22,8 @@ const registerSchema = z.object({
 export async function POST(req: Request) {
   const guard = await adminGuard(req);
   if (guard instanceof NextResponse) return guard;
+  const agent = agentFromRequest(req);
+  if (!agent) return NextResponse.json({ error: "Agente desconocido." }, { status: 404, headers: NO_STORE });
   const parsed = registerSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Datos inválidos." }, { status: 400, headers: NO_STORE });
   const { providerId, label, clips } = parsed.data;
@@ -47,7 +49,7 @@ export async function POST(req: Request) {
     if (!isGlb(head)) return reject("El archivo no es un modelo .glb válido.");
 
     await addToLibrary({ url: info.url, providerId, bytes: info.bytes, label, clips });
-    return NextResponse.json(await getAdminConfigState(), { status: 201, headers: NO_STORE });
+    return NextResponse.json(await getAdminConfigState(agent), { status: 201, headers: NO_STORE });
   } catch (err) {
     console.error("POST /api/admin/advisor/model failed:", err);
     return NextResponse.json({ error: "No se pudo registrar el modelo." }, { status: 503, headers: NO_STORE });
@@ -60,12 +62,14 @@ const deleteSchema = z.object({ providerId: z.string().min(1).max(300) });
 export async function DELETE(req: Request) {
   const guard = await adminGuard(req);
   if (guard instanceof NextResponse) return guard;
+  const agent = agentFromRequest(req);
+  if (!agent) return NextResponse.json({ error: "Agente desconocido." }, { status: 404, headers: NO_STORE });
   const parsed = deleteSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Datos inválidos." }, { status: 400, headers: NO_STORE });
   const { providerId } = parsed.data;
 
   try {
-    const state = await getAdminConfigState();
+    const state = await getAdminConfigState(agent);
     const entry = state.library.find((l) => l.providerId === providerId);
     if (!entry) return NextResponse.json({ error: "No existe ese modelo." }, { status: 404, headers: NO_STORE });
     if (await modelInUse(entry.url)) {
@@ -74,7 +78,7 @@ export async function DELETE(req: Request) {
     await removeFromLibrary(providerId);
     const provider = await getStorageProvider();
     await provider.delete(providerId, "raw").catch((e) => console.error("delete advisor model failed:", e));
-    return NextResponse.json(await getAdminConfigState(), { headers: NO_STORE });
+    return NextResponse.json(await getAdminConfigState(agent), { headers: NO_STORE });
   } catch (err) {
     console.error("DELETE /api/admin/advisor/model failed:", err);
     return NextResponse.json({ error: "No se pudo borrar el modelo." }, { status: 503, headers: NO_STORE });
