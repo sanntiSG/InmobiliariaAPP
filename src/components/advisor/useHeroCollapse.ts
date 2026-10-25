@@ -24,6 +24,9 @@ export function useHeroCollapse(active: boolean) {
   const mascot = useRef<HTMLDivElement>(null);
   const veil = useRef<HTMLDivElement>(null);
   const driver = useRef<{ track(scrollTop: number): void; release(anchor: number): void } | null>(null);
+  // Un hijo (la charla) monta antes que el marco que usa este hook: su primer `release` llega cuando todavía no hay
+  // "conductor". Se guarda y se aplica apenas existe.
+  const pendingAnchor = useRef<number | null>(null);
 
   useEffect(() => {
     const heroEl = hero.current;
@@ -69,6 +72,11 @@ export function useHeroCollapse(active: boolean) {
       }
     };
 
+    if (pendingAnchor.current != null) {
+      anchor = pendingAnchor.current;
+      pendingAnchor.current = null;
+    }
+
     driver.current = {
       track(scrollTop) {
         const range = full - small;
@@ -93,7 +101,10 @@ export function useHeroCollapse(active: boolean) {
   /** Seguir el scroll del hilo (`scrollTop`) cuando la persona lo desliza. */
   const track = useCallback((scrollTop: number) => driver.current?.track(scrollTop), []);
   /** Volver a grande: llegó una respuesta y el hilo se posicionó en `anchor` (el punto desde el que empieza a achicarse). */
-  const release = useCallback((anchor: number) => driver.current?.release(anchor), []);
+  const release = useCallback((anchor: number) => {
+    if (driver.current) driver.current.release(anchor);
+    else pendingAnchor.current = anchor;
+  }, []);
 
   return { hero, mascot, veil, track, release };
 }

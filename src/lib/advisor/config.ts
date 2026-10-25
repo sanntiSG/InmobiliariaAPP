@@ -248,42 +248,5 @@ export async function getAdminConfigState(agentId: AgentId = "advisor"): Promise
 
 // ─── Vista pública ───────────────────────────────────────────────────────────
 
-/** Lo único que recibe el navegador de cualquier persona. */
-export type PublicAdvisorConfig = {
-  /** Qué agente es (`advisor` si no se indica). */
-  id: AgentId;
-  /** Su rol, para distinguirlo en el selector cuando comparten modelo y no tienen nombre: "Marketing". */
-  roleLabel: string;
-  name: string;
-  /** El nombre para mostrar: lo que definió el admin o "Asesor". */
-  displayName: string;
-  /** Complemento para "Preguntale …": "a Nubi" si tiene nombre, "al asesor" si no (nunca "a Asesor"). */
-  ctaTo: string;
-  description: string;
-  enabled: { agency: boolean; explorer: boolean };
-  modelUrl: string;
-  clips: ClipInfo[];
-  roles: AdvisorRoles;
-  disabled: string[];
-  framing: AdvisorFraming;
-  poster: string | null;
-};
-
-export function toPublicConfig(c: AdvisorContent, agentId: AgentId = "advisor"): PublicAdvisorConfig {
-  const def = AGENTS[agentId];
-  return {
-    id: agentId,
-    roleLabel: def.roleLabel,
-    name: c.name,
-    displayName: c.name || def.roleLabel,
-    ctaTo: c.name ? `a ${c.name}` : def.ctaFallback,
-    description: c.description,
-    enabled: c.enabled,
-    modelUrl: c.model.url,
-    clips: c.clips,
-    roles: c.roles,
-    disabled: c.disabled,
-    framing: c.framing,
-    poster: c.poster ?? null,
-  };
-}
+// Vive en un módulo sin base de datos para que también la importe el cliente (vista previa del estudio).
+export { toPublicConfig, type PublicAdvisorConfig } from "./public-config";
