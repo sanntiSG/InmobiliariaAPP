@@ -18,7 +18,7 @@ export function PanelTabs({ tabs, active, ariaLabel }: { tabs: PanelTab[]; activ
             href={t.href}
             aria-current={on ? "page" : undefined}
             className={cn(
-              "inline-flex shrink-0 items-center gap-2 rounded-pill px-4 py-2 text-sm font-medium transition-[background-color,color,transform] duration-150 [transition-timing-function:var(--ease-out)] active:scale-[0.97]",
+              "inline-flex min-h-11 shrink-0 items-center gap-2 rounded-pill px-4 py-2 text-sm font-medium transition-[background-color,color,transform] duration-150 [transition-timing-function:var(--ease-out)] active:scale-[0.97]",
               on ? "bg-accent text-accent-contrast" : "bg-surface text-text-muted shadow-pop hover:text-text"
             )}
           >

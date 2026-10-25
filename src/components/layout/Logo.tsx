@@ -17,7 +17,7 @@ export function Logo({ className, href = "/" }: { className?: string; href?: str
 
   if (!href) return mark;
   return (
-    <Link href={href} aria-label={`${brand.name} — inicio`} className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">
+    <Link href={href} aria-label={`${brand.name} — inicio`} className="-my-2 rounded-sm py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">
       {mark}
     </Link>
   );

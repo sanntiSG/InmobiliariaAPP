@@ -135,7 +135,7 @@ export function SocialBar({
               aria-label={`Calificar con ${star} estrella${star > 1 ? "s" : ""}`}
               onMouseEnter={() => setHoverStar(star)}
               onClick={() => rate(star)}
-              className="p-0.5"
+              className="relative p-0.5 after:absolute after:-inset-x-1 after:-inset-y-2 after:content-['']"
             >
               <Star
                 className={cn("h-4 w-4 transition-colors", star <= (hoverStar ?? myRating ?? 0) ? "text-warning" : "text-border")}

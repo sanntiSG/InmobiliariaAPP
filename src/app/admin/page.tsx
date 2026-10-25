@@ -118,7 +118,7 @@ export default async function AdminOverviewPage() {
                     {a.title}
                   </p>
                   <p className="mt-1 text-sm text-text-muted">{a.detail}</p>
-                  <Link href={a.href} className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline">
+                  <Link href={a.href} className="mt-1 inline-flex min-h-11 items-center gap-1 text-sm font-medium text-accent hover:underline sm:mt-2 sm:min-h-0">
                     Ver <ArrowRight className="h-3.5 w-3.5" aria-hidden />
                   </Link>
                 </li>

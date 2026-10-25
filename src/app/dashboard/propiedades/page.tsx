@@ -103,7 +103,7 @@ export default async function DashboardPropertiesPage({
                   href={`/dashboard/propiedades/${p._id}/estadisticas`}
                   aria-label={`Estadísticas de ${p.title}`}
                   title="Estadísticas y diagnóstico"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-surface-2 hover:text-accent"
+                  className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-text-muted transition-colors after:absolute after:-inset-1 after:content-[''] hover:bg-surface-2 hover:text-accent"
                 >
                   <BarChart3 className="h-[18px] w-[18px]" aria-hidden />
                 </Link>

@@ -60,7 +60,7 @@ function Tab({ active, onClick, children }: { active: boolean; onClick: () => vo
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "shrink-0 rounded-pill px-4 py-2 text-sm font-medium transition-colors",
+        "min-h-11 shrink-0 rounded-pill px-4 py-2 text-sm font-medium transition-colors",
         active ? "bg-accent text-accent-contrast" : "bg-surface-2 text-text-muted hover:text-text"
       )}
     >

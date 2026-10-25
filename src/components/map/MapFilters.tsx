@@ -66,7 +66,7 @@ export function MapFilters({
         />
       </div>
 
-      <div className="flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="flex min-w-0 items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <FilterPill active={value.operation !== "todas"} onClick={cycleOperation}>
           {value.operation === "todas" ? "Operación" : OPERATION_LABELS[value.operation]}
         </FilterPill>

@@ -156,7 +156,7 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
         )}
         <Link
           href="/propiedades"
-          className="inline-flex items-center gap-1 text-sm font-medium text-text-muted hover:text-text"
+          className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-text-muted hover:text-text"
         >
           <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> Volver al listado
         </Link>

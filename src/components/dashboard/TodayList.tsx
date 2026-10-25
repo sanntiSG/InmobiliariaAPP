@@ -46,7 +46,7 @@ export function TodayList({ items }: { items: TodayItem[] }) {
               </p>
               <h3 className="font-display text-base font-semibold text-text">{item.title}</h3>
               <p className="text-sm text-text-muted">{item.detail}</p>
-              <Link href={item.href} className="group mt-1 inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-accent">
+              <Link href={item.href} className="group -my-2 mt-0 inline-flex w-fit items-center gap-1.5 py-3 text-sm font-semibold text-accent">
                 {item.cta}
                 <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden />
               </Link>

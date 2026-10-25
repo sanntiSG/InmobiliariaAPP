@@ -66,7 +66,7 @@ export default async function NotificacionesPage({ searchParams }: PageProps<"/n
                 href={chip.key ? `/notificaciones?grupo=${chip.key}` : "/notificaciones"}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "shrink-0 rounded-pill px-4 py-2 text-sm font-medium transition-colors",
+                  "min-h-11 shrink-0 rounded-pill px-4 py-2 text-sm font-medium transition-colors",
                   active ? "bg-accent text-accent-contrast" : "bg-surface-2 text-text-muted hover:text-text"
                 )}
               >

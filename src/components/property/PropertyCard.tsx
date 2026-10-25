@@ -83,7 +83,7 @@ function PropertyCardImpl({
         <IconButton
           size={34}
           aria-label={favorited ? "Quitar de favoritos" : "Guardar en favoritos"}
-          className="absolute right-3 top-3"
+          className="absolute right-3 top-3 after:absolute after:-inset-1.5 after:content-['']"
           onClick={(e) => {
             e.stopPropagation();
             setFavorited((v) => !v);

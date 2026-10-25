@@ -101,8 +101,8 @@ export default function PropiedadesPage() {
           lead="Filtrá por zona, precio y tipo. Las que tienen recorrido 360° se pueden caminar desde acá."
           className="mb-6"
         />
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <MapFilters value={filters} onChange={setFilters} resultCount={total} className="flex-1" />
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
+          <MapFilters value={filters} onChange={setFilters} resultCount={total} className="min-w-0 flex-1" />
           <div className="flex items-center gap-2">
             <FilterPill onClick={cycleSort}>{SORT_LABELS[sort]}</FilterPill>
             <Link href="/mapa" className="hidden shrink-0 text-sm font-medium text-accent hover:underline sm:inline">

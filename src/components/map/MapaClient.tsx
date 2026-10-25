@@ -246,7 +246,7 @@ export default function MapaClient({ agency, panelLink = null }: { agency: MapAg
               />
             )}
           </div>
-          <div className="pointer-events-auto flex-1 sm:max-w-2xl">
+          <div className="pointer-events-auto min-w-0 flex-1 sm:max-w-2xl">
             <MapFilters
               value={filters}
               onChange={setFilters}

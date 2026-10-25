@@ -54,56 +54,58 @@ export default async function AdminAgenciesPage() {
           {agencies.map((a, i) => (
             <div
               key={String(a._id)}
-              className={cn("flex items-center gap-4 px-5 py-4", i > 0 && "border-t border-border")}
+              className={cn("flex flex-col gap-1 px-5 py-4 sm:flex-row sm:items-center sm:gap-4", i > 0 && "border-t border-border")}
             >
               <div className="min-w-0 flex-1">
-                <Link href={`/admin/inmobiliarias/${a._id}/editar`} className="font-medium text-text hover:underline">
+                <Link href={`/admin/inmobiliarias/${a._id}/editar`} className="inline-flex min-h-11 items-center sm:min-h-0 font-medium text-text hover:underline">
                   {a.name}
                 </Link>
                 <p className="text-sm text-text-muted">
                   {a.address?.city ?? "—"} · {countByAgency.get(String(a._id)) ?? 0} propiedades ·{" "}
                   {a.contact?.whatsapp ?? "sin WhatsApp"}
                 </p>
-                <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
-                  <Link href={`/dashboard?agencyId=${a._id}`} className="text-sm font-semibold text-accent hover:underline">
+                <div className="mt-1 flex flex-wrap gap-x-4 sm:mt-1.5 sm:gap-y-1">
+                  <Link href={`/dashboard?agencyId=${a._id}`} className="inline-flex min-h-11 items-center sm:min-h-0 text-sm font-semibold text-accent hover:underline">
                     Ver su panel
                   </Link>
                   <Link
                     href={`/dashboard/propiedades?agencyId=${a._id}`}
-                    className="text-sm font-medium text-accent hover:underline"
+                    className="inline-flex min-h-11 items-center sm:min-h-0 text-sm font-medium text-accent hover:underline"
                   >
                     Ver propiedades
                   </Link>
                   <Link
                     href={`/dashboard/propiedades/nueva?agencyId=${a._id}`}
-                    className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
+                    className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-accent hover:underline sm:min-h-0"
                   >
                     <Plus className="h-3.5 w-3.5" aria-hidden /> Propiedad
                   </Link>
                   <Link
                     href={`/dashboard/contenido?agencyId=${a._id}`}
-                    className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
+                    className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-accent hover:underline sm:min-h-0"
                   >
                     <ImagePlus className="h-3.5 w-3.5" aria-hidden /> Contenido para redes
                   </Link>
                 </div>
               </div>
-              <span
-                className={cn(
-                  "shrink-0 rounded-pill px-2.5 py-1 text-xs font-medium",
-                  a.status === "active" && "bg-success-soft text-success",
-                  a.status === "suspended" && "bg-danger-soft text-danger",
-                  a.status === "pending" && "bg-warning-soft text-warning"
-                )}
-              >
-                {AGENCY_STATUS_LABELS[a.status as keyof typeof AGENCY_STATUS_LABELS] ?? a.status}
-              </span>
-              <DeleteAgencyButton
-                agencyId={String(a._id)}
-                name={a.name}
-                propertyCount={countByAgency.get(String(a._id)) ?? 0}
-                memberCount={membersByAgency.get(String(a._id)) ?? 0}
-              />
+              <div className="flex shrink-0 items-center justify-between gap-3 sm:justify-end">
+                <span
+                  className={cn(
+                    "shrink-0 rounded-pill px-2.5 py-1 text-xs font-medium",
+                    a.status === "active" && "bg-success-soft text-success",
+                    a.status === "suspended" && "bg-danger-soft text-danger",
+                    a.status === "pending" && "bg-warning-soft text-warning"
+                  )}
+                >
+                  {AGENCY_STATUS_LABELS[a.status as keyof typeof AGENCY_STATUS_LABELS] ?? a.status}
+                </span>
+                <DeleteAgencyButton
+                  agencyId={String(a._id)}
+                  name={a.name}
+                  propertyCount={countByAgency.get(String(a._id)) ?? 0}
+                  memberCount={membersByAgency.get(String(a._id)) ?? 0}
+                />
+              </div>
             </div>
           ))}
         </div>

@@ -48,6 +48,7 @@ export function DeletePropertyButton({ propertyId, title }: { propertyId: string
     <IconButton
       variant="ghost"
       size={32}
+      className="relative after:absolute after:-inset-1.5 after:content-['']"
       aria-label={`Eliminar ${title}`}
       onClick={(e) => {
         e.stopPropagation();

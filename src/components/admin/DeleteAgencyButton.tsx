@@ -51,7 +51,7 @@ export function DeleteAgencyButton({
           setError(null);
           setOpen(true);
         }}
-        className="text-sm font-medium text-danger hover:underline"
+        className="inline-flex min-h-11 items-center px-1 text-sm font-medium text-danger hover:underline sm:min-h-0"
       >
         Eliminar
       </button>

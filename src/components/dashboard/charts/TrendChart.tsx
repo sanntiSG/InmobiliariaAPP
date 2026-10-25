@@ -152,7 +152,7 @@ export function TrendChart({ points, label, className }: { points: TrendPoint[];
       </div>
 
       <details className="group mt-2 text-sm">
-        <summary className="cursor-pointer list-none text-xs font-medium text-text-muted hover:text-text">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center text-xs font-medium text-text-muted hover:text-text">
           <span className="group-open:hidden">Ver datos en tabla</span>
           <span className="hidden group-open:inline">Ocultar tabla</span>
         </summary>

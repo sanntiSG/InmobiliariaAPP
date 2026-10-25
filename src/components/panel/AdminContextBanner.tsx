@@ -18,11 +18,11 @@ function Banner({ agencies }: { agencies: { id: string; name: string }[] }) {
           Estás viendo el panel de <strong className="font-semibold">{name}</strong>.
         </span>
       </span>
-      <span className="flex flex-wrap gap-x-4 gap-y-1 font-semibold text-accent">
-        <Link href={pathname} className="hover:underline">
+      <span className="flex flex-wrap gap-x-4 font-semibold text-accent">
+        <Link href={pathname} className="inline-flex min-h-11 items-center hover:underline">
           Ver todas las inmobiliarias
         </Link>
-        <Link href="/admin/inmobiliarias" className="hover:underline">
+        <Link href="/admin/inmobiliarias" className="inline-flex min-h-11 items-center hover:underline">
           Volver al admin
         </Link>
       </span>
