@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db/connect";
 import { promotionNote, rankForPromotion } from "@/lib/agents/knowledge/promote";
+import { loadPromotedDaysAgo } from "@/lib/agents/knowledge/promoted";
 import { loadPortfolio } from "@/lib/advisor/data/portfolio";
-import { SocialContent } from "@/lib/db/models/SocialContent";
 import { socialAccess } from "@/lib/social/access";
 import { eligibleProperties } from "@/lib/social/engine";
 import type { SocialSuggestion } from "@/lib/social/types";
@@ -22,15 +22,9 @@ export async function GET(req: NextRequest) {
 
   try {
     await connectDB();
-    const [portfolio, eligible, doc] = await Promise.all([
-      loadPortfolio(a.agencyId),
-      eligibleProperties(a.agencyId),
-      SocialContent.findOne({ agencyId: a.agencyId }).select("recent.propertyIds").lean(),
-    ]);
+    const [portfolio, eligible, promotedDaysAgo] = await Promise.all([loadPortfolio(a.agencyId), eligibleProperties(a.agencyId), loadPromotedDaysAgo(a.agencyId)]);
     const photos = new Map(eligible.map((e) => [e.id, e.photos[0]!]));
-    const recent = doc?.recent?.propertyIds ?? [];
-    // Los últimos tres que se promocionaron cuentan como "hace un día": no se vuelven a sugerir de inmediato.
-    const promotedDaysAgo = new Map(recent.slice(-3).map((id) => [id, 1]));
+    // Los últimos tres que se promocionaron cuentan como "hace un día": no se vuelven a sugerir de inmediato (igual que en el asesor).
 
     const ranked = rankForPromotion(
       portfolio.rows.filter((r) => photos.has(r.id)),

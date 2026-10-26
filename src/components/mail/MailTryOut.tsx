@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, ChevronDown, Copy, FlaskConical, Loader2, TriangleAlert } from "lucide-react";
+import { Check, ChevronDown, Copy, FlaskConical, Loader2, RefreshCw, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils/cn";
 import type { Preview } from "@/lib/mail/preview";
@@ -156,11 +156,15 @@ export function MailTryOut({ agencyId, defaultOpen = false }: { agencyId: string
   const subject = edit.subject ?? sample?.subject ?? "";
   const text = edit.text ?? sample?.text ?? "";
 
-  const run = async () => {
+  // "Otra redacción" muestra la misma respuesta dicha de otra manera (las frases cambian según la semilla del mail).
+  const [variant, setVariant] = useState(0);
+
+  const run = async (nextVariant = 0) => {
     setBusy(true);
     setError(null);
+    setVariant(nextVariant);
     try {
-      const data = await mailApi<Preview>("/preview", agencyId, { method: "POST", body: JSON.stringify({ subject, text, fromName: name }) });
+      const data = await mailApi<Preview>("/preview", agencyId, { method: "POST", body: JSON.stringify({ subject, text, fromName: name, variant: nextVariant }) });
       setResult((prev) => ({ id: (prev?.id ?? 0) + 1, data }));
     } catch (e) {
       setError(e instanceof MailApiError ? e.message : "No se pudo probar ahora.");
@@ -208,6 +212,12 @@ export function MailTryOut({ agencyId, defaultOpen = false }: { agencyId: string
             {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
             {busy ? "Pensando…" : "Ver cómo respondería"}
           </Button>
+          {result?.data.draft && (
+            <Button type="button" variant="secondary" onClick={() => void run(variant + 1)} disabled={busy}>
+              <RefreshCw className="h-4 w-4" aria-hidden />
+              Otra redacción
+            </Button>
+          )}
           {sample && (edit.text !== undefined || edit.subject !== undefined) && (
             <Button type="button" variant="ghost" onClick={() => setEdit({})}>
               Volver al ejemplo

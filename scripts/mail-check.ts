@@ -443,7 +443,7 @@ async function hosts() {
   const feat = composeReply({ ...base, classification: { topics: ["features"], category: "features", needsHuman: false, humanTopics: [] } });
   check("respuesta: características → trae el detalle (ambientes, baños, cochera)", /Datos:/.test(feat.body) && /Baños: 2/.test(feat.body) && /Cocheras: 2/.test(feat.body), feat.body);
   const visit = composeReply({ ...base, classification: { topics: ["visit"], category: "visit", needsHuman: false, humanTopics: [] } });
-  check("respuesta: visita → pide días y horarios, sin prometer uno", /Contanos qué días y horarios/.test(visit.body) && !/\b\d{1,2}:\d{2}\b/.test(visit.body), visit.body);
+  check("respuesta: visita → pide días y horarios, sin prometer uno", /qué días y horarios/.test(visit.body) && !/\b\d{1,2}:\d{2}\b/.test(visit.body), visit.body);
   const human = composeReply({ ...base, classification: { topics: ["price"], category: "price", needsHuman: true, humanTopics: ["financiación", "mascotas"] } });
   check("respuesta: lo que no puede contestar lo deriva a una persona", /Sobre financiación y mascotas, te lo confirmamos a la brevedad/.test(human.body), human.body);
   const none = composeReply({ ...base, properties: [], alternatives: [] });
@@ -452,6 +452,42 @@ async function hosts() {
   check("respuesta: propiedad que ya no está → lo dice y ofrece parecidas", /ya no está disponible/.test(gone.body) && /Casa Parecida/.test(gone.body), gone.body);
   const search = composeReply({ ...base, properties: [], alternatives: [prop({ id: "8".repeat(24), title: "Casa Sugerida" })] });
   check("respuesta: sin nombrar propiedad pero con búsqueda → sugiere", /pueden interesarte|te sugerimos/.test(search.body) && /Casa Sugerida/.test(search.body), search.body);
+  // Variedad y limpieza en TODOS los caminos de la redacción, con muchas semillas.
+  {
+    const scenarios: [string, Partial<ComposeInput>][] = [
+      ["disponible", {}],
+      ["precio", { classification: { topics: ["price"], category: "price", needsHuman: false, humanTopics: [] } }],
+      ["características", { classification: { topics: ["features"], category: "features", needsHuman: false, humanTopics: [] } }],
+      ["visita", { classification: { topics: ["visit"], category: "visit", needsHuman: false, humanTopics: [] } }],
+      ["general", { classification: { topics: ["general"], category: "general", needsHuman: false, humanTopics: [] } }],
+      ["no está", { properties: [], unavailable: true, alternatives: [prop({ id: "9".repeat(24), title: "Casa Parecida" })] }],
+      ["no está y no hay parecidas", { properties: [], unavailable: true, alternatives: [] }],
+      ["sin nada publicado de lo que pidió", { properties: [], alternatives: [prop({ id: "8".repeat(24), title: "Casa Sugerida" })], search: { label: "casas en venta en Ezeiza", fallback: true } }],
+      ["búsqueda con resultados", { properties: [], alternatives: [prop({ id: "8".repeat(24), title: "Casa Sugerida" })], search: { label: "casas en venta en Ezeiza", fallback: false } }],
+      ["sugerencias sin búsqueda", { properties: [], alternatives: [prop({ id: "8".repeat(24), title: "Casa Sugerida" })] }],
+      ["quiere vender", { properties: [], alternatives: [], classification: { topics: ["general"], category: "general", needsHuman: true, humanTopics: ["tasación o venta de su propiedad"] } }],
+      ["pidió algo y no hay", { properties: [], alternatives: [], search: { label: "casas en venta en Ezeiza", fallback: false } }],
+      ["sin datos", { properties: [], alternatives: [] }],
+      ["con temas para una persona", { classification: { topics: ["price"], category: "price", needsHuman: true, humanTopics: ["financiación"] } }],
+    ];
+    let bad = "";
+    const seen = new Map<string, Set<string>>();
+    for (const [name, over] of scenarios) {
+      for (let i = 0; i < 40; i++) {
+        const out = composeReply({ ...base, ...over, seed: `mail-${i}`, auto: i % 2 === 0 }).body;
+        seen.set(name, (seen.get(name) ?? new Set()).add(out));
+        if (/undefined|NaN|\[object|\{\{|\$\{/.test(out)) bad = `${name}: marcador sin completar`;
+        if (/\b(tienes|puedes|quieres|necesitas|cuéntame|escríbenos|llámanos)\b/i.test(out)) bad = `${name}: no usa voseo`;
+        if (!/^Hola/.test(out) || !/Equipo de Umbral Norte Propiedades\s*(\n--[\s\S]*)?$/.test(out.trimEnd())) bad = `${name}: no saluda o no firma`;
+        if ((out.match(/Gracias por/g) ?? []).length > 1) bad = `${name}: agradece dos veces`;
+      }
+    }
+    check("respuesta: ningún camino deja marcadores sin completar, usa voseo, saluda y firma", bad === "", bad);
+    const varied = [...seen].filter(([, v]) => v.size < 3).map(([n, v]) => `${n}: ${v.size}`);
+    check("respuesta: cada camino tiene al menos 3 redacciones distintas", varied.length === 0, varied);
+    const sameSeedTwice = scenarios.every(([, over]) => composeReply({ ...base, ...over, seed: "x1" }).body === composeReply({ ...base, ...over, seed: "x1" }).body);
+    check("respuesta: con la misma semilla siempre sale igual", sameSeedTwice);
+  }
   const custom = composeReply({ ...base, settings: { signature: "Lucía — Umbral", greeting: "¡Gracias por escribir!", closing: "Un abrazo.", disclose: true, maxProperties: 3 } });
   check("respuesta: usa saludo, cierre y firma configurados", custom.body.includes("¡Gracias por escribir!") && custom.body.includes("Un abrazo.") && custom.body.trimEnd().endsWith("Lucía — Umbral"), custom.body);
   check("asunto: 'Re:' sin repetir", replySubject("RE: Re: Casa en Canning") === "Re: Casa en Canning" && replySubject("Fwd: Hola") === "Re: Hola");

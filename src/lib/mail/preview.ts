@@ -43,14 +43,18 @@ export type Preview = {
   mode: MailMode;
 };
 
-export async function previewMail(agencyId: string, input: { subject: string; text: string; fromName?: string | null }): Promise<Preview> {
+export async function previewMail(
+  agencyId: string,
+  /** `variant` cambia la redacción de la respuesta (el botón "Otra redacción"): 0 o ausente es la de siempre. */
+  input: { subject: string; text: string; fromName?: string | null; variant?: number }
+): Promise<Preview> {
   await connectDB();
   const [settings, agency] = await Promise.all([loadSettings(agencyId), Agency.findById(agencyId).select("name").lean()]);
   const text = cleanBody(input.text.slice(0, PREVIEW_LIMITS.text));
   const subject = input.subject.replace(/[\r\n]+/g, " ").slice(0, PREVIEW_LIMITS.subject);
   const analysis = await analyzeMail(
     { agencyId, agencyName: agency?.name ?? "la inmobiliaria", settings },
-    { subject, text, fromName: input.fromName?.trim().slice(0, PREVIEW_LIMITS.name) || null, seed: "preview" }
+    { subject, text, fromName: input.fromName?.trim().slice(0, PREVIEW_LIMITS.name) || null, seed: input.variant ? `preview-${input.variant}` : "preview" }
   );
   const cls = analysis.classification;
   const link = (f: { title: string; slug: string }): PreviewProperty => ({ title: f.title, url: propertyUrl(analysis.siteUrl, f.slug) });

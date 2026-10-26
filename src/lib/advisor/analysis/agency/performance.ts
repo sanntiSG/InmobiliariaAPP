@@ -8,7 +8,8 @@ import { benchFor } from "@/lib/intelligence/benchmarks";
 import { THRESHOLDS, sortDiagnostics, type Diagnostic } from "@/lib/intelligence/diagnostics";
 import { avgDwellSec, consultas, getDailySeries, ratio, type Totals } from "@/lib/intelligence/metrics";
 import { dedupeSuggestions, sug } from "../../compose/suggest";
-import { change, clip, count, daysAgo, list, median, n0, pct, pick, plural, quote, signedPct } from "../../compose/format";
+import { phrase } from "@/lib/agents/knowledge/phrasing";
+import { change, clip, count, daysAgo, list, median, n0, pct, plural, quote, signedPct } from "../../compose/format";
 import { describeChange, describeEntry } from "../../compose/activity-text";
 import { periodRange, previousOf } from "../../data/periods";
 import type { PropertyRow } from "../../data/portfolio";
@@ -61,12 +62,14 @@ export const overview: AgencyHandler = async (env) => {
 
   if (p.rows.length === 0) {
     return {
-      lead: pick(
+      lead: phrase(
+        "agency.overview.empty",
         [
           "Todavía no hay propiedades publicadas, así que no tengo nada que medir. Apenas publiques la primera, empiezo a seguirla.",
           "Aún no tenés propiedades publicadas: no hay visitas ni consultas para analizar todavía.",
+          "Sin propiedades publicadas no hay números que mirar. Cuando salga la primera, te cuento cómo le va.",
         ],
-        env.seed
+        env.context.turn
       ),
       blocks: [],
       followUps: [sug("common.help", "¿Qué podés hacer por mí?")],
@@ -91,13 +94,30 @@ export const overview: AgencyHandler = async (env) => {
     `${n0(consultas(cur))} ${plural(consultas(cur), "consulta", "consultas")}`,
     `${n0(cur.saves)} ${plural(cur.saves, "favorito", "favoritos")}`,
   ];
-  let lead = `${cap(periodWord(period))} sumás ${list(parts)}.`;
-  if (period === "today") lead = `Hoy llevás ${list(parts)}.`;
-  if (best && cur.views > 0) lead += ` La que más interés genera es ${quote(best.title)}.`;
+  const turn = env.context.turn;
+  let lead =
+    period === "today"
+      ? phrase("agency.overview.today", [`Hoy llevás ${list(parts)}.`, `Hasta ahora, hoy: ${list(parts)}.`, `Lo que va de hoy: ${list(parts)}.`], turn)
+      : phrase(
+          "agency.overview.open",
+          [`${cap(periodWord(period))} sumás ${list(parts)}.`, `${cap(periodWord(period))} tuviste ${list(parts)}.`, `Mirando ${periodWord(period)}: ${list(parts)}.`],
+          turn
+        );
+  if (best && cur.views > 0) {
+    lead += ` ${phrase("agency.overview.best", [`La que más interés genera es ${quote(best.title)}.`, `La que más se destaca es ${quote(best.title)}.`, `Quien lidera es ${quote(best.title)}.`], turn)}`;
+  }
   if (flagged.length > 0) {
-    lead += ` Hay ${count(flagged.length, "propiedad que conviene revisar", "propiedades que conviene revisar")}.`;
+    lead += ` ${phrase(
+      "agency.overview.flagged",
+      [
+        `Hay ${count(flagged.length, "propiedad que conviene revisar", "propiedades que conviene revisar")}.`,
+        `Conviene revisar ${count(flagged.length, "propiedad", "propiedades")}.`,
+        `Te sugiero mirar ${count(flagged.length, "propiedad", "propiedades")} con detalle.`,
+      ],
+      turn
+    )}`;
   } else if (cur.views > 0) {
-    lead += " No veo nada urgente para atender.";
+    lead += ` ${phrase("agency.overview.calm", ["No veo nada urgente para atender.", "Por ahora, nada urgente.", "No hay nada que atender con urgencia."], turn)}`;
   }
   if (hasThinData(env)) lead += ` ${THIN_DATA_TEXT}`;
 
@@ -158,7 +178,7 @@ export const metric: AgencyHandler = async (env) => {
 
   const rows = filterRows(p.rows, env.slots);
   if (rows.length === 0) {
-    return { lead: noRowsText(env.slots), blocks: [], followUps: [sug("agency.overview", "Dame un resumen general")] };
+    return { lead: noRowsText(env.slots, env.context.turn), blocks: [], followUps: [sug("agency.overview", "Dame un resumen general")] };
   }
 
   const [curMap, prevMap, series] = await Promise.all([
@@ -175,7 +195,8 @@ export const metric: AgencyHandler = async (env) => {
   const d = change(value, before);
 
   const unit = m === "dwell" ? "segundos de permanencia promedio" : plural(value, label.one, label.many);
-  let lead = `${cap(periodWord(period))} tuviste ${n0(value)} ${unit}`;
+  const had = phrase("agency.metric.verb", ["tuviste", "registraste", "sumaste"], env.context.turn);
+  let lead = `${cap(periodWord(period))} ${had} ${n0(value)} ${unit}`;
   const scopeText = filterText(env.slots);
   if (scopeText) lead += ` en ${scopeText}`;
   if (d != null && before > 0 && period !== "yesterday") lead += `, ${signedPct(d, 0)} respecto de ${periodWord(prevPeriod)} (${n0(before)}).`;
@@ -215,9 +236,18 @@ export const metric: AgencyHandler = async (env) => {
   };
 };
 
-function noRowsText(slots: HandlerSlots): string {
+function noRowsText(slots: HandlerSlots, turn: number): string {
   const f = filterText(slots);
-  return f ? `No encuentro propiedades publicadas de ${f}. Revisá el nombre de la zona o probá sin ese filtro.` : "No encuentro propiedades publicadas para analizar.";
+  return f
+    ? phrase(
+        "agency.norows.filtered",
+        [
+          `No encuentro propiedades publicadas de ${f}. Revisá el nombre de la zona o probá sin ese filtro.`,
+          `No tengo propiedades publicadas de ${f}. Fijate si el nombre de la zona está bien escrito o probá sin ese filtro.`,
+        ],
+        turn
+      )
+    : phrase("agency.norows", ["No encuentro propiedades publicadas para analizar.", "No tengo propiedades publicadas para analizar todavía."], turn);
 }
 type HandlerSlots = Parameters<typeof filterText>[0];
 
@@ -231,7 +261,7 @@ async function ranking(env: Parameters<AgencyHandler>[0], direction: "worst" | "
   const n = limitOf(env.slots.count);
 
   let rows = filterRows(p.rows, env.slots);
-  if (rows.length === 0) return { lead: noRowsText(env.slots), blocks: [], followUps: [sug("agency.overview", "Dame un resumen general")] };
+  if (rows.length === 0) return { lead: noRowsText(env.slots, env.context.turn), blocks: [], followUps: [sug("agency.overview", "Dame un resumen general")] };
 
   const totals = await totalsByProperty(env, period);
   const totalViews = [...totals.values()].reduce((a, t) => a + t.views, 0);
@@ -239,8 +269,18 @@ async function ranking(env: Parameters<AgencyHandler>[0], direction: "worst" | "
   // Con casi ningún tráfico, ordenar sería ordenar ruido: se dice y se ofrece lo que sí se puede mirar.
   if (totalViews < MIN_RANK_VIEWS) {
     const toImprove = rows.filter((r) => r.diagnostics.some((d) => d.kind === "attention")).length;
+    const scopeText = filterText(env.slots) ? ` entre tus ${filterText(env.slots)}` : "";
+    const rank = direction === "worst" ? "peor" : "mejor";
+    const improve = toImprove > 0 ? ` Lo que sí puedo decirte es que ${count(toImprove, "publicación tiene", "publicaciones tienen")} cosas por mejorar.` : "";
     return {
-      lead: `${cap(periodWord(period))} casi no hay visitas medidas (${n0(totalViews)} en total${filterText(env.slots) ? ` entre tus ${filterText(env.slots)}` : ""}), así que un ranking de "${direction === "worst" ? "peor" : "mejor"}" sería puro ruido.${toImprove > 0 ? ` Lo que sí puedo decirte es que ${count(toImprove, "publicación tiene", "publicaciones tienen")} cosas por mejorar.` : ""} Cuando haya más tráfico lo calculo con firmeza.`,
+      lead: phrase(
+        "agency.rank.thin",
+        [
+          `${cap(periodWord(period))} casi no hay visitas medidas (${n0(totalViews)} en total${scopeText}), así que un ranking de "${rank}" sería puro ruido.${improve} Cuando haya más tráfico lo calculo con firmeza.`,
+          `Con tan pocas visitas ${periodWord(period)} (${n0(totalViews)} en total${scopeText}) no puedo decirte cuáles andan "${rank}" sin inventar.${improve} Apenas haya más tráfico lo calculo en serio.`,
+        ],
+        env.context.turn
+      ),
       blocks: [{ type: "caveat", text: THIN_DATA_TEXT }],
       followUps: dedupeSuggestions([
         sug("agency.review_first", "¿Qué debería revisar primero?"),
@@ -277,25 +317,45 @@ async function ranking(env: Parameters<AgencyHandler>[0], direction: "worst" | "
   const names = shown.slice(0, 3).map((s) => quote(s.r.title));
   const word = periodWord(period);
   const metricName = m === "interest" ? "interés" : label.short;
+  const one = shown.length === 1;
+  const who = list(names);
+  const turn = env.context.turn;
   let lead: string;
   if (direction === "worst") {
-    lead = pick(
-      [
-        `${cap(word)}, las que menos ${metricName} generan son ${list(names)}.`,
-        `Las que peor andan ${word} (por ${metricName}) son ${list(names)}.`,
-      ],
-      env.seed
-    );
+    lead = one
+      ? phrase(
+          "agency.rank.worst.one",
+          [`${cap(word)}, la que menos ${metricName} genera es ${who}.`, `La que peor anda ${word} (por ${metricName}) es ${who}.`, `La más floja ${word} en ${metricName} es ${who}.`],
+          turn
+        )
+      : phrase(
+          "agency.rank.worst",
+          [
+            `${cap(word)}, las que menos ${metricName} generan son ${who}.`,
+            `Las que peor andan ${word} (por ${metricName}) son ${who}.`,
+            `Las propiedades con menos ${metricName} ${word}: ${who}.`,
+            `Mirando ${word}, las más flojas en ${metricName} son ${who}.`,
+          ],
+          turn
+        );
   } else {
-    lead = pick(
-      [
-        `${cap(word)}, las que más ${metricName} generan son ${list(names)}.`,
-        `Lo que mejor funciona ${word} (por ${metricName}): ${list(names)}.`,
-      ],
-      env.seed
-    );
+    lead = one
+      ? phrase(
+          "agency.rank.best.one",
+          [`${cap(word)}, la que más ${metricName} genera es ${who}.`, `Lo que mejor funciona ${word} (por ${metricName}) es ${who}.`, `La que más se destaca ${word} en ${metricName} es ${who}.`],
+          turn
+        )
+      : phrase(
+          "agency.rank.best",
+          [
+            `${cap(word)}, las que más ${metricName} generan son ${who}.`,
+            `Lo que mejor funciona ${word} (por ${metricName}): ${who}.`,
+            `Las que más se destacan ${word} en ${metricName}: ${who}.`,
+            `Mirando ${word}, las que lideran en ${metricName} son ${who}.`,
+          ],
+          turn
+        );
   }
-  if (shown.length === 1) lead = lead.replace("son ", "es ");
   const scopeText = filterText(env.slots);
   if (scopeText) lead = `${lead.replace(/.$/, "")} (entre tus ${scopeText}).`;
 
@@ -340,13 +400,27 @@ export const viewsNoInquiries: AgencyHandler = (env) => {
       .slice(0, 3);
     if (candidates.length === 0) {
       return {
-        lead: `Ninguna propiedad llegó todavía a ${MIN_VIEWS} visitas en 30 días, que es lo mínimo que necesito para medir cuántas visitas se convierten en consultas sin equivocarme.`,
+        lead: phrase(
+          "agency.vni.thin",
+          [
+            `Ninguna propiedad llegó todavía a ${MIN_VIEWS} visitas en 30 días, que es lo mínimo que necesito para medir cuántas visitas se convierten en consultas sin equivocarme.`,
+            `Todavía ninguna propiedad juntó ${MIN_VIEWS} visitas en 30 días, y con menos no puedo medir en serio cuántas terminan en consulta.`,
+          ],
+          env.context.turn
+        ),
         blocks: [],
         followUps: dedupeSuggestions([sug("agency.best", "¿Cuáles tienen más visitas?"), sug("agency.actions", "¿Qué hago para conseguir más visitas?")]),
       };
     }
     return {
-      lead: "Ninguna propiedad tiene hoy un desbalance claro entre visitas y consultas. Estas son las que menos convierten, por si querés mirarlas:",
+      lead: phrase(
+        "agency.vni.balanced",
+        [
+          "Ninguna propiedad tiene hoy un desbalance claro entre visitas y consultas. Estas son las que menos convierten, por si querés mirarlas:",
+          "No veo un desbalance marcado entre visitas y consultas. Igual, estas son las que menos convierten, por si querés echarles un vistazo:",
+        ],
+        env.context.turn
+      ),
       blocks: [
         {
           type: "properties",
@@ -374,7 +448,17 @@ export const viewsNoInquiries: AgencyHandler = (env) => {
   });
 
   const names = list(shown.slice(0, 3).map((r) => quote(r.title)));
-  const lead = `${shown.length === 1 ? `${names} recibe` : `${n0(flagged.length)} ${plural(flagged.length, "propiedad recibe", "propiedades reciben")} mucho interés`} pero se convierte${shown.length === 1 ? "" : "n"} poco en consultas${shown.length > 1 ? `: ${names}${flagged.length > 3 ? " y otras" : ""}` : ""}. Eso suele indicar que la gente mira pero algo la frena: el precio, la descripción o que falta algo para confiar.`;
+  const head = `${shown.length === 1 ? `${names} recibe` : `${n0(flagged.length)} ${plural(flagged.length, "propiedad recibe", "propiedades reciben")} mucho interés`} pero se convierte${shown.length === 1 ? "" : "n"} poco en consultas${shown.length > 1 ? `: ${names}${flagged.length > 3 ? " y otras" : ""}` : ""}.`;
+  const tail = phrase(
+    "agency.vni.why",
+    [
+      "Eso suele indicar que la gente mira pero algo la frena: el precio, la descripción o que falta algo para confiar.",
+      "Cuando pasa esto, lo habitual es que algo frene a quien mira: el precio, la descripción o la falta de algo que dé confianza.",
+      "Suele ser señal de que algo frena la consulta: el precio, la descripción o que falta algo para confiar.",
+    ],
+    env.context.turn
+  );
+  const lead = `${head} ${tail}`;
 
   return {
     lead,
@@ -545,7 +629,14 @@ export const investigate: AgencyHandler = (env) => {
   }
   if (targets.length === 0) {
     return {
-      lead: "No veo ninguna propiedad con un problema claro para investigar. Decime el nombre de una y la reviso, o mirá primero cuáles andan peor.",
+      lead: phrase(
+        "agency.investigate.none",
+        [
+          "No veo ninguna propiedad con un problema claro para investigar. Decime el nombre de una y la reviso, o mirá primero cuáles andan peor.",
+          "Ninguna propiedad muestra un problema claro como para investigar. Si querés, decime el nombre de una y la reviso igual, o empecemos por las que andan peor.",
+        ],
+        env.context.turn
+      ),
       blocks: [],
       followUps: dedupeSuggestions([sug("agency.worst", "¿Cuáles andan peor?"), sug("agency.review_first", "¿Qué debería revisar primero?")]),
     };
@@ -623,7 +714,14 @@ export const changesVsPrevious: AgencyHandler = async (env) => {
 
   if (cur.views + prev.views + consultas(cur) + consultas(prev) === 0) {
     return {
-      lead: `No registré visitas ni consultas ni en ${periodWord(period)} ni en ${periodWord(prevPeriod)}, así que no hay nada que comparar todavía.`,
+      lead: phrase(
+        "agency.changes.none",
+        [
+          `No registré visitas ni consultas ni en ${periodWord(period)} ni en ${periodWord(prevPeriod)}, así que no hay nada que comparar todavía.`,
+          `Ni ${periodWord(period)} ni ${periodWord(prevPeriod)} hay visitas o consultas registradas: todavía no tengo con qué comparar.`,
+        ],
+        env.context.turn
+      ),
       blocks: [],
       followUps: dedupeSuggestions([sug("agency.actions", "¿Qué me recomendás hacer?")]),
     };
@@ -716,7 +814,14 @@ export const reviewFirst: AgencyHandler = (env) => {
 
   if (shown.length === 0) {
     return {
-      lead: `No veo ninguna publicación urgente: no hay hallazgos que requieran atención.${draftNote} Si querés, miramos oportunidades para seguir mejorando.`,
+      lead: phrase(
+        "agency.review.calm",
+        [
+          `No veo ninguna publicación urgente: no hay hallazgos que requieran atención.${draftNote} Si querés, miramos oportunidades para seguir mejorando.`,
+          `Por ahora ninguna publicación necesita atención urgente.${draftNote} Si querés, buscamos oportunidades para seguir mejorando.`,
+        ],
+        env.context.turn
+      ),
       blocks: [],
       followUps: dedupeSuggestions([sug("agency.opportunities", "¿Qué oportunidades tengo?"), sug("agency.best", "¿Cuáles funcionan mejor?")]),
     };
@@ -724,7 +829,17 @@ export const reviewFirst: AgencyHandler = (env) => {
 
   const items = sortDiagnostics(shown.flatMap((s) => s.att.slice(0, 1)));
   const first = shown[0]!;
-  const lead = `Yo empezaría por ${quote(first.r.title)}${first.att[0] ? `: ${first.att[0].title.toLowerCase()}` : ""}.${shown.length > 1 ? ` Después seguiría con ${list(shown.slice(1, 3).map((s) => quote(s.r.title)))}.` : ""}${draftNote}`;
+  const why = first.att[0] ? `: ${first.att[0].title.toLowerCase()}` : "";
+  const next = shown.length > 1 ? list(shown.slice(1, 3).map((s) => quote(s.r.title))) : "";
+  const lead = phrase(
+    "agency.review.first",
+    [
+      `Yo empezaría por ${quote(first.r.title)}${why}.${next ? ` Después seguiría con ${next}.` : ""}${draftNote}`,
+      `Lo primero que miraría es ${quote(first.r.title)}${why}.${next ? ` Después, ${next}.` : ""}${draftNote}`,
+      `Mi orden de prioridad: arrancá por ${quote(first.r.title)}${why}.${next ? ` Más tarde, ${next}.` : ""}${draftNote}`,
+    ],
+    env.context.turn
+  );
 
   return {
     lead,

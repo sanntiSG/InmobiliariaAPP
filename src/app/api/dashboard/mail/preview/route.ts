@@ -13,6 +13,8 @@ const bodySchema = z.object({
   subject: z.string().max(PREVIEW_LIMITS.subject).default(""),
   text: z.string().trim().min(3, "Escribí una consulta para probar.").max(PREVIEW_LIMITS.text),
   fromName: z.string().max(PREVIEW_LIMITS.name).optional(),
+  /** "Otra redacción": cambia las frases de la respuesta de ejemplo. */
+  variant: z.number().int().min(0).max(999).optional(),
 });
 
 /** Una consulta de ejemplo armada con una propiedad publicada de la inmobiliaria (o `sample: null` si todavía no tiene ninguna). */

@@ -5,6 +5,7 @@
  * Texto plano. Función pura.
  */
 import { list, pick, seedOf } from "@/lib/advisor/compose/format";
+import { phraseFor } from "@/lib/agents/knowledge/phrasing";
 import { describeLine, factItems, firstSentences, highlights, placeOf, type PropertyFacts } from "@/lib/agents/knowledge/facts";
 import { SELLER_TOPIC, type Classification } from "./classify";
 import { firstNameOf } from "./prefilter";
@@ -85,6 +86,8 @@ function answersFor(answers: ComposeInput["answers"], shown: ReplyProperty[], se
 export function composeReply(input: ComposeInput): { subject: string; body: string } {
   const { settings, classification: c } = input;
   const seed = seedOf(input.seed, input.agencyName);
+  // Cada banco de frases arranca en una posición distinta según el mail (la semilla): dos mails seguidos no suenan igual.
+  const say = (bank: string, variants: readonly string[]) => phraseFor(`mail.${bank}`, variants, seed);
   const name = firstNameOf(input.fromName);
   const max = Math.max(1, Math.min(5, settings.maxProperties));
   const shown = input.properties.slice(0, max);
@@ -96,74 +99,156 @@ export function composeReply(input: ComposeInput): { subject: string; body: stri
 
   const seller = c.humanTopics.includes(SELLER_TOPIC);
   const parts: string[] = [name ? `Hola ${name},` : "Hola,"];
-  parts.push(settings.greeting.trim() || pick(["Gracias por escribirnos.", "Gracias por tu consulta.", "Gracias por comunicarte con nosotros."], seed));
+  // A quien quiere vender se le agradece en su propio párrafo ("Gracias por pensar en nosotros…"): no se agradece dos veces.
+  const thanksBelow = seller && shown.length === 0 && alternatives.length === 0 && !input.unavailable;
+  const greeting = settings.greeting.trim() || (thanksBelow ? "" : say("thanks", ["Gracias por escribirnos.", "Gracias por tu consulta.", "Gracias por comunicarte con nosotros.", "Gracias por contactarnos."]));
+  if (greeting) parts.push(greeting);
 
   if (shown.length > 0) {
     const one = shown.length === 1;
+    const title = shown[0]!.facts.title;
     const lead = input.inherited
       ? one
-        ? pick([`Seguimos con «${shown[0]!.facts.title}», la propiedad de tu consulta anterior.`, `Sobre «${shown[0]!.facts.title}», la propiedad que veníamos viendo:`], seed >>> 2)
+        ? say("inherited", [`Seguimos con «${title}», la propiedad de tu consulta anterior.`, `Sobre «${title}», la propiedad que veníamos viendo:`])
         : "Seguimos con las propiedades de tu consulta anterior."
       : top === "availability"
         ? one
-          ? `Sí, «${shown[0]!.facts.title}» sigue disponible.`
-          : pick(["Sí, estas propiedades siguen disponibles:", "Sí, tenemos disponibles estas propiedades:"], seed >>> 2)
+          ? say("available.one", [`Sí, «${title}» sigue disponible.`, `Te confirmo que «${title}» sigue disponible.`, `«${title}» sigue disponible, sí.`])
+          : say("available.many", ["Sí, estas propiedades siguen disponibles:", "Sí, tenemos disponibles estas propiedades:", "Te confirmo que estas propiedades siguen disponibles:"])
         : top === "price"
-          ? pick(["Te paso el precio y los datos de la propiedad:", "Estos son el precio y los datos:"], seed >>> 2)
+          ? say("price", ["Te paso el precio y los datos de la propiedad:", "Estos son el precio y los datos:", "Acá va el precio y lo principal de la propiedad:"])
           : top === "features"
             ? answers
               ? ""
-              : pick(["Te cuento cómo es:", "Estas son sus características:"], seed >>> 2)
+              : say("features", ["Te cuento cómo es:", "Estas son sus características:", "Así es la propiedad:"])
             : top === "visit"
-              ? "¡Claro! Con gusto coordinamos una visita. Primero, los datos de la propiedad:"
+              ? say("visit", [
+                  "¡Claro! Con gusto coordinamos una visita. Primero, los datos de la propiedad:",
+                  "¡Por supuesto! Coordinamos la visita con gusto. Antes, los datos de la propiedad:",
+                  "¡Dale! Nos encanta mostrarla. Primero, los datos de la propiedad:",
+                ])
               : answers
                 ? ""
-                : pick(["Te cuento sobre la propiedad:", "Estos son los datos que tenemos:"], seed >>> 2);
+                : say("general", ["Te cuento sobre la propiedad:", "Estos son los datos que tenemos:", "Esto es lo que tenemos de la propiedad:"]);
     if (lead) parts.push(lead);
     if (answers) {
       parts.push(answers.text);
-      if (answers.missing > 0) parts.push(pick(["Lo que no figura en la publicación lo confirmamos con el equipo y te avisamos.", "Eso que no está en la publicación lo consultamos con el equipo y te respondemos."], seed >>> 6));
-      parts.push(pick(["Y estos son los datos de la propiedad:", "Te dejo también los datos de la propiedad:"], seed >>> 8));
+      if (answers.missing > 0) {
+        parts.push(
+          say("missing", [
+            "Lo que no figura en la publicación lo confirmamos con el equipo y te avisamos.",
+            "Eso que no está en la publicación lo consultamos con el equipo y te respondemos.",
+            "Lo que falta en la publicación lo averiguamos con el equipo y te lo hacemos saber.",
+          ])
+        );
+      }
+      parts.push(say("datos", ["Y estos son los datos de la propiedad:", "Te dejo también los datos de la propiedad:", "Acá tenés además los datos de la propiedad:"]));
     }
     parts.push(shown.map((p) => propertyBlock(p, details)).join("\n\n"));
-    if (top === "visit" || c.topics.includes("visit")) parts.push("Contanos qué días y horarios te quedan mejor y lo coordinamos.");
+    if (top === "visit" || c.topics.includes("visit")) {
+      parts.push(
+        say("visit.when", [
+          "Contanos qué días y horarios te quedan mejor y lo coordinamos.",
+          "Decinos qué días y horarios te quedan cómodos y lo coordinamos.",
+          "Avisanos qué días y horarios te vienen bien y lo coordinamos.",
+        ])
+      );
+    }
   } else if (input.unavailable) {
-    parts.push("Esa propiedad ya no está disponible.");
+    parts.push(say("gone", ["Esa propiedad ya no está disponible.", "Lamentablemente, esa propiedad ya no está disponible.", "Te cuento que esa propiedad ya no está disponible."]));
     if (alternatives.length > 0) {
-      parts.push(pick(["Mirá estas opciones parecidas que sí tenemos:", "Te dejamos algunas opciones parecidas:"], seed >>> 2));
+      parts.push(say("gone.alts", ["Mirá estas opciones parecidas que sí tenemos:", "Te dejamos algunas opciones parecidas:", "Estas otras propiedades se le parecen y sí están disponibles:"]));
       parts.push(alternatives.map((p) => propertyBlock(p, false)).join("\n\n"));
     } else {
-      parts.push("Si querés, contanos qué estás buscando (zona, tipo de propiedad y presupuesto) y te enviamos opciones.");
+      parts.push(
+        say("gone.ask", [
+          "Si querés, contanos qué estás buscando (zona, tipo de propiedad y presupuesto) y te enviamos opciones.",
+          "Si te sirve, contanos qué buscás (zona, tipo de propiedad y presupuesto) y te mandamos opciones.",
+        ])
+      );
     }
   } else if (alternatives.length > 0 && input.search?.fallback) {
-    parts.push(`Por ahora no tenemos nada publicado para ${input.search.label}. Mientras tanto, estas son algunas de nuestras propiedades:`);
+    parts.push(
+      say("nothing.alts", [
+        `Por ahora no tenemos nada publicado para ${input.search.label}. Mientras tanto, estas son algunas de nuestras propiedades:`,
+        `En este momento no tenemos nada publicado para ${input.search.label}. Mientras tanto, te dejamos algunas de nuestras propiedades:`,
+      ])
+    );
     parts.push(alternatives.map((p) => propertyBlock(p, false)).join("\n\n"));
-    parts.push("Si querés, contanos tu presupuesto y qué es lo más importante para vos, y te avisamos cuando haya algo que encaje.");
+    parts.push(
+      say("budget", [
+        "Si querés, contanos tu presupuesto y qué es lo más importante para vos, y te avisamos cuando haya algo que encaje.",
+        "Si nos contás tu presupuesto y qué es lo más importante para vos, te avisamos cuando aparezca algo que encaje.",
+      ])
+    );
   } else if (alternatives.length > 0 && input.search?.label) {
-    parts.push(pick([`Para ${input.search.label}, esto es lo que tenemos disponible:`, `Sobre ${input.search.label}, tenemos disponible:`], seed >>> 2));
+    parts.push(
+      say("search.found", [
+        `Para ${input.search.label}, esto es lo que tenemos disponible:`,
+        `Sobre ${input.search.label}, tenemos disponible:`,
+        `Para ${input.search.label} tenemos estas opciones:`,
+      ])
+    );
     parts.push(alternatives.map((p) => propertyBlock(p, false)).join("\n\n"));
-    parts.push(`Si alguna te interesa, escribinos y coordinamos una visita${alternatives[0] ? ` (por ejemplo, en ${placeOf(alternatives[0].facts)})` : ""}.`);
+    parts.push(visitLine(say, alternatives[0]));
   } else if (alternatives.length > 0) {
-    parts.push(pick(["Según lo que nos contás, estas propiedades pueden interesarte:", "Con lo que buscás, te sugerimos estas propiedades:"], seed >>> 2));
+    parts.push(
+      say("suggest", [
+        "Según lo que nos contás, estas propiedades pueden interesarte:",
+        "Con lo que buscás, te sugerimos estas propiedades:",
+        "Por lo que nos contás, creemos que estas propiedades te pueden gustar; te sugerimos:",
+      ])
+    );
     parts.push(alternatives.map((p) => propertyBlock(p, false)).join("\n\n"));
-    parts.push(`Si alguna te interesa, escribinos y coordinamos una visita${alternatives[0] ? ` (por ejemplo, en ${placeOf(alternatives[0].facts)})` : ""}.`);
+    parts.push(visitLine(say, alternatives[0]));
   } else if (seller) {
-    parts.push("Gracias por pensar en nosotros para tu propiedad. Una persona del equipo se va a comunicar con vos para coordinar la tasación y los pasos que siguen.");
+    parts.push(
+      say("seller", [
+        "Gracias por pensar en nosotros para tu propiedad. Una persona del equipo se va a comunicar con vos para coordinar la tasación y los pasos que siguen.",
+        "Gracias por tenernos en cuenta para tu propiedad. Una persona del equipo se va a poner en contacto con vos para coordinar la tasación y los próximos pasos.",
+      ])
+    );
   } else if (input.search?.label) {
-    parts.push(`Por ahora no tenemos nada publicado para ${input.search.label}. Si querés, contanos tu presupuesto y qué es lo más importante para vos, y te avisamos cuando haya algo que encaje.`);
+    parts.push(
+      say("search.none", [
+        `Por ahora no tenemos nada publicado para ${input.search.label}. Si querés, contanos tu presupuesto y qué es lo más importante para vos, y te avisamos cuando haya algo que encaje.`,
+        `En este momento no tenemos nada publicado para ${input.search.label}. Si nos contás tu presupuesto y qué es lo más importante para vos, te avisamos cuando aparezca algo que encaje.`,
+      ])
+    );
   } else {
-    parts.push("Para ayudarte mejor, ¿nos contás cuál propiedad te interesó o qué estás buscando (zona, tipo de propiedad y presupuesto)? Con eso te enviamos opciones.");
+    parts.push(
+      say("ask", [
+        "Para ayudarte mejor, ¿nos contás cuál propiedad te interesó o qué estás buscando (zona, tipo de propiedad y presupuesto)? Con eso te enviamos opciones.",
+        "Para poder ayudarte, ¿nos contás cuál propiedad te interesó o qué estás buscando (zona, tipo y presupuesto)? Así te mandamos opciones.",
+      ])
+    );
   }
 
   if (c.needsHuman && c.humanTopics.length > 0 && !seller) {
-    parts.push(`Sobre ${list(c.humanTopics)}, te lo confirmamos a la brevedad: lo va a revisar una persona del equipo.`);
+    parts.push(
+      say("human", [
+        `Sobre ${list(c.humanTopics)}, te lo confirmamos a la brevedad: lo va a revisar una persona del equipo.`,
+        `Sobre ${list(c.humanTopics)}, te lo confirmamos a la brevedad: lo va a ver una persona del equipo.`,
+        `Sobre ${list(c.humanTopics)}, te lo confirmamos a la brevedad: lo revisa personalmente alguien del equipo.`,
+      ])
+    );
   }
 
-  parts.push(settings.closing.trim() || pick(["Quedamos atentos a tu respuesta.", "Cualquier duda, escribinos.", "Estamos a disposición."], seed >>> 4));
+  parts.push(settings.closing.trim() || say("closing", ["Quedamos atentos a tu respuesta.", "Cualquier duda, escribinos.", "Estamos a disposición.", "Quedamos a tu disposición."]));
   parts.push(settings.signature.trim() || `Equipo de ${input.agencyName}`);
   if (input.auto && settings.disclose) {
     parts.push(`--\nEsta respuesta fue preparada por un asistente automático de ${input.agencyName}. Si necesitás hablar con una persona, respondé este mail.`);
   }
 
   return { subject: replySubject(input.subject), body: parts.join("\n\n") };
+}
+
+/** "Si alguna te interesa, escribinos y coordinamos una visita (por ejemplo, en Palermo)." */
+function visitLine(say: (bank: string, variants: readonly string[]) => string, first: ReplyProperty | undefined): string {
+  const where = first ? ` (por ejemplo, en ${placeOf(first.facts)})` : "";
+  return say("visit.offer", [
+    `Si alguna te interesa, escribinos y coordinamos una visita${where}.`,
+    `Si alguna te gusta, escribinos y coordinamos una visita${where}.`,
+    `Cuando quieras, coordinamos una visita${where}: escribinos y lo vemos.`,
+  ]);
 }

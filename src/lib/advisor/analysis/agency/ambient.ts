@@ -4,6 +4,7 @@
  * dice con claridad que lo que muestra no prueba que la portada sea la causa de nada.
  */
 import { consultas } from "@/lib/intelligence/metrics";
+import { phrase } from "@/lib/agents/knowledge/phrasing";
 import { dedupeSuggestions, sug } from "../../compose/suggest";
 import { count, n0, plural } from "../../compose/format";
 import type { AdvisorBlock } from "../../types";
@@ -24,7 +25,11 @@ export const ambientCover: AgencyHandler = (env) => {
 
   if (pool.length === 0) {
     return {
-      lead: "No tenés propiedades publicadas (con esos filtros) para revisar la portada viva.",
+      lead: phrase(
+        "agency.ambient.nopool",
+        ["No tenés propiedades publicadas (con esos filtros) para revisar la portada viva.", "Con esos filtros no hay propiedades publicadas en las que revisar la portada viva."],
+        env.context.turn
+      ),
       blocks: [],
       followUps: dedupeSuggestions([sug("agency.overview", "Dame un resumen general")]),
     };

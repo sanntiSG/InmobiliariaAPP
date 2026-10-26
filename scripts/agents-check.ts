@@ -4,6 +4,8 @@
  */
 import { describeLine, factItems, firstSentences, highlights, priceText, type PropertyFacts } from "../src/lib/agents/knowledge/facts";
 import { matchPreferences, type PrefProperty } from "../src/lib/agents/knowledge/preferences";
+import { lowerFirst, phrase, phraseFor } from "../src/lib/agents/knowledge/phrasing";
+import { clarifyLead, unknownHelp } from "../src/lib/advisor/compose/unknown";
 import { isFreeIntent } from "../src/lib/advisor/types";
 import { normalizeContent, toPublicConfig } from "../src/lib/advisor/config";
 import { promotionNote, rankForPromotion, type PromotionRow } from "../src/lib/agents/knowledge/promote";
@@ -365,6 +367,50 @@ check("recommend sí lo gasta", !isFreeIntent("explorer.recommend"));
   check("hoy: un cliente → singular y no urgente", one.length === 1 && /1 cliente sin seguimiento/.test(one[0]!.title) && one[0]!.severity === "medium", one);
   check("hoy: sin nada pendiente → lista vacía", buildTodayList({ opportunities: [many[4]!], staleClients: 0 }).length === 0);
   check("hoy: lleva al diagnóstico de la propiedad cuando es una sola", list.find((i) => i.id.startsWith("low-views"))?.href === "/dashboard/propiedades/d/estadisticas");
+}
+
+// ── Voz compartida: bancos de frases que no se repiten ───────────────────────
+{
+  const bank = ["uno", "dos", "tres"] as const;
+  const seq = [0, 1, 2, 3, 4, 5].map((turn) => phrase("test.bank", bank, turn));
+  check("frases: dos turnos seguidos nunca repiten la frase", seq.every((s, i) => i === 0 || s !== seq[i - 1]), seq);
+  check("frases: recorre todas las variantes", new Set(seq).size === 3, seq);
+  check("frases: el mismo turno da siempre la misma frase", phrase("test.bank", bank, 7) === phrase("test.bank", bank, 7));
+  check("frases: bancos distintos no avanzan sincronizados", ["a", "b", "c", "d", "e", "f"].some((id) => phrase(`test.${id}`, bank, 0) !== phrase("test.a", bank, 0)));
+  check("frases: un banco de una sola frase siempre da esa", phrase("test.one", ["única"], 5) === "única");
+  check("frases: con una semilla, mismo valor ⇒ misma frase", phraseFor("test.seed", bank, 12345) === phraseFor("test.seed", bank, 12345));
+  check("frases: un turno negativo o con decimales no rompe", ["uno", "dos", "tres"].includes(phrase("test.bank", bank, -3.7)));
+  check("frases: lowerFirst", lowerFirst("Departamentos en Palermo") === "departamentos en Palermo" && lowerFirst("") === "");
+  let threw = false;
+  try {
+    phrase("test.empty", [], 0);
+  } catch {
+    threw = true;
+  }
+  check("frases: un banco vacío es un error de programación, no una respuesta vacía", threw);
+}
+
+// ── Qué dice el asesor cuando no está seguro o no entendió ───────────────────
+{
+  const turns = [0, 1, 2, 3, 4, 5];
+  check("aclaración: con una sola opción habla en singular", turns.every((t) => /esto|esta/.test(clarifyLead(1, t)) && !/alguna de estas/.test(clarifyLead(1, t))), turns.map((t) => clarifyLead(1, t)));
+  check("aclaración: con varias opciones las ofrece", turns.every((t) => /estas|lecturas|interpretarlo|equivocarme/.test(clarifyLead(3, t))));
+  check("aclaración: no repite la frase dos turnos seguidos", turns.slice(1).every((t) => clarifyLead(3, t) !== clarifyLead(3, t - 1)));
+
+  const zone = unknownHelp("explorer", { zones: ["Palermo"], types: ["departamento"] }, 0);
+  check("no entendí (explorador): usa lo que sí leyó (zona y tipo)", /departamentos?/i.test(zone.lead) && /Palermo/.test(zone.lead), zone.lead);
+  check("no entendí (explorador): ofrece caminos concretos con esos datos", zone.followUps.length >= 2 && zone.followUps.every((f) => f.slots?.zones?.[0] === "Palermo"), zone.followUps.map((f) => f.intent));
+  check("no entendí (explorador): sin pistas, el mensaje general", unknownHelp("explorer", {}, 0).followUps.length === 0 && /propiedades/.test(unknownHelp("explorer", {}, 0).lead));
+
+  const metric = unknownHelp("agency", { metric: "views" }, 0);
+  check("no entendí (inmobiliaria): nombra la métrica que leyó", /las visitas/.test(metric.lead) && metric.followUps.some((f) => f.intent === "agency.worst"), metric);
+  const prop = unknownHelp("agency", { propertyIds: ["a".repeat(24)] }, 0);
+  check("no entendí (inmobiliaria): si nombra una propiedad, ofrece verla", prop.followUps.some((f) => f.intent === "agency.property_status"), prop.followUps.map((f) => f.intent));
+  const zones = unknownHelp("agency", { zones: ["Canning"], types: ["casa"] }, 1);
+  check("no entendí (inmobiliaria): con zona o tipo, ofrece comparar", /Canning/.test(zones.lead) && zones.followUps.some((f) => f.intent === "agency.compare_zones"), zones.lead);
+  const generic = unknownHelp("agency", {}, 2);
+  check("no entendí (inmobiliaria): sin pistas, el mensaje general", generic.followUps.length === 0 && generic.lead.length > 30);
+  check("no entendí: las frases cambian entre turnos", new Set(turns.map((t) => unknownHelp("explorer", {}, t).lead)).size >= 2 && new Set(turns.map((t) => unknownHelp("agency", {}, t).lead)).size >= 2);
 }
 
 console.log(`\n${total - failed}/${total} pruebas correctas`);

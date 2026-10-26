@@ -8,7 +8,8 @@ import { Types } from "mongoose";
 import type { PropertyCardData } from "@/components/property/types";
 import { Property } from "@/lib/db/models/Property";
 import { getRecommendations } from "@/lib/recommendations/engine";
-import { change, clip, count, daysAgo, list, money, n0, pct, pick, plural, quote } from "../../compose/format";
+import { phrase } from "@/lib/agents/knowledge/phrasing";
+import { change, clip, count, daysAgo, list, money, n0, pct, plural, quote } from "../../compose/format";
 import { dedupeSuggestions, sug } from "../../compose/suggest";
 import { describeSearch, filterCount, operationText, typeLabel } from "../../compose/vocab";
 import {
@@ -67,7 +68,15 @@ export const search: Handler = async (env) => {
   if (filterCount(slots) === 0) {
     const popular = await popularCards({}, 4);
     return {
-      lead: "Contame un poco más para buscarte bien: qué tipo de propiedad, en qué zona y hasta qué precio. Por ejemplo: “departamento de 2 ambientes en Palermo hasta 120 mil dólares con cochera”. Mientras tanto, esto es lo que más se mira:",
+      lead: phrase(
+        "explorer.search.empty",
+        [
+          "Contame un poco más para buscarte bien: qué tipo de propiedad, en qué zona y hasta qué precio. Por ejemplo: “departamento de 2 ambientes en Palermo hasta 120 mil dólares con cochera”. Mientras tanto, esto es lo que más se mira:",
+          "Para buscarte bien necesito algún dato: tipo de propiedad, zona o presupuesto. Por ejemplo: “casa con jardín en Tigre hasta 200 mil dólares”. Mientras tanto, esto es lo que más se mira:",
+          "Decime qué buscás (tipo de propiedad, zona, hasta cuánto querés pagar) y lo filtro. Por ejemplo: “PH de 3 ambientes en Caballito”. Por ahora, lo más mirado:",
+        ],
+        env.context.turn
+      ),
       blocks: popular.items.length > 0 ? [{ type: "cards", items: popular.items }] : [],
       followUps: dedupeSuggestions(await zoneStarters()),
       resultIds: popular.items.map((c) => c.id),
@@ -80,7 +89,15 @@ export const search: Handler = async (env) => {
   if (res.total === 0) {
     const zones = await topZones(3);
     return {
-      lead: `No encontré ${lcFirst(what)} publicadas por ahora. Probá con menos requisitos o mirá dónde hay más oferta: ${list(zones.map((z) => z.zone))}.`,
+      lead: phrase(
+        "explorer.search.none",
+        [
+          `No encontré ${lcFirst(what)} publicadas por ahora. Probá con menos requisitos o mirá dónde hay más oferta: ${list(zones.map((z) => z.zone))}.`,
+          `Por ahora no hay ${lcFirst(what)} publicadas. Si aflojás algún requisito o mirás donde hay más oferta (${list(zones.map((z) => z.zone))}), puede aparecer algo.`,
+          `Con “${lcFirst(what)}” no apareció nada. Probá con menos filtros o con alguna de las zonas con más oferta: ${list(zones.map((z) => z.zone))}.`,
+        ],
+        env.context.turn
+      ),
       blocks: [],
       followUps: dedupeSuggestions([
         ...(slots.priceMax || slots.priceMin ? [sug("explorer.search", "Sin límite de precio", { slots: { ...slots, priceMax: undefined, priceMin: undefined } })] : []),
@@ -92,7 +109,8 @@ export const search: Handler = async (env) => {
   }
 
   const relaxedText = res.relaxed.length > 0 ? ` No había exactamente eso, así que te muestro ${list(res.relaxed)}.` : "";
-  const lead = `${pick([`Encontré ${count(res.total, "propiedad", "propiedades")}`, `Hay ${count(res.total, "propiedad", "propiedades")}`], env.seed)} para “${lcFirst(what)}”${res.total > res.items.length ? `; te muestro ${res.items.length}` : ""}.${relaxedText}`;
+  const found = count(res.total, "propiedad", "propiedades");
+  const lead = `${phrase("explorer.search.found", [`Encontré ${found}`, `Hay ${found}`, `Tengo ${found}`], env.context.turn)} para “${lcFirst(what)}”${res.total > res.items.length ? `; te muestro ${res.items.length}` : ""}.${relaxedText}`;
 
   return {
     lead,
@@ -114,8 +132,23 @@ export const recommend: Handler = async (env) => {
       const learned = recs.some((r) => !r.reasons.includes("trending") || r.reasons.length > 1);
       return {
         lead: learned
-          ? `Armé estas según lo que venís mirando, guardando y tus preferencias. La que mejor encaja: ${quote(items[0]!.title)} — ${items[0]!.reason!.charAt(0).toLowerCase()}${items[0]!.reason!.slice(1)}`
-          : "Todavía te conozco poco, así que te muestro lo que más interés genera. A medida que guardes y mires propiedades, mis recomendaciones se ajustan a vos.",
+          ? phrase(
+              "explorer.recommend.learned",
+              [
+                `Armé estas según lo que venís mirando, guardando y tus preferencias. La que mejor encaja: ${quote(items[0]!.title)} — ${lcFirst(items[0]!.reason!)}`,
+                `Estas encajan con lo que mirás y guardás. La que más: ${quote(items[0]!.title)} — ${lcFirst(items[0]!.reason!)}`,
+                `Con tus gustos y lo que fuiste guardando, esto es lo mejor que encontré. Para empezar: ${quote(items[0]!.title)} — ${lcFirst(items[0]!.reason!)}`,
+              ],
+              env.context.turn
+            )
+          : phrase(
+              "explorer.recommend.cold",
+              [
+                "Todavía te conozco poco, así que te muestro lo que más interés genera. A medida que guardes y mires propiedades, mis recomendaciones se ajustan a vos.",
+                "Aún no tengo mucho para personalizar, así que va lo que más interés genera. Con lo que guardes y mires, voy afinando las recomendaciones.",
+              ],
+              env.context.turn
+            ),
         blocks: [{ type: "cards", items }],
         followUps: dedupeSuggestions([
           sug("explorer.price_drops", "¿Alguna bajó de precio?"),
@@ -134,13 +167,36 @@ export const recommend: Handler = async (env) => {
   if (prev && filterCount(prev) > 0) {
     const result = await search({ ...env, slots: prev });
     if (result.blocks.length === 0) return result;
-    return { ...result, lead: `Como venías mirando ${lcFirst(describeSearch(prev))}, te muestro estas.${result.lead.includes("No había exactamente") ? result.lead.slice(result.lead.indexOf(" No había")) : ""}` };
+    const seen = lcFirst(describeSearch(prev));
+    const tail = result.lead.includes("No había exactamente") ? result.lead.slice(result.lead.indexOf(" No había")) : "";
+    return {
+      ...result,
+      lead: `${phrase(
+        "explorer.recommend.continue",
+        [`Como venías mirando ${seen}, te muestro estas.`, `Siguiendo con lo que venías mirando (${seen}), esto es lo que encontré.`, `Con lo que venías mirando — ${seen} —, te dejo estas.`],
+        env.context.turn
+      )}${tail}`,
+    };
   }
   const popular = await popularCards({}, 6);
   return {
     lead: env.userId
-      ? "Todavía no tengo suficiente para personalizar tus recomendaciones; esto es lo que más interés genera esta semana."
-      : "Para recomendarte bien necesito conocer tus gustos: contame qué buscás (tipo, zona, presupuesto) o creá una cuenta y voy aprendiendo de lo que guardás. Mientras tanto, esto es lo que más interés genera:",
+      ? phrase(
+          "explorer.recommend.nodata",
+          [
+            "Todavía no tengo suficiente para personalizar tus recomendaciones; esto es lo que más interés genera esta semana.",
+            "Aún no te conozco lo suficiente como para personalizar; mientras tanto, esto es lo que más interés genera esta semana.",
+          ],
+          env.context.turn
+        )
+      : phrase(
+          "explorer.recommend.anon",
+          [
+            "Para recomendarte bien necesito conocer tus gustos: contame qué buscás (tipo, zona, presupuesto) o creá una cuenta y voy aprendiendo de lo que guardás. Mientras tanto, esto es lo que más interés genera:",
+            "Cuanto más sepa de lo que te gusta, mejor te recomiendo: contame qué buscás (tipo, zona, presupuesto) o creá una cuenta para que aprenda de lo que guardás. Por ahora, esto es lo que más interés genera:",
+          ],
+          env.context.turn
+        ),
     blocks: popular.items.length > 0 ? [{ type: "cards", items: popular.items }] : [],
     followUps: dedupeSuggestions(await zoneStarters()),
     resultIds: popular.items.map((c) => c.id),
@@ -155,7 +211,15 @@ export const priceDrops: Handler = async (env) => {
   const scope = filterCount(slots) > 0 ? ` entre ${lcFirst(describeSearch(slots))}` : "";
   if (drops.length === 0) {
     return {
-      lead: `No hay bajas de precio en los últimos 30 días${scope}. Si querés, te aviso por acá cuando aparezca alguna: guardá las que te interesen con tu cuenta y te llegará una notificación.`,
+      lead: phrase(
+        "explorer.drops.none",
+        [
+          `No hay bajas de precio en los últimos 30 días${scope}. Si querés, te aviso por acá cuando aparezca alguna: guardá las que te interesen con tu cuenta y te llegará una notificación.`,
+          `En los últimos 30 días no bajó el precio de nada${scope}. Guardá las que te interesen con tu cuenta y, si alguna baja, te llega una notificación.`,
+          `Por ahora ninguna bajó de precio en el último mes${scope}. Si guardás las que te gustan con tu cuenta, te aviso apenas alguna baje.`,
+        ],
+        env.context.turn
+      ),
       blocks: [],
       followUps: dedupeSuggestions([sug("explorer.new", "¿Qué hay de nuevo?"), sug("explorer.popular", "¿Cuáles son las más populares?")]),
     };
@@ -166,7 +230,15 @@ export const priceDrops: Handler = async (env) => {
   }));
   const biggest = [...drops].sort((a, b) => b.pct - a.pct)[0]!;
   return {
-    lead: `${count(drops.length, "propiedad bajó", "propiedades bajaron")} de precio en el último mes${scope}. La baja más fuerte: ${quote(biggest.card.title)} (−${pct(biggest.pct, { digits: 0 })}).`,
+    lead: phrase(
+      "explorer.drops.found",
+      [
+        `${count(drops.length, "propiedad bajó", "propiedades bajaron")} de precio en el último mes${scope}. La baja más fuerte: ${quote(biggest.card.title)} (−${pct(biggest.pct, { digits: 0 })}).`,
+        `En el último mes ${count(drops.length, "propiedad bajó", "propiedades bajaron")} de precio${scope}. La que más: ${quote(biggest.card.title)}, con −${pct(biggest.pct, { digits: 0 })}.`,
+        `Hubo bajas de precio${scope}: ${count(drops.length, "propiedad", "propiedades")} en el último mes. La mayor, ${quote(biggest.card.title)} (−${pct(biggest.pct, { digits: 0 })}).`,
+      ],
+      env.context.turn
+    ),
     blocks: [{ type: "cards", items }],
     followUps: dedupeSuggestions([
       sug("explorer.price_check", "¿La más fuerte está bien de precio?", { slots: { propertyIds: [biggest.card.id] } }),
@@ -184,7 +256,15 @@ export const priceTypical: Handler = async (env) => {
   const { slots } = env;
   if (!slots.zones?.length && !slots.types?.length && !slots.operation) {
     return {
-      lead: "¿De qué zona y de qué tipo de propiedad querés saber el precio? Por ejemplo: “cuánto cuesta un departamento en Belgrano”.",
+      lead: phrase(
+        "explorer.typical.ask",
+        [
+          "¿De qué zona y de qué tipo de propiedad querés saber el precio? Por ejemplo: “cuánto cuesta un departamento en Belgrano”.",
+          "Decime una zona y un tipo de propiedad y te cuento cuánto cuestan. Por ejemplo: “precio de casas en Tigre”.",
+          "¿Qué zona y qué tipo de propiedad te interesa? Con eso te digo el precio típico. Por ejemplo: “cuánto sale un PH en Villa Crespo”.",
+        ],
+        env.context.turn
+      ),
       blocks: [],
       followUps: dedupeSuggestions(await zoneStarters()),
     };
@@ -195,7 +275,14 @@ export const priceTypical: Handler = async (env) => {
 
   if (stats.n < 3) {
     return {
-      lead: `Tengo muy pocas publicaciones de ${what} (${stats.n}); no alcanza para decirte un precio típico sin equivocarme. Probá con una zona o un tipo más amplio.`,
+      lead: phrase(
+        "explorer.typical.few",
+        [
+          `Tengo muy pocas publicaciones de ${what} (${stats.n}); no alcanza para decirte un precio típico sin equivocarme. Probá con una zona o un tipo más amplio.`,
+          `De ${what} hay muy pocas publicaciones (${stats.n}), y con tan pocas un precio típico sería engañoso. Probá con una zona o un tipo más amplio.`,
+        ],
+        env.context.turn
+      ),
       blocks: [],
       followUps: dedupeSuggestions([sug("explorer.search", "Ver las que hay", { slots }), ...(await zoneStarters())]),
     };
@@ -234,7 +321,15 @@ export const compare: Handler = async (env) => {
   const cards = ids.length >= 2 ? await loadCardsByIds(ids) : [];
   if (cards.length < 2) {
     return {
-      lead: "Para comparar necesito al menos dos propiedades. Buscá algunas y después pedime “compará las dos primeras”.",
+      lead: phrase(
+        "explorer.compare.need",
+        [
+          "Para comparar necesito al menos dos propiedades. Buscá algunas y después pedime “compará las dos primeras”.",
+          "Comparar de a una no se puede: necesito dos propiedades como mínimo. Buscá algunas y pedime “compará las dos primeras”.",
+          "Primero buscá un par de propiedades y después decime “compará las dos primeras”: necesito al menos dos.",
+        ],
+        env.context.turn
+      ),
       blocks: [],
       followUps: dedupeSuggestions(await zoneStarters()),
     };
@@ -281,7 +376,15 @@ export const compare: Handler = async (env) => {
   if (withTour.length > 0 && withTour.length < cards.length) parts.push(`${list(withTour.map((c) => quote(labelOf(c, cards), 40)))} ${plural(withTour.length, "tiene", "tienen")} recorrido 360° para ${plural(withTour.length, "verla", "verlas")} antes de ir`);
 
   return {
-    lead: `Las puse una al lado de la otra${parts.length > 0 ? `: ${parts.join("; ")}` : ""}. No hay una “mejor” en general: depende de qué priorices.`,
+    lead: phrase(
+      "explorer.compare.done",
+      [
+        `Las puse una al lado de la otra${parts.length > 0 ? `: ${parts.join("; ")}` : ""}. No hay una “mejor” en general: depende de qué priorices.`,
+        `Acá las tenés lado a lado${parts.length > 0 ? `: ${parts.join("; ")}` : ""}. Cuál conviene depende de lo que más te importe.`,
+        `Las comparé${parts.length > 0 ? `: ${parts.join("; ")}` : ""}. No hay una ganadora absoluta: depende de qué valores más.`,
+      ],
+      env.context.turn
+    ),
     blocks: [
       {
         type: "table",
@@ -303,7 +406,14 @@ export const priceCheck: Handler = async (env) => {
   const card = id ? (await loadCardsByIds([id]))[0] : undefined;
   if (!card) {
     return {
-      lead: "¿De cuál propiedad querés saber? Abrí su ficha o buscá algunas y elegí una: la comparo con el resto de las del mercado.",
+      lead: phrase(
+        "explorer.check.ask",
+        [
+          "¿De cuál propiedad querés saber? Abrí su ficha o buscá algunas y elegí una: la comparo con el resto de las del mercado.",
+          "Decime de cuál propiedad se trata: abrí su ficha o buscá algunas y elegí una, y la comparo con las del mercado.",
+        ],
+        env.context.turn
+      ),
       blocks: [],
       followUps: dedupeSuggestions(await zoneStarters()),
     };
@@ -325,7 +435,14 @@ export const priceCheck: Handler = async (env) => {
 
   if (stats.currency !== card.currency || stats.n < 5) {
     return {
-      lead: `No tengo suficientes ${what} comparables (hay ${stats.n}) para decirte si ${quote(card.title)} está bien de precio sin equivocarme.`,
+      lead: phrase(
+        "explorer.check.few",
+        [
+          `No tengo suficientes ${what} comparables (hay ${stats.n}) para decirte si ${quote(card.title)} está bien de precio sin equivocarme.`,
+          `Hay muy pocas ${what} para comparar (${stats.n}); con tan pocas no me animo a decirte si ${quote(card.title)} está bien de precio.`,
+        ],
+        env.context.turn
+      ),
       blocks: [{ type: "cards", items: [card] }],
       followUps: dedupeSuggestions([sug("explorer.price_typical", `¿Cuánto cuesta en ${scopeLabel}?`, { slots: { ...base, zones: [scopeLabel] } })]),
       focusPropertyId: card.id,
@@ -380,7 +497,16 @@ export const priceCheck: Handler = async (env) => {
 export const withTour: Handler = async (env) => {
   const result = await search({ ...env, slots: { ...env.slots, withTour: true } });
   if (result.blocks.length === 0) return result;
-  return { ...result, lead: `${result.lead} Con el recorrido 360° podés caminarlas desde acá antes de visitarlas.` };
+  const tail = phrase(
+    "explorer.tour.tail",
+    [
+      "Con el recorrido 360° podés caminarlas desde acá antes de visitarlas.",
+      "Todas se pueden recorrer en 360° desde la ficha, antes de ir.",
+      "Entrá a la ficha y recorrelas en 360° sin moverte de donde estás.",
+    ],
+    env.context.turn
+  );
+  return { ...result, lead: `${result.lead} ${tail}` };
 };
 
 export const withAmbient: Handler = async (env) => {
@@ -388,10 +514,25 @@ export const withAmbient: Handler = async (env) => {
   if (result.blocks.length === 0) {
     return {
       ...result,
-      lead: `Por ahora no hay propiedades publicadas con portada viva${filterCount(env.slots) > 0 ? " con esos filtros" : ""}. Es una portada que se ve de día, de noche, con lluvia y con viento, y las inmobiliarias la van sumando.`,
+      lead: phrase(
+        "explorer.ambient.none",
+        [
+          `Por ahora no hay propiedades publicadas con portada viva${filterCount(env.slots) > 0 ? " con esos filtros" : ""}. Es una portada que se ve de día, de noche, con lluvia y con viento, y las inmobiliarias la van sumando.`,
+          `Todavía ninguna propiedad${filterCount(env.slots) > 0 ? " con esos filtros" : ""} tiene portada viva (la que cambia de día a noche, con lluvia y con viento). Las inmobiliarias la van sumando de a poco.`,
+        ],
+        env.context.turn
+      ),
     };
   }
-  return { ...result, lead: `${result.lead} Su portada cambia de día a noche, con lluvia y con viento: entrá a la ficha para verla en vivo.` };
+  const tail = phrase(
+    "explorer.ambient.tail",
+    [
+      "Su portada cambia de día a noche, con lluvia y con viento: entrá a la ficha para verla en vivo.",
+      "En la ficha la portada se anima: pasa del día a la noche y suma lluvia y viento. Entrá a verla.",
+    ],
+    env.context.turn
+  );
+  return { ...result, lead: `${result.lead} ${tail}` };
 };
 
 export const newest: Handler = async (env) => {
@@ -400,13 +541,29 @@ export const newest: Handler = async (env) => {
   const when = days === 1 ? "hoy" : days === 30 ? "en el último mes" : `en los últimos ${days} días`;
   if (res.total === 0) {
     return {
-      lead: `No se publicó nada nuevo ${when}${filterCount(env.slots) > 0 ? " con esos filtros" : ""}. Te muestro lo más popular mientras tanto.`,
+      lead: phrase(
+        "explorer.new.none",
+        [
+          `No se publicó nada nuevo ${when}${filterCount(env.slots) > 0 ? " con esos filtros" : ""}. Te muestro lo más popular mientras tanto.`,
+          `${cap(when)} no entró nada nuevo${filterCount(env.slots) > 0 ? " con esos filtros" : ""}. Mientras tanto, mirá lo más popular.`,
+          `Sin novedades ${when}${filterCount(env.slots) > 0 ? " con esos filtros" : ""}. Te dejo lo más popular por ahora.`,
+        ],
+        env.context.turn
+      ),
       blocks: await popularCards(env.slots, 4).then((p) => (p.items.length ? [{ type: "cards" as const, items: p.items }] : [])),
       followUps: dedupeSuggestions([sug("explorer.popular", "¿Cuáles son las más populares?")]),
     };
   }
   return {
-    lead: `${cap(when)} se publicaron ${count(res.total, "propiedad", "propiedades")}${filterCount(env.slots) > 0 ? ` de ${lcFirst(describeSearch(env.slots))}` : ""}. Las más nuevas:`,
+    lead: phrase(
+      "explorer.new.found",
+      [
+        `${cap(when)} se publicaron ${count(res.total, "propiedad", "propiedades")}${filterCount(env.slots) > 0 ? ` de ${lcFirst(describeSearch(env.slots))}` : ""}. Las más nuevas:`,
+        `Hay ${count(res.total, "propiedad nueva", "propiedades nuevas")} ${when}${filterCount(env.slots) > 0 ? ` de ${lcFirst(describeSearch(env.slots))}` : ""}. Estas son las más recientes:`,
+        `Lo último ${when}${filterCount(env.slots) > 0 ? ` de ${lcFirst(describeSearch(env.slots))}` : ""}: ${count(res.total, "propiedad", "propiedades")}. Las más nuevas:`,
+      ],
+      env.context.turn
+    ),
     blocks: [{ type: "cards", items: res.items }],
     followUps: dedupeSuggestions(followUpsFor(env.slots, res.items)),
     actions: linkActions(env.slots, res.total),
@@ -419,13 +576,28 @@ export const popular: Handler = async (env) => {
   const res = await popularCards(env.slots, 6);
   if (res.items.length === 0) {
     return {
-      lead: "Todavía no hay suficiente actividad esta semana para armar un ranking de populares. Te dejo las más nuevas:",
+      lead: phrase(
+        "explorer.popular.none",
+        [
+          "Todavía no hay suficiente actividad esta semana para armar un ranking de populares. Te dejo las más nuevas:",
+          "Esta semana hay poca actividad como para un ranking de populares. Mientras tanto, mirá las más nuevas:",
+        ],
+        env.context.turn
+      ),
       blocks: await newestCards(env.slots, 14, 4).then((n) => (n.items.length ? [{ type: "cards" as const, items: n.items }] : [])),
       followUps: dedupeSuggestions(await zoneStarters()),
     };
   }
   return {
-    lead: `Esto es lo que más se ve, se guarda y se consulta esta semana${filterCount(env.slots) > 0 ? ` entre ${lcFirst(describeSearch(env.slots))}` : ""}.`,
+    lead: phrase(
+      "explorer.popular.found",
+      [
+        `Esto es lo que más se ve, se guarda y se consulta esta semana${filterCount(env.slots) > 0 ? ` entre ${lcFirst(describeSearch(env.slots))}` : ""}.`,
+        `Las que más movimiento tienen esta semana${filterCount(env.slots) > 0 ? ` entre ${lcFirst(describeSearch(env.slots))}` : ""}: se miran, se guardan y se consultan.`,
+        `Esto es lo que la gente más mira y guarda esta semana${filterCount(env.slots) > 0 ? ` entre ${lcFirst(describeSearch(env.slots))}` : ""}.`,
+      ],
+      env.context.turn
+    ),
     blocks: [{ type: "cards", items: res.items }],
     followUps: dedupeSuggestions(followUpsFor(env.slots, res.items)),
     resultIds: res.items.map((c) => c.id),
@@ -440,13 +612,24 @@ export const agencies: Handler = async (env) => {
   const where = env.slots.zones?.length ? ` en ${list(env.slots.zones)}` : "";
   if (found.length === 0) {
     return {
-      lead: `No encontré inmobiliarias con propiedades publicadas${where}.`,
+      lead: phrase(
+        "explorer.agencies.none",
+        [`No encontré inmobiliarias con propiedades publicadas${where}.`, `Por ahora no hay inmobiliarias con propiedades publicadas${where}.`],
+        env.context.turn
+      ),
       blocks: [],
       followUps: dedupeSuggestions(await zoneStarters()),
     };
   }
   return {
-    lead: `${count(found.length, "inmobiliaria publica", "inmobiliarias publican")}${where}; la que más propiedades tiene es ${found[0]!.name} (${n0(found[0]!.count)}). Tocá una para ver su perfil y sus propiedades.`,
+    lead: phrase(
+      "explorer.agencies.found",
+      [
+        `${count(found.length, "inmobiliaria publica", "inmobiliarias publican")}${where}; la que más propiedades tiene es ${found[0]!.name} (${n0(found[0]!.count)}). Tocá una para ver su perfil y sus propiedades.`,
+        `Encontré ${count(found.length, "inmobiliaria", "inmobiliarias")}${where}. La que más propiedades tiene: ${found[0]!.name} (${n0(found[0]!.count)}). Tocá una para ver su perfil.`,
+      ],
+      env.context.turn
+    ),
     blocks: [
       {
         type: "bars",

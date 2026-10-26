@@ -20,6 +20,7 @@ import type { SocialMode, SocialState, SocialSuggestion } from "@/lib/social/typ
 import { GeneratingCard } from "./GeneratingCard";
 import { PostResult } from "./PostResult";
 import { TemplateThumb } from "./TemplateThumb";
+import { marketingSpeech, useSpeechTurn } from "./speech";
 import { useBlobImage } from "./useBlobImage";
 
 /** La última inmobiliaria elegida por el admin (al reabrir sigue en la misma). */
@@ -57,6 +58,7 @@ const dockRow = "flex flex-wrap items-center gap-2";
 
 function AgencyStep({ onPick }: { onPick: (id: string) => void }) {
   const thread = useRef<HTMLDivElement>(null);
+  const turn = useSpeechTurn();
   const [agencies, setAgencies] = useState<{ id: string; name: string }[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [choice, setChoice] = useState("");
@@ -73,7 +75,7 @@ function AgencyStep({ onPick }: { onPick: (id: string) => void }) {
   return (
     <Step
       thread={thread}
-      speech="Hola, soy tu agente de marketing. ¿Para qué inmobiliaria preparamos contenido?"
+      speech={marketingSpeech.pickAgency(turn)}
       dock={
         <div className={dockRow}>
           <Button disabled={!choice} onClick={() => onPick(choice)}>
@@ -148,6 +150,7 @@ function MarketingFlow({ agencyId, onChangeAgency, preview }: { agencyId: string
   const { config, setTalking, setBusyLabel, surprise, userScrolledRef, release } = useStage();
   const { state, busy, error, setError, qs, agencyParam, load, changeMode, generate } = useSocialStudio(agencyId, null);
   const thread = useRef<HTMLDivElement>(null);
+  const turn = useSpeechTurn();
 
   const [introDone, setIntroDone] = useState(false);
   const [choice, setChoice] = useState<SocialMode>("auto");
@@ -319,7 +322,7 @@ function MarketingFlow({ agencyId, onChangeAgency, preview }: { agencyId: string
       node = (
         <Step
           thread={thread}
-          speech="No pude cargar tus publicaciones."
+          speech={marketingSpeech.loadFailed(turn)}
           dock={
             <div className={dockRow}>
               <Button variant="secondary" onClick={() => void load()}>
@@ -341,7 +344,7 @@ function MarketingFlow({ agencyId, onChangeAgency, preview }: { agencyId: string
       node = (
         <Step
           thread={thread}
-          speech="Todavía no tengo con qué trabajar: necesito al menos una propiedad publicada con fotos."
+          speech={marketingSpeech.empty(turn)}
           dock={
             <div className={dockRow}>
               <Link href="/dashboard/propiedades/nueva" className={buttonClasses("primary", "md")}>
@@ -363,7 +366,7 @@ function MarketingFlow({ agencyId, onChangeAgency, preview }: { agencyId: string
       node = (
         <Step
           thread={thread}
-          speech={`Hola, soy ${config.name ? `${config.name}, tu` : "tu"} agente de marketing. Te ayudo a preparar la imagen y el texto de tus publicaciones para redes. Te explico cómo trabajamos, es cortito.`}
+          speech={marketingSpeech.intro(turn, config.name ?? "")}
           dock={
             <div className={dockRow}>
               <Button onClick={() => setIntroDone(true)}>
@@ -396,7 +399,7 @@ function MarketingFlow({ agencyId, onChangeAgency, preview }: { agencyId: string
       node = (
         <Step
           thread={thread}
-          speech="Primero, ¿cómo querés trabajar? Lo podés cambiar cuando quieras."
+          speech={marketingSpeech.mode(turn)}
           dock={
             <div className={dockRow}>
               <Button disabled={busy !== null} onClick={() => void changeMode(choice)}>
@@ -425,10 +428,10 @@ function MarketingFlow({ agencyId, onChangeAgency, preview }: { agencyId: string
           thread={thread}
           speech={
             !state?.current && state?.mode === "auto"
-              ? "Todavía no armé la publicación de hoy. ¿La preparo yo?"
+              ? marketingSpeech.chooseAutoPending(turn)
               : topPick
-                ? `Para hoy te recomiendo «${clip(topPick.title)}». Si te gusta, la preparamos.`
-                : "¿Qué propiedad querés promocionar hoy?"
+                ? marketingSpeech.chooseRecommended(turn, clip(topPick.title))
+                : marketingSpeech.chooseAsk(turn)
           }
           dock={
             <div className={dockRow}>
@@ -513,7 +516,7 @@ function MarketingFlow({ agencyId, onChangeAgency, preview }: { agencyId: string
       node = (
         <Step
           thread={thread}
-          speech={forNew ? `Elegiste «${clip(mine?.title ?? "tu propiedad")}». ¿Con qué diseño la armamos? Si preferís, elijo yo.` : "Elegí otro diseño y, si querés, otra foto."}
+          speech={forNew ? marketingSpeech.designNew(turn, clip(mine?.title ?? "tu propiedad")) : marketingSpeech.designChange(turn)}
           dock={
             <div className={dockRow}>
               <Button
@@ -592,7 +595,7 @@ function MarketingFlow({ agencyId, onChangeAgency, preview }: { agencyId: string
 
     case "working":
       node = (
-        <Step thread={thread} speech="Preparando tu publicación…" keepTalking>
+        <Step thread={thread} speech={marketingSpeech.working(turn)} keepTalking>
           <div data-step>
             <GeneratingCard />
           </div>
@@ -606,10 +609,10 @@ function MarketingFlow({ agencyId, onChangeAgency, preview }: { agencyId: string
           thread={thread}
           speech={
             madeNow
-              ? `Listo: «${clip(cur!.title)}». Descargá la imagen y copiá el texto y los hashtags cuando quieras.`
+              ? marketingSpeech.readyNow(turn, clip(cur!.title))
               : state!.mode === "auto"
-                ? `Hoy te preparé «${clip(cur!.title)}». Descargá la imagen y copiá el texto y los hashtags cuando quieras.`
-                : `Esta es la publicación de hoy: «${clip(cur!.title)}».`
+                ? marketingSpeech.readyAuto(turn, clip(cur!.title))
+                : marketingSpeech.readyToday(turn, clip(cur!.title))
           }
           dock={
             <div className={dockRow}>

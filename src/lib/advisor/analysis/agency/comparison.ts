@@ -7,6 +7,7 @@
 import { benchFor } from "@/lib/intelligence/benchmarks";
 import { THRESHOLDS } from "@/lib/intelligence/diagnostics";
 import { consultas } from "@/lib/intelligence/metrics";
+import { phrase } from "@/lib/agents/knowledge/phrasing";
 import { dedupeSuggestions, sug } from "../../compose/suggest";
 import { change, count, list, mean, median, money, n0, n1, pct, plural, quote, signedPct } from "../../compose/format";
 import type { PropertyRow } from "../../data/portfolio";
@@ -62,7 +63,15 @@ export const compareZones: AgencyHandler = (env) => {
   // Los filtros de tipo/operación se aplican; las zonas se usan para elegir qué comparar, no para filtrar.
   const pool = filterRows(p.rows, { ...slots, zones: undefined });
   if (pool.length === 0) {
-    return { lead: "No encuentro propiedades publicadas con esos filtros para comparar zonas.", blocks: [], followUps: [sug("agency.overview", "Dame un resumen general")] };
+    return {
+      lead: phrase(
+        "agency.zones.nopool",
+        ["No encuentro propiedades publicadas con esos filtros para comparar zonas.", "Con esos filtros no hay propiedades publicadas que comparar por zona."],
+        env.context.turn
+      ),
+      blocks: [],
+      followUps: [sug("agency.overview", "Dame un resumen general")],
+    };
   }
 
   const all = groupBy(pool, (r) => zoneOf(r));
@@ -80,7 +89,14 @@ export const compareZones: AgencyHandler = (env) => {
   }
   if (groups.length === 0) {
     return {
-      lead: `No tengo propiedades publicadas en ${list(slots.zones ?? [])} entre las tuyas. Tus zonas son: ${list(all.slice(0, 6).map((g) => g.key))}.`,
+      lead: phrase(
+        "agency.zones.nozone",
+        [
+          `No tengo propiedades publicadas en ${list(slots.zones ?? [])} entre las tuyas. Tus zonas son: ${list(all.slice(0, 6).map((g) => g.key))}.`,
+          `Entre tus propiedades no hay ninguna publicada en ${list(slots.zones ?? [])}. Las zonas que sí tenés: ${list(all.slice(0, 6).map((g) => g.key))}.`,
+        ],
+        env.context.turn
+      ),
       blocks: [],
       followUps: dedupeSuggestions([sug("agency.compare_zones", "Comparar todas mis zonas")]),
     };
@@ -217,12 +233,23 @@ export const typeInterest: AgencyHandler = (env) => {
   const groups = groupBy(pool, (r) => r.type).sort((a, b) => b.score / b.rows.length - a.score / a.rows.length);
 
   if (groups.length === 0) {
-    return { lead: "No tengo propiedades publicadas para comparar tipos.", blocks: [], followUps: [sug("agency.overview", "Dame un resumen general")] };
+    return {
+      lead: phrase("agency.types.none", ["No tengo propiedades publicadas para comparar tipos.", "Todavía no hay propiedades publicadas como para comparar tipos."], env.context.turn),
+      blocks: [],
+      followUps: [sug("agency.overview", "Dame un resumen general")],
+    };
   }
   if (groups.length === 1) {
     const g = groups[0]!;
     return {
-      lead: `Todas tus propiedades publicadas son ${typeLabel(g.key)}: no hay otro tipo con el cual compararlas todavía.`,
+      lead: phrase(
+        "agency.types.one",
+        [
+          `Todas tus propiedades publicadas son ${typeLabel(g.key)}: no hay otro tipo con el cual compararlas todavía.`,
+          `Hoy sólo publicás ${typeLabel(g.key)}, así que no hay otro tipo para comparar.`,
+        ],
+        env.context.turn
+      ),
       blocks: [],
       followUps: dedupeSuggestions([sug("agency.compare_zones", "¿Cómo me va por zona?")]),
     };
@@ -287,7 +314,14 @@ export const traits: AgencyHandler = (env) => {
   const metricName = metric === "saves" ? "favoritos" : metric === "inquiries" ? "consultas" : metric === "views" ? "visitas" : metric === "interest" ? "interés" : metric === "likes" ? "me gusta" : "interés";
   if (pool.length < 4) {
     return {
-      lead: `Necesito al menos 4 propiedades con actividad para separar las que más ${metricName} reciben de las que menos y compararlas; ahora tengo ${pool.length}. Cuando haya más datos lo armo.`,
+      lead: phrase(
+        "agency.traits.few",
+        [
+          `Necesito al menos 4 propiedades con actividad para separar las que más ${metricName} reciben de las que menos y compararlas; ahora tengo ${pool.length}. Cuando haya más datos lo armo.`,
+          `Para comparar las que más ${metricName} reciben contra las que menos necesito 4 propiedades con actividad, y hoy hay ${pool.length}. Apenas haya más datos lo armo.`,
+        ],
+        env.context.turn
+      ),
       blocks: [],
       followUps: dedupeSuggestions([sug("agency.best", "¿Cuáles funcionan mejor?"), sug("agency.actions", "¿Qué me recomendás hacer?")]),
     };
@@ -299,7 +333,14 @@ export const traits: AgencyHandler = (env) => {
   const rest = ranked.slice(-half);
   if (metricValue(top[0]!.d30, metric) === metricValue(rest[rest.length - 1]!.d30, metric)) {
     return {
-      lead: `Todas tus propiedades tienen la misma cantidad de ${metricName}, así que no hay una diferencia que explicar.`,
+      lead: phrase(
+        "agency.traits.same",
+        [
+          `Todas tus propiedades tienen la misma cantidad de ${metricName}, así que no hay una diferencia que explicar.`,
+          `Las propiedades tienen igual cantidad de ${metricName}: no hay diferencias que explicar.`,
+        ],
+        env.context.turn
+      ),
       blocks: [],
       followUps: dedupeSuggestions([sug("agency.actions", "¿Qué me recomendás hacer?")]),
     };
@@ -421,9 +462,21 @@ export const similarPrice: AgencyHandler = (env) => {
 
   if (gaps.length === 0) {
     return {
-      lead: pool.length < 2
-        ? "Necesito al menos dos propiedades del mismo tipo y precio parecido para compararlas."
-        : "No encuentro propiedades de precio parecido (±10 %) con una diferencia grande de interés entre ellas, o todavía hay pocas visitas para afirmarlo.",
+      lead:
+        pool.length < 2
+          ? phrase(
+              "agency.similar.few",
+              ["Necesito al menos dos propiedades del mismo tipo y precio parecido para compararlas.", "Para esta comparación hacen falta dos propiedades del mismo tipo y de precio parecido."],
+              env.context.turn
+            )
+          : phrase(
+              "agency.similar.nogap",
+              [
+                "No encuentro propiedades de precio parecido (±10 %) con una diferencia grande de interés entre ellas, o todavía hay pocas visitas para afirmarlo.",
+                "Entre las de precio parecido (±10 %) no veo una diferencia grande de interés, o todavía hay pocas visitas para asegurarlo.",
+              ],
+              env.context.turn
+            ),
       blocks: [],
       followUps: dedupeSuggestions([sug("agency.traits", "¿Qué tienen en común las que mejor funcionan?"), sug("agency.compare_zones", "¿Cómo me va por zona?")]),
     };

@@ -9,8 +9,10 @@ import { THRESHOLDS } from "@/lib/intelligence/diagnostics";
 import { consultas, ratio } from "@/lib/intelligence/metrics";
 import { groupDiagnostics, ruleOf } from "@/lib/agents/knowledge/diagnostics";
 import { rankForPromotion, promotionNote } from "@/lib/agents/knowledge/promote";
+import { loadPromotedDaysAgo } from "@/lib/agents/knowledge/promoted";
 import { dedupeSuggestions, sug } from "../../compose/suggest";
-import { count, daysAgo, list, n0, plural, pick, quote } from "../../compose/format";
+import { phrase } from "@/lib/agents/knowledge/phrasing";
+import { count, daysAgo, list, n0, plural, quote } from "../../compose/format";
 import type { PropertyRow } from "../../data/portfolio";
 import type { AdvisorBlock, SuggestionQuery } from "../../types";
 import type { AgencyHandler } from "../types";
@@ -52,7 +54,15 @@ export const actions: AgencyHandler = (env) => {
 
   if (items.length === 0) {
     return {
-      lead: "No encuentro nada que pida acción: tus propiedades no tienen hallazgos pendientes. Seguí publicando y mirando cómo evolucionan las visitas.",
+      lead: phrase(
+        "agency.actions.none",
+        [
+          "No encuentro nada que pida acción: tus propiedades no tienen hallazgos pendientes. Seguí publicando y mirando cómo evolucionan las visitas.",
+          "Por ahora no hay nada que pida acción: ninguna propiedad tiene hallazgos pendientes. Seguí publicando y mirando cómo evolucionan las visitas.",
+          "Todo en orden: no hay hallazgos pendientes en tus propiedades. Lo mejor ahora es seguir publicando y mirar cómo evolucionan las visitas.",
+        ],
+        env.context.turn
+      ),
       blocks: [],
       followUps: dedupeSuggestions([sug("agency.best", "¿Cuáles funcionan mejor?"), sug("agency.promote", "¿Cuáles conviene promocionar?")]),
     };
@@ -94,7 +104,14 @@ export const photos: AgencyHandler = (env) => {
 
   if (few.length === 0 && weakSaves.length === 0) {
     return {
-      lead: `Todas tus propiedades tienen al menos ${THRESHOLDS.minImages} fotos y no veo ninguna donde la gente mire mucho y guarde poco. No puedo juzgar la calidad de una foto, pero por cantidad y comportamiento están bien.`,
+      lead: phrase(
+        "agency.photos.ok",
+        [
+          `Todas tus propiedades tienen al menos ${THRESHOLDS.minImages} fotos y no veo ninguna donde la gente mire mucho y guarde poco. No puedo juzgar la calidad de una foto, pero por cantidad y comportamiento están bien.`,
+          `Todas tus propiedades llegan a ${THRESHOLDS.minImages} fotos o más y ninguna junta muchas visitas con pocos guardados. La calidad de cada foto no la puedo evaluar, pero por cantidad y comportamiento no hay alarmas.`,
+        ],
+        env.context.turn
+      ),
       blocks: [],
       followUps: dedupeSuggestions([sug("agency.opportunities", "¿Qué otras oportunidades hay?"), sug("agency.incomplete", "¿Hay publicaciones incompletas?")]),
     };
@@ -178,7 +195,14 @@ export const incomplete: AgencyHandler = (env) => {
 
   if (live.length === 0 && drafts.length === 0) {
     return {
-      lead: "Todas tus publicaciones tienen lo básico completo: fotos, descripción, superficie y datos de ubicación. No veo nada que las esté perjudicando por faltante.",
+      lead: phrase(
+        "agency.incomplete.ok",
+        [
+          "Todas tus publicaciones tienen lo básico completo: fotos, descripción, superficie y datos de ubicación. No veo nada que las esté perjudicando por faltante.",
+          "Tus publicaciones están completas en lo básico: fotos, descripción, superficie y ubicación. Nada las perjudica por falta de datos.",
+        ],
+        env.context.turn
+      ),
       blocks: [],
       followUps: dedupeSuggestions([sug("agency.opportunities", "¿Qué oportunidades hay?"), sug("agency.photos", "¿Cuáles necesitan mejores fotos?")]),
     };
@@ -238,7 +262,14 @@ export const staleInquiries: AgencyHandler = (env) => {
 
   if (silent.length === 0) {
     return {
-      lead: "Todas tus propiedades con más de una semana publicadas recibieron al menos una consulta en los últimos 30 días.",
+      lead: phrase(
+        "agency.stale.ok",
+        [
+          "Todas tus propiedades con más de una semana publicadas recibieron al menos una consulta en los últimos 30 días.",
+          "Ninguna propiedad con más de una semana publicada se quedó sin consultas en los últimos 30 días.",
+        ],
+        env.context.turn
+      ),
       blocks: [],
       followUps: dedupeSuggestions([sug("agency.views_no_inquiries", "¿Cuáles tienen visitas pero pocas consultas?"), sug("agency.best", "¿Cuáles funcionan mejor?")]),
     };
@@ -287,7 +318,14 @@ export const opportunities: AgencyHandler = (env) => {
 
   if (items.length === 0) {
     return {
-      lead: "Hoy no detecto oportunidades pendientes: lo que podías sumar (recorrido 360°, videos, fotos, más propiedades) ya lo tenés cubierto o no hay datos para sugerirlo.",
+      lead: phrase(
+        "agency.opps.none",
+        [
+          "Hoy no detecto oportunidades pendientes: lo que podías sumar (recorrido 360°, videos, fotos, más propiedades) ya lo tenés cubierto o no hay datos para sugerirlo.",
+          "No veo oportunidades pendientes por ahora: lo que se podía sumar (recorrido 360°, videos, fotos, más propiedades) ya está o todavía no hay datos para recomendarlo.",
+        ],
+        env.context.turn
+      ),
       blocks: [],
       followUps: dedupeSuggestions([sug("agency.review_first", "¿Qué debería revisar primero?"), sug("agency.best", "¿Cuáles funcionan mejor?")]),
     };
@@ -295,7 +333,15 @@ export const opportunities: AgencyHandler = (env) => {
 
   const kinds = new Set(items.map((d) => ruleOf(d)));
   return {
-    lead: `Encontré ${count(items.length, "oportunidad", "oportunidades")} que todavía no estás aprovechando${kinds.has("no-tour") ? ", empezando por el recorrido 360°" : ""}. Cada una viene con la acción concreta y el acceso directo.`,
+    lead: phrase(
+      "agency.opps.found",
+      [
+        `Encontré ${count(items.length, "oportunidad", "oportunidades")} que todavía no estás aprovechando${kinds.has("no-tour") ? ", empezando por el recorrido 360°" : ""}. Cada una viene con la acción concreta y el acceso directo.`,
+        `Hay ${count(items.length, "oportunidad", "oportunidades")} para mejorar${kinds.has("no-tour") ? ", y la primera es el recorrido 360°" : ""}. Cada una trae qué hacer y un acceso directo.`,
+        `Te quedan ${count(items.length, "oportunidad", "oportunidades")} sin aprovechar${kinds.has("no-tour") ? " (arrancaría por el recorrido 360°)" : ""}. Abajo tenés la acción concreta de cada una.`,
+      ],
+      env.context.turn
+    ),
     blocks: [{ type: "diagnostics", items }],
     followUps: dedupeSuggestions([sug("agency.actions", "¿Cuál tiene más impacto?"), sug("agency.promote", "¿Qué promociono?")]),
     resultIds: items.map((d) => d.propertyId).filter((id): id is string => !!id),
@@ -304,24 +350,32 @@ export const opportunities: AgencyHandler = (env) => {
 
 // ─── Qué promocionar ─────────────────────────────────────────────────────────
 
-export const promote: AgencyHandler = (env) => {
+export const promote: AgencyHandler = async (env) => {
   const { portfolio: p, now } = env;
   const n = limitOf(env.slots.count, 3);
   const pool = filterRows(p.rows, env.slots);
 
-  const scored = rankForPromotion(pool, p.bench, now);
+  // Igual que el agente de marketing: lo que se promocionó hace poco baja puntos, así los dos recomiendan lo mismo.
+  const scored = rankForPromotion(pool, p.bench, now, { promotedDaysAgo: await loadPromotedDaysAgo(env.scope.agencyId) });
 
   const eligible = scored.filter((s) => !s.blocked);
   const shown = eligible.slice(0, n);
   if (shown.length === 0) {
     return {
-      lead: "Hoy no promocionaría ninguna: las propiedades que tenés todavía necesitan fotos o resolver algún problema antes de empujarlas.",
+      lead: phrase(
+        "agency.promote.none",
+        [
+          "Hoy no promocionaría ninguna: las propiedades que tenés todavía necesitan fotos o resolver algún problema antes de empujarlas.",
+          "Por ahora no empujaría ninguna: primero conviene sumar fotos o resolver algún problema en las que tenés.",
+        ],
+        env.context.turn
+      ),
       blocks: [],
       followUps: dedupeSuggestions([sug("agency.photos", "¿Cuáles necesitan mejores fotos?"), sug("agency.review_first", "¿Qué reviso primero?")]),
     };
   }
 
-  const lead = `${pick(["Yo promocionaría", "Mi elección para promocionar sería"], env.seed)} ${list(shown.map((s) => quote(s.r.title, 40)))}${
+  const lead = `${phrase("agency.promote.pick", ["Yo promocionaría", "Mi elección para promocionar sería", "Para promocionar, elegiría"], env.context.turn)} ${list(shown.map((s) => quote(s.r.title, 40)))}${
     shown.length < n ? ` (sólo ${shown.length} ${plural(shown.length, "cumple", "cumplen")} las condiciones para empujarla bien)` : ""
   }. Elegí propiedades bien presentadas y con señales de interés, para que la visibilidad extra no se pierda.`;
 

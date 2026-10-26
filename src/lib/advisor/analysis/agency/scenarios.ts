@@ -11,6 +11,7 @@ import { consultas, getDailySeries, getLeadFunnels } from "@/lib/intelligence/me
 import { LEAD_STATUS_LABELS, isLeadStale, type LeadStatus } from "@/lib/leads/status";
 import { describeChange, describeEntry } from "../../compose/activity-text";
 import { change, count, daysAgo, list, median, money, n0, n1, pct, plural, quote, signedPct } from "../../compose/format";
+import { phrase } from "@/lib/agents/knowledge/phrasing";
 import { dedupeSuggestions, sug } from "../../compose/suggest";
 import { periodRange } from "../../data/periods";
 import type { ActivityEntry } from "../../data/activity";
@@ -74,7 +75,15 @@ export const simulatePrice: AgencyHandler = async (env) => {
   targets = targets.slice(0, 3);
 
   if (targets.length === 0) {
-    return { lead: "No tengo propiedades publicadas para simular un cambio de precio.", blocks: [], followUps: [sug("agency.overview", "Dame un resumen general")] };
+    return {
+      lead: phrase(
+        "agency.simulate.none",
+        ["No tengo propiedades publicadas para simular un cambio de precio.", "Sin propiedades publicadas no puedo simular un cambio de precio."],
+        env.context.turn
+      ),
+      blocks: [],
+      followUps: [sug("agency.overview", "Dame un resumen general")],
+    };
   }
 
   const pcts = env.slots.percent != null ? [env.slots.percent] : [-5, -10, -15];
@@ -306,7 +315,11 @@ export const propertyStatus: AgencyHandler = async (env) => {
   // Varias coincidencias (títulos repetidos): se pregunta cuál en vez de elegir una al azar.
   if (candidates.length > 1 && env.slots.propertyIds?.length && !env.context.resultIds?.length) {
     return {
-      lead: `Hay ${candidates.length} propiedades que coinciden con ese nombre. ¿Cuál querés ver?`,
+      lead: phrase(
+        "agency.status.several",
+        [`Hay ${candidates.length} propiedades que coinciden con ese nombre. ¿Cuál querés ver?`, `Encontré ${candidates.length} propiedades con ese nombre. ¿Cuál es la que buscás?`],
+        env.context.turn
+      ),
       blocks: [{ type: "properties", items: candidates.map((r) => propRef(r, env, { totals: r.d30, auto: false })) }],
       followUps: dedupeSuggestions(candidates.map((r) => sug("agency.property_status", `${quote(r.title, 28)} · ${money(r.price, r.currency)}`, { slots: { propertyIds: [r.id] } }))),
       resultIds: candidates.map((r) => r.id),
@@ -316,7 +329,11 @@ export const propertyStatus: AgencyHandler = async (env) => {
   if (!row) {
     const top = [...p.rows].sort((a, b) => b.score - a.score).slice(0, 4);
     return {
-      lead: "¿De cuál propiedad querés saber? Escribime su nombre, o elegí una de estas:",
+      lead: phrase(
+        "agency.status.ask",
+        ["¿De cuál propiedad querés saber? Escribime su nombre, o elegí una de estas:", "Decime de qué propiedad se trata: escribime su nombre o elegí una de estas:", "¿Sobre cuál querés que te cuente? Escribí su nombre o tocá una de estas:"],
+        env.context.turn
+      ),
       blocks: [{ type: "properties", items: top.map((r) => propRef(r, env, { totals: r.d30, auto: false })) }],
       followUps: dedupeSuggestions(top.slice(0, 3).map((r) => sug("agency.property_status", quote(r.title, 34), { slots: { propertyIds: [r.id] } }))),
       resultIds: top.map((r) => r.id),
@@ -410,7 +427,14 @@ export const leads: AgencyHandler = async (env) => {
   const f = funnels.total;
   if (f.total === 0 && open.length === 0) {
     return {
-      lead: "Todavía no recibiste consultas por el formulario de las fichas, así que no hay clientes para seguir. Cuando lleguen, los voy a ordenar por quién lleva más tiempo sin respuesta.",
+      lead: phrase(
+        "agency.leads.none",
+        [
+          "Todavía no recibiste consultas por el formulario de las fichas, así que no hay clientes para seguir. Cuando lleguen, los voy a ordenar por quién lleva más tiempo sin respuesta.",
+          "Aún no llegó ninguna consulta por el formulario de las fichas, así que no hay clientes que seguir. Cuando lleguen, los ordeno por quién espera hace más tiempo.",
+        ],
+        env.context.turn
+      ),
       blocks: [],
       followUps: dedupeSuggestions([sug("agency.views_no_inquiries", "¿Qué propiedades tienen visitas pero no consultas?"), sug("agency.actions", "¿Cómo consigo más consultas?")]),
     };

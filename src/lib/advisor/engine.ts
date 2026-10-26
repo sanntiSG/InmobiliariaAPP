@@ -10,9 +10,11 @@ import { AGENCY_HANDLERS } from "./analysis/agency";
 import { greeting, help, thanks } from "./analysis/common";
 import { EXPLORER_HANDLERS } from "./analysis/explorer";
 import type { Env, HandlerResult } from "./analysis/types";
-import { pick, seedOf } from "./compose/format";
+import { seedOf } from "./compose/format";
 import { INTENT_LABELS, defaultSuggestions } from "./compose/labels";
 import { dedupeSuggestions, sug } from "./compose/suggest";
+import { clarifyLead, unknownHelp } from "./compose/unknown";
+import { phrase } from "@/lib/agents/knowledge/phrasing";
 import { loadMarketIndex } from "./data/market";
 import { loadPortfolio, type Portfolio } from "./data/portfolio";
 import { understand } from "./nlu/classify";
@@ -109,7 +111,7 @@ function run(intent: IntentId, env: Env): Promise<HandlerResult> | HandlerResult
     if (handler) return handler(env);
   }
   return {
-    lead: "Esa consulta todavía no la puedo resolver. Probá con alguna de estas:",
+    lead: phrase("engine.unhandled", ["Esa consulta todavía no la puedo resolver. Probá con alguna de estas:", "Eso todavía no lo resuelvo. Mientras tanto, mirá si te sirve alguna de estas:", "Esa parte todavía no la tengo. Puedo ayudarte con estas:"], env.context.turn),
     blocks: [],
     followUps: defaultSuggestions(env.mode),
   };
@@ -147,32 +149,29 @@ export async function answer(params: AskParams): Promise<AdvisorAnswer> {
   if ("text" in params.input) {
     const u = understand(params.input.text, mode, index, ctx);
     if (u.kind === "clarify") {
-      const seed = seedOf("clarify", ctx.turn);
+      const followUps = dedupeSuggestions(u.alternatives.map((a) => sug(a.intent, INTENT_LABELS[a.intent], { slots: sanitizeSlots(u.slots, portfolio) }))).slice(0, 3);
       return {
         intent: "clarify",
         confidence: u.confidence,
         mood: "neutral",
-        lead: pick(
-          ["No estoy seguro de haber entendido bien. ¿Te referís a alguna de estas?", "Puedo interpretarlo de más de una forma. ¿Cuál se acerca más a lo que querés saber?"],
-          seed
-        ),
+        lead: clarifyLead(followUps.length, ctx.turn),
         blocks: [],
-        followUps: dedupeSuggestions(u.alternatives.map((a) => sug(a.intent, INTENT_LABELS[a.intent], { slots: sanitizeSlots(u.slots, portfolio) }))).slice(0, 3),
+        followUps,
         actions: [],
         context: baseContext,
       };
     }
     if (u.kind === "unknown") {
+      // Aunque no haya entendido qué se quiere saber, sí leyó de qué se habla (una zona, un tipo, una métrica): lo usa para ofrecer algo concreto.
+      const slots = sanitizeSlots(u.slots, portfolio);
+      const aid = unknownHelp(mode, slots, ctx.turn);
       return {
         intent: "unknown",
         confidence: 0,
         mood: "neutral",
-        lead:
-          mode === "agency"
-            ? "Eso no lo puedo responder con los datos de tu inmobiliaria. Puedo ayudarte con tus propiedades, visitas, consultas, cambios y qué mejorar. Por ejemplo:"
-            : "No encontré cómo ayudarte con eso todavía. Puedo buscar propiedades, recomendarte, comparar precios y mostrarte lo que se mueve. Por ejemplo:",
+        lead: aid.lead,
         blocks: [],
-        followUps: defaultSuggestions(mode).slice(0, 4),
+        followUps: [...aid.followUps, ...defaultSuggestions(mode).filter((s) => !aid.followUps.some((a) => a.intent === s.intent))].slice(0, 4),
         actions: [],
         context: baseContext,
       };
@@ -187,7 +186,7 @@ export async function answer(params: AskParams): Promise<AdvisorAnswer> {
         intent: "unknown",
         confidence: 0,
         mood: "neutral",
-        lead: "Esa opción no está disponible acá.",
+        lead: phrase("engine.unavailable", ["Esa opción no está disponible acá.", "Eso no lo puedo hacer desde acá.", "Esa opción no corresponde a este modo."], ctx.turn),
         blocks: [],
         followUps: defaultSuggestions(mode).slice(0, 4),
         actions: [],
