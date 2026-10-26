@@ -20,6 +20,14 @@ function agoText(min: number): string {
   return `hace ${Math.round(min / (60 * 24))} días`;
 }
 
+/** Lo que hizo la última corrida, en palabras: ", revisó 1 casilla, 0 respuestas enviadas". */
+function lastRunText(run: MailActivationStatus["lastRun"]): string {
+  if (!run) return "";
+  const boxes = run.polled === 1 ? "1 casilla" : `${run.polled} casillas`;
+  const sent = run.sent === 1 ? "1 respuesta enviada" : `${run.sent} respuestas enviadas`;
+  return `: ${run.polled === 0 ? "no le tocaba revisar ninguna casilla" : `revisó ${boxes}`}, ${sent}${run.errors > 0 ? `, ${run.errors} con error` : ""}`;
+}
+
 /** Una clave de 32 bytes al azar, creada en ESTE navegador: nunca viaja al servidor. */
 function makeKey(): string {
   const bytes = new Uint8Array(32);
@@ -197,7 +205,7 @@ export function MailActivation({ status }: { status: MailActivationStatus }) {
               : status.lastRunAgoMin === null
                 ? "Todavía no corrió. Debería empezar a los 5 minutos de publicar con la clave."
                 : running
-                  ? `Última revisión ${agoText(status.lastRunAgoMin)}.`
+                  ? `Última revisión ${agoText(status.lastRunAgoMin)}${lastRunText(status.lastRun)}.`
                   : `No corre desde ${agoText(status.lastRunAgoMin)}. En Netlify, mirá Logs → Functions → mail-poll.`}
         </StatusRow>
         <StatusRow tone={status.sender ? "ok" : "off"} label="Envío de respuestas">

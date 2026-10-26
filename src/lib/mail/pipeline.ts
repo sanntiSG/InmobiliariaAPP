@@ -21,12 +21,12 @@ import { openCreds } from "./creds";
 import { MAIL_LIMITS, isInquiry, type MailCategory } from "./constants";
 import { decideAuto } from "./decide";
 import { prefilter, replyAddress } from "./prefilter";
+import { POLL_EVERY_MS } from "./schedule";
 import { loadSettings, type MailSettingsView } from "./settings";
 import { explain, pollNew, type FetchedMail } from "./transport";
 
 const DAY_MS = 86_400_000;
 const LOCK_MS = 90_000;
-const POLL_EVERY_MS = 5 * 60_000;
 /** Espera creciente cuando el buzón falla (15, 30 y 60 minutos). */
 const BACKOFF_MIN = [15, 30, 60] as const;
 

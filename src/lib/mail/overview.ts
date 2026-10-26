@@ -11,6 +11,7 @@ import { mainSiteUrl } from "./heartbeat";
 import { mailRuntime } from "./runtime";
 import type { MailboxStatus } from "./constants";
 import type { MailProviderId } from "./presets";
+import { nextAutoCheckAt } from "./schedule";
 import { loadSettings, type MailSettingsView } from "./settings";
 
 export type MailOverview = {
@@ -34,6 +35,8 @@ export type MailOverview = {
     status: MailboxStatus;
     lastError: string | null;
     lastPollAt: string | null;
+    /** Cuándo se estima que la revisión automática vuelve a pasar (ver `nextAutoCheckAt`). */
+    nextAutoCheckAt: string | null;
     connectedAt: string | null;
   };
   settings: MailSettingsView;
@@ -43,7 +46,7 @@ export type MailOverview = {
 export async function getOverview(agencyId: string, canManage: boolean, viewerIsAdmin = false): Promise<MailOverview> {
   await connectDB();
   const [mailbox, settings, grouped, agency] = await Promise.all([
-    Mailbox.findOne({ agencyId }).select("email provider status lastError lastPollAt consentAt createdAt").lean(),
+    Mailbox.findOne({ agencyId }).select("email provider status lastError lastPollAt nextPollAt consentAt createdAt").lean(),
     loadSettings(agencyId),
     MailMessage.aggregate<{ _id: string; n: number }>([{ $match: { agencyId: new Types.ObjectId(agencyId) } }, { $group: { _id: "$status", n: { $sum: 1 } } }]),
     Agency.findById(agencyId).select("name").lean(),
@@ -66,6 +69,7 @@ export async function getOverview(agencyId: string, canManage: boolean, viewerIs
           status: mailbox.status ?? "active",
           lastError: mailbox.lastError ?? null,
           lastPollAt: mailbox.lastPollAt ? new Date(mailbox.lastPollAt).toISOString() : null,
+          nextAutoCheckAt: new Date(nextAutoCheckAt(mailbox.nextPollAt)).toISOString(),
           connectedAt: (mailbox.consentAt ?? mailbox.createdAt) ? new Date((mailbox.consentAt ?? mailbox.createdAt)!).toISOString() : null,
         }
       : null,

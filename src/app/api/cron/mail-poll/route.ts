@@ -5,6 +5,7 @@ import { pollerEnabled } from "@/lib/mail/access";
 import { recordMailRun } from "@/lib/mail/heartbeat";
 import { processOutbox } from "@/lib/mail/outbox";
 import { pollMailbox } from "@/lib/mail/pipeline";
+import { dueFilter } from "@/lib/mail/schedule";
 import { rateLimit } from "@/lib/security/rate-limit";
 import { verifyCronRequest } from "@/lib/security/cron-auth";
 
@@ -32,7 +33,9 @@ export async function POST(req: NextRequest) {
     await connectDB();
     // Primero se envía lo que quedó en cola (confirmaciones y respuestas automáticas), después se revisa.
     const outbox = await processOutbox(deadline);
-    const due = await Mailbox.find({ status: { $in: ["active", "error"] }, nextPollAt: { $lte: new Date() }, lockedUntil: { $not: { $gt: new Date() } } })
+    // `dueFilter` toma también lo que vence en un rato: la función programada cae unos segundos antes de la hora que
+    // quedó agendada en la pasada anterior y, sin ese margen, se salteaba el buzón (se revisaba cada ~10 min).
+    const due = await Mailbox.find(dueFilter())
       .sort({ nextPollAt: 1 })
       .limit(10)
       .select("_id")

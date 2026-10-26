@@ -7,6 +7,7 @@ import { createSecretBox, SecretBoxError, mailboxAad } from "../src/lib/security
 import { cronSecrets, verifyCronRequest } from "../src/lib/security/cron-auth";
 import { CRON_TOKEN_LABEL, deriveCronToken } from "../src/lib/security/cron-token";
 import { mailRuntime } from "../src/lib/mail/runtime";
+import { POLL_EVERY_MS, SCHEDULE_SLACK_MS, dueFilter, isDue, nextAutoCheckAt } from "../src/lib/mail/schedule";
 import { explain, MailTransportError, parseAuth } from "../src/lib/mail/transport";
 import { getPublicSiteUrl, publicSiteUrl, siteHosts } from "../src/lib/mail/site";
 import { assertSafeMailHost, HostError, isPrivateIp } from "../src/lib/mail/hosts";
@@ -115,6 +116,47 @@ const throwsCode = (fn: () => unknown, code: string): boolean => {
   const paid = mailRuntime({ MAIL_CREDENTIALS_KEY: key, RENDER: "true", MAIL_POLLER_ENABLED: "true", MAIL_SEND_ENABLED: "true" });
   check("runtime: 'true' forzado enciende incluso en Render (plan pago)", paid.poller && paid.sender && paid.platform === "backup", paid);
   check("runtime: valores raros no cambian el comportamiento por defecto", mailRuntime({ MAIL_CREDENTIALS_KEY: key, MAIL_POLLER_ENABLED: "1", MAIL_SEND_ENABLED: "yes" }).poller);
+}
+
+// ── Cuándo toca revisar un buzón (el cron no debe saltearse pasadas) ─────────
+{
+  const MIN = 60_000;
+  const t0 = Date.UTC(2026, 9, 26, 22, 50, 0);
+  // El caso real: la función cae unos segundos después del minuto; la revisión agenda "+5 min desde que empezó".
+  const polledAt = t0 + 13_229;
+  const nextPollAt = new Date(polledAt + POLL_EVERY_MS);
+  const nextTick = t0 + 5 * MIN;
+  check("agenda: la próxima pasada llega ANTES de la hora agendada (el caso del bug)", nextTick < nextPollAt.getTime());
+  check("agenda: con el margen, esa pasada sí revisa el buzón", isDue(nextPollAt, nextTick) && isDue(nextPollAt, nextTick + 2_000));
+  // Barrido: cualquier combinación de demoras entre 0 y 60 s en dos pasadas seguidas tiene que revisar.
+  let skipped = 0;
+  let wouldSkipBefore = 0;
+  for (let first = 0; first <= 60_000; first += 3_000) {
+    for (let second = 0; second <= 60_000; second += 3_000) {
+      const agendada = t0 + first + POLL_EVERY_MS;
+      const llegada = t0 + 5 * MIN + second;
+      if (!isDue(agendada, llegada)) skipped++;
+      if (!(agendada <= llegada)) wouldSkipBefore++;
+    }
+  }
+  check("agenda: con demoras de 0 a 60 s entre pasadas no se saltea ninguna", skipped === 0, { skipped });
+  check("agenda: (control) sin margen el bug se reproduce", wouldSkipBefore > 0, { wouldSkipBefore });
+  check("agenda: un buzón revisado recién (hace 30 s) no vuelve a tocar", !isDue(new Date(t0 + 30_000 + POLL_EVERY_MS), t0 + 60_000));
+  check("agenda: la espera por error (15 min) se respeta", !isDue(new Date(t0 + 15 * MIN), t0 + 5 * MIN) && !isDue(new Date(t0 + 15 * MIN), t0 + 13 * MIN));
+  check("agenda: recién conectado (sin fecha) toca de inmediato", isDue(null, t0) && isDue(undefined, t0));
+  check("agenda: el margen es menor que el período (no se revisa de más)", SCHEDULE_SLACK_MS < POLL_EVERY_MS);
+
+  const f = dueFilter(t0);
+  check("agenda: el filtro de Mongo toma activos y con error", JSON.stringify(f.status) === JSON.stringify({ $in: ["active", "error"] }), f.status);
+  check("agenda: el filtro incluye 'sin fecha' y 'vence dentro del margen'", f.$or.length === 2 && f.$or[0]!.nextPollAt === null && f.$or[1]!.nextPollAt!.$lte.getTime() === t0 + SCHEDULE_SLACK_MS, f.$or);
+  check("agenda: el filtro deja afuera lo que está bloqueado", f.lockedUntil.$not.$gt.getTime() === t0, f.lockedUntil);
+
+  // Estimación para mostrar en pantalla.
+  const clock = Date.UTC(2026, 9, 26, 22, 52, 0);
+  check("próxima revisión: la siguiente pasada del reloj (múltiplo de 5 min)", nextAutoCheckAt(nextPollAt, clock) === t0 + 5 * MIN, new Date(nextAutoCheckAt(nextPollAt, clock)).toISOString());
+  check("próxima revisión: si ya venció, la próxima pasada", nextAutoCheckAt(new Date(t0), clock) === t0 + 5 * MIN);
+  check("próxima revisión: si espera por un error, manda la espera", nextAutoCheckAt(new Date(t0 + 17 * MIN + 13_000), clock) === t0 + 20 * MIN, new Date(nextAutoCheckAt(new Date(t0 + 17 * MIN + 13_000), clock)).toISOString());
+  check("próxima revisión: sin fecha, la próxima pasada", nextAutoCheckAt(null, clock) === t0 + 5 * MIN);
 }
 
 // ── Mensajes de error de la conexión y verificación del remitente ───────────

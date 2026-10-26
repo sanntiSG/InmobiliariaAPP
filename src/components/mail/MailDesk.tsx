@@ -22,6 +22,15 @@ const TABS: { id: MailTab; label: string; empty: string }[] = [
 
 const confidenceText = (c: number) => (c >= 0.8 ? "alta" : c >= 0.6 ? "media" : "baja");
 
+/** Cada cuánto se vuelve a mirar la bandeja sola mientras la pantalla está abierta (sin tocar nada). */
+const AUTO_REFRESH_MS = 45_000;
+
+/** "en menos de 1 min" / "en ~3 min" para la próxima revisión automática. */
+function formatEta(iso: string): string {
+  const minutes = Math.ceil((new Date(iso).getTime() - Date.now()) / 60_000);
+  return minutes <= 1 ? "en menos de 1 min" : `en ~${minutes} min`;
+}
+
 /**
  * El escritorio del agente de correo: cómo está la casilla, las respuestas que esperan confirmación, lo que ya se envió y lo
  * que se ignoró. Cada mail se abre en un cajón con el texto de quien escribió, por qué el agente lo entendió así y la
@@ -115,6 +124,45 @@ export function MailDesk({
       handled.current = null;
     };
   }, [openMail, agencyId]);
+
+  // La revisión de la casilla ocurre sola (cada 5 min, en el servidor): acá sólo se vuelve a leer lo que ya pasó para que lo
+  // nuevo aparezca sin tener que tocar "Revisar ahora". Se pausa con la pestaña oculta y mientras se hace otra cosa, y nunca
+  // toca el cajón de un mail abierto (no pisa un borrador que se está editando).
+  const hasMailbox = Boolean(overview?.mailbox);
+  const live = useRef({ loadOverview, loadList, tab, busy });
+  useEffect(() => {
+    live.current = { loadOverview, loadList, tab, busy };
+  });
+  useEffect(() => {
+    if (!hasMailbox) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let stopped = false;
+    const sync = async () => {
+      const { loadOverview: reloadOverview, loadList: reloadList, tab: current, busy: working } = live.current;
+      if (stopped || working || document.visibilityState !== "visible") return;
+      try {
+        await Promise.all([reloadOverview(), reloadList(current)]);
+      } catch {
+        // Un tropiezo de red no es un error para mostrar: el próximo intento lo corrige.
+      }
+    };
+    const loop = () => {
+      timer = setTimeout(async () => {
+        await sync();
+        if (!stopped) loop();
+      }, AUTO_REFRESH_MS);
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void sync();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    loop();
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [hasMailbox]);
 
   const closeDetail = () => {
     setOpenMail(null);
@@ -248,8 +296,11 @@ export function MailDesk({
             <span className="min-w-0 flex-1 basis-48">
               <span className="block truncate text-sm font-semibold text-text">{mb.email}</span>
               <span className="block text-xs text-text-muted">
-                {attention ? "Necesita atención" : "Conectada"} · {mb.lastPollAt ? `revisada ${formatRelativeTime(mb.lastPollAt)}` : "todavía sin revisar"} · modo {overview.settings.mode === "auto" ? "automático" : "con confirmación"}
+                {attention ? "Necesita atención" : "Conectada"} · {mb.lastPollAt ? `revisada ${formatRelativeTime(mb.lastPollAt)}` : "todavía sin revisar"} · {overview.settings.mode === "auto" ? "modo automático" : "modo con confirmación: las respuestas esperan tu OK"}
               </span>
+              {!attention && mb.status === "active" && mb.nextAutoCheckAt && (
+                <span className="block text-xs text-text-muted">Próxima revisión automática {formatEta(mb.nextAutoCheckAt)}. Esta pantalla se actualiza sola.</span>
+              )}
             </span>
             <Button size="sm" variant="secondary" disabled={busy !== null || mb.status === "paused"} onClick={pollNow}>
               <RefreshCw className={cn("h-4 w-4", busy === "poll" && "animate-spin")} aria-hidden />

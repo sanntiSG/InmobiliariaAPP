@@ -15,6 +15,8 @@ export type MailActivationStatus = {
   sender: boolean;
   /** Minutos desde la última vez que corrió la revisión programada (null: todavía no corrió). */
   lastRunAgoMin: number | null;
+  /** Qué hizo esa última corrida (sólo conteos): sirve para distinguir "corre pero no revisa nada" de "anda bien". */
+  lastRun: { polled: number; drafts: number; sent: number; errors: number } | null;
   connected: number;
   troubled: number;
   agencies: number;
@@ -38,6 +40,7 @@ export async function getActivationStatus(agentOn: boolean): Promise<MailActivat
     poller: runtime.poller,
     sender: runtime.sender,
     lastRunAgoMin: beat?.lastRunAt ? Math.max(0, Math.floor((Date.now() - new Date(beat.lastRunAt).getTime()) / 60_000)) : null,
+    lastRun: beat?.lastRunAt ? beat.stats : null,
     connected,
     troubled,
     agencies,
