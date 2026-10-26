@@ -62,6 +62,9 @@ export const MAIL_LIMITS = {
   maxText: 8000,
   autoPerDayMax: 100,
   autoPerDayDefault: 20,
+  /** Respuestas automáticas a la misma persona por día. */
+  autoPerSenderMax: 10,
+  autoPerSenderDefault: 3,
   /** Días que se conserva un mail (a los 14 si se ignoró). */
   retentionDays: 60,
   retentionIgnoredDays: 14,

@@ -71,6 +71,8 @@ export function MailCenter({ agencyId, openId }: { agencyId: string | null; open
       {view === "connect" && canManage ? (
         <ConnectWizard
           agencyId={agencyId}
+          agencyName={overview?.agencyName ?? ""}
+          viewerIsAdmin={!!overview?.viewerIsAdmin}
           onConnected={(o) => {
             setOverview(o);
             setDeskKey((k) => k + 1);

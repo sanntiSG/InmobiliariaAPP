@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, ChevronDown, Eye, EyeOff, ExternalLink, KeyRound, Loader2, Lock, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronDown, Copy, Eye, EyeOff, ExternalLink, KeyRound, Loader2, Lock, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils/cn";
-import { PRESETS, providerFromEmail, type MailProviderId } from "@/lib/mail/presets";
+import { PRESETS, appPasswordName, providerFromEmail, type MailProviderId } from "@/lib/mail/presets";
 import type { MailOverview } from "@/lib/mail/overview";
+import { MailHelp } from "./MailHelp";
 import { mailApi, MailApiError } from "./mail-api";
 
 type Step = "provider" | "guide" | "credentials" | "testing" | "done";
@@ -34,7 +35,19 @@ const field = "w-full rounded-media border border-border bg-surface-2 px-3.5 py-
  * cuenta), escribir los datos, aceptar el aviso de privacidad y probar la conexión. Si algo falla, explica qué y deja volver
  * a intentar sin perder lo escrito (salvo la contraseña, que se pide de nuevo).
  */
-export function ConnectWizard({ agencyId, onConnected, onCancel }: { agencyId: string | null; onConnected: (o: MailOverview) => void; onCancel?: () => void }) {
+export function ConnectWizard({
+  agencyId,
+  agencyName,
+  viewerIsAdmin,
+  onConnected,
+  onCancel,
+}: {
+  agencyId: string | null;
+  agencyName: string;
+  viewerIsAdmin: boolean;
+  onConnected: (o: MailOverview) => void;
+  onCancel?: () => void;
+}) {
   const [step, setStep] = useState<Step>("provider");
   const [provider, setProvider] = useState<MailProviderId>("gmail");
   const [email, setEmail] = useState("");
@@ -46,6 +59,18 @@ export function ConnectWizard({ agencyId, onConnected, onCancel }: { agencyId: s
   const [error, setError] = useState<string | null>(null);
   const [testIndex, setTestIndex] = useState(0);
   const preset = provider === "custom" ? null : PRESETS[provider];
+  // El nombre con el que se crea la contraseña de aplicación: así cada una queda identificada por inmobiliaria.
+  const appName = appPasswordName(agencyName);
+  const [nameCopied, setNameCopied] = useState(false);
+  const copyName = async () => {
+    try {
+      await navigator.clipboard.writeText(appName);
+      setNameCopied(true);
+      window.setTimeout(() => setNameCopied(false), 1800);
+    } catch {
+      // Sin permiso para el portapapeles: se puede seleccionar el nombre a mano.
+    }
+  };
 
   // La lista animada de "probando" avanza sola mientras la llamada real está en curso.
   useEffect(() => {
@@ -93,6 +118,12 @@ export function ConnectWizard({ agencyId, onConnected, onCancel }: { agencyId: s
           </button>
         )}
       </header>
+
+      {viewerIsAdmin && (
+        <p className="rounded-media bg-warning-soft px-4 py-3 text-sm text-text">
+          Estás conectando la casilla de <strong className="font-semibold">{agencyName || "esta inmobiliaria"}</strong> en su nombre. Pedile su email y su contraseña de aplicación, que debería llamarse <strong className="font-semibold [overflow-wrap:anywhere]">«{appName}»</strong>.
+        </p>
+      )}
 
       {step === "provider" && (
         <>
@@ -150,7 +181,7 @@ export function ConnectWizard({ agencyId, onConnected, onCancel }: { agencyId: s
                     {i + 1}
                   </span>
                   <span className="flex min-w-0 flex-col items-start gap-2">
-                    <span className="text-[15px] text-text">{s.text}</span>
+                    <span className="text-[15px] text-text">{s.text.replaceAll("{nombre}", appName)}</span>
                     {s.url && (
                       <a
                         href={s.url}
@@ -171,6 +202,17 @@ export function ConnectWizard({ agencyId, onConnected, onCancel }: { agencyId: s
                 Vas a necesitar los datos del servidor de tu hosting (los encontrás en su panel o en su ayuda): el de <strong className="text-text">entrada (IMAP)</strong> y el de{" "}
                 <strong className="text-text">salida (SMTP)</strong>, y la contraseña de tu casilla. Sólo aceptamos servidores públicos y conexiones seguras (puertos 993 para IMAP; 465 o 587 para SMTP).
               </p>
+            </div>
+          )}
+          {preset && (
+            <div className="flex flex-col gap-2.5 rounded-media bg-accent-soft p-3.5 sm:flex-row sm:items-center">
+              <p className="min-w-0 flex-1 text-sm text-text">
+                Ponele este nombre a la contraseña, así sabemos de quién es: <strong className="font-semibold [overflow-wrap:anywhere]">{appName}</strong>
+              </p>
+              <Button type="button" variant="secondary" size="sm" onClick={() => void copyName()} aria-live="polite" className="shrink-0 self-start sm:self-center">
+                {nameCopied ? <Check className="h-4 w-4 text-success" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />}
+                {nameCopied ? "Copiado" : "Copiar nombre"}
+              </Button>
             </div>
           )}
           {preset?.note && <p className="rounded-media bg-surface-2 px-3.5 py-2.5 text-xs text-text-muted">{preset.note}</p>}
@@ -337,6 +379,8 @@ export function ConnectWizard({ agencyId, onConnected, onCancel }: { agencyId: s
           )}
         </div>
       )}
+
+      {!viewerIsAdmin && step !== "testing" && step !== "done" && <MailHelp agencyId={agencyId} agencyName={agencyName} appName={appName} email={email} />}
     </section>
   );
 }

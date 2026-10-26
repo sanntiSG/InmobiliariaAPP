@@ -34,6 +34,8 @@ export async function POST(req: NextRequest) {
     const deadline = Date.now() + BUDGET_MS;
     if (sendEnabled()) await processOutbox(deadline);
     const outcome = await pollMailbox(String(mailbox._id), { deadline });
+    // Lo que salió solo en esta revisión se envía ahora mismo.
+    if (outcome.queued > 0 && sendEnabled()) await processOutbox(deadline);
     return NextResponse.json({ outcome, overview: await getOverview(a.agencyId, a.canManage, a.isAdmin) }, { headers: NO_STORE });
   } catch (err) {
     console.error("POST /api/dashboard/mail/poll failed:", (err as Error)?.message);

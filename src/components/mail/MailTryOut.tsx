@@ -127,6 +127,13 @@ function PreviewResult({ r }: { r: Preview }) {
           Con tu configuración actual ({r.mode === "auto" ? "modo automático" : "modo con confirmación"}):{" "}
           <strong className="font-semibold text-text">{r.autoVerdict.auto ? "saldría sola" : "te la dejaría para confirmar"}</strong>. {r.autoVerdict.why}
           {r.autoVerdict.auto && " (Si quien escribe pasa las verificaciones del correo; si no, queda para confirmar.)"}
+          {r.ifAuto && (
+            <>
+              {" "}
+              Si pasaras a automático: <strong className="font-semibold text-text">{r.ifAuto.auto ? "saldría sola" : "no saldría sola"}</strong>
+              {r.ifAuto.auto ? "." : " (" + r.ifAuto.why.replace(/\.$/, "").replace(/^./, (c) => c.toLowerCase()) + ")."}
+            </>
+          )}
         </p>
       )}
       <p className="text-xs text-text-muted">Es una simulación: no se guardó ni se envió nada.</p>

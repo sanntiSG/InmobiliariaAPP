@@ -56,8 +56,12 @@ export async function POST(req: NextRequest) {
       if (r.more) more = true;
     }
     if (due.length === 10) more = true;
-    await recordMailRun(true, { polled, drafts, sent: outbox.sent, errors });
-    return NextResponse.json({ polled, drafts, queued, errors, sent: outbox.sent, more }, { headers: { "Cache-Control": "no-store" } });
+    // Lo que salió solo en esta revisión se envía ahora, sin esperar a la próxima pasada (si quedó tiempo).
+    const late = queued > 0 && Date.now() < deadline ? await processOutbox(deadline) : { sent: 0, failed: 0, more: false };
+    if (late.more) more = true;
+    const sent = outbox.sent + late.sent;
+    await recordMailRun(true, { polled, drafts, sent, errors });
+    return NextResponse.json({ polled, drafts, queued, errors, sent, more }, { headers: { "Cache-Control": "no-store" } });
   } catch (err) {
     console.error("POST /api/cron/mail-poll failed:", (err as Error)?.message);
     await recordMailRun(false, { polled: 0, drafts: 0, sent: 0, errors: 1 });

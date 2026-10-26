@@ -16,7 +16,7 @@ import { classifyMail } from "../src/lib/mail/classify";
 import { extractSlugs } from "../src/lib/mail/refs";
 import { composeReply, replySubject, type ComposeInput, type ReplyProperty } from "../src/lib/mail/compose";
 import { argentinaClock, decideAuto, inSchedule, type AutoInput } from "../src/lib/mail/decide";
-import { presetFor, providerFromEmail, smtpImplicitTls } from "../src/lib/mail/presets";
+import { PRESETS, appPasswordName, presetFor, providerFromEmail, smtpImplicitTls } from "../src/lib/mail/presets";
 import { buildSample } from "../src/lib/mail/preview";
 import { CORPUS, THRESHOLDS, classifySample, runCorpus } from "./mail-corpus";
 import { propertyUrl } from "../src/lib/mail/analyze";
@@ -148,6 +148,16 @@ const throwsCode = (fn: () => unknown, code: string): boolean => {
   const cls = classifyMail({ subject: withUrl.subject, text: cleanBody(withUrl.text), hasPropertyRef: true });
   check("preview: el ejemplo se entiende como una consulta y no queda para una persona", ["availability", "price", "visit", "general", "features"].includes(cls.category) && !cls.needsHuman && cls.confidence >= 0.6, cls);
   check("preview: lo que se manda a la simulación no puede traer saltos en el asunto", !/[\r\n]/.test(withUrl.subject));
+}
+
+// ── Nombre de la contraseña de aplicación (identifica a cada inmobiliaria) ─────
+{
+  check("clave: lleva el nombre de la inmobiliaria", appPasswordName("Inmobiliaria SS") === "Recorrr - Inmobiliaria SS", appPasswordName("Inmobiliaria SS"));
+  check("clave: conserva tildes y ñ", appPasswordName("Río Bienes Raíces") === "Recorrr - Río Bienes Raíces" && appPasswordName("Muñoz & Hijos") === "Recorrr - Muñoz & Hijos");
+  check("clave: saca símbolos raros (etiquetas, comillas, emojis)", !/[<>"`$]/.test(appPasswordName('Casa <b>"Sol"</b> $$')) && appPasswordName("Casa \u{1F3E0} Sol").includes("Casa") && !/\p{Extended_Pictographic}/u.test(appPasswordName("Casa \u{1F3E0} Sol")), appPasswordName('Casa <b>"Sol"</b> $$'));
+  check("clave: no pasa de 40 caracteres ni termina con espacio", appPasswordName("Una Inmobiliaria con un nombre larguísimo que no entra entero").length <= 40 && !appPasswordName("Una Inmobiliaria con un nombre larguísimo que no entra entero").endsWith(" "));
+  check("clave: sin nombre queda 'Recorrr'", appPasswordName("") === "Recorrr" && appPasswordName(null) === "Recorrr" && appPasswordName("   ") === "Recorrr");
+  check("clave: cada proveedor pide ponerle ese nombre en un paso", (["gmail", "yahoo", "icloud"] as const).every((id) => PRESETS[id].steps.filter((s) => s.text.includes("{nombre}")).length === 1));
 }
 
 // ── Servidores de correo (SSRF) ─────────────────────────────────────────────
@@ -399,15 +409,17 @@ async function hosts() {
   const noon = new Date("2026-10-25T15:00:00Z"); // 12:00 en Argentina
   const night = new Date("2026-10-25T02:00:00Z"); // 23:00 del día anterior en Argentina
   const ok: AutoInput = {
-    settings: { mode: "auto", autoCategories: ["availability", "price", "features", "general"], autoPerDay: 20, schedule: { enabled: false, from: "09:00", to: "20:00" } },
+    settings: { mode: "auto", autoCategories: ["availability", "price", "features", "general"], autoPerDay: 20, autoPerSender: 3, autoSearches: true, schedule: { enabled: false, from: "09:00", to: "20:00" } },
     category: "availability",
     confidence: 0.9,
     needsHuman: false,
     authFailed: false,
     replyElsewhere: false,
     availableProperties: 1,
+    searchMatches: 0,
+    searchStrength: 0,
     sentToday: 0,
-    senderRepliedRecently: false,
+    repliesToSender: 0,
     threadAnswered: false,
     now: noon,
   };
@@ -421,7 +433,17 @@ async function hosts() {
   check("auto: Reply-To a otra dirección → confirmar (no se puede usar para mandar mails a un tercero)", held({ replyElsewhere: true }));
   check("auto: sin propiedad identificada → confirmar", held({ availableProperties: 0 }));
   check("auto: tope diario", held({ sentToday: 20 }) && !held({ sentToday: 19 }));
-  check("auto: a la misma persona no se le responde dos veces en un día", held({ senderRepliedRecently: true }));
+  check("auto: a la misma persona se le responde hasta el tope diario (3) y no más", !held({ repliesToSender: 2 }) && held({ repliesToSender: 3 }) && held({ repliesToSender: 1 }, { autoPerSender: 1 }) && !held({ repliesToSender: 0 }, { autoPerSender: 1 }));
+  check("auto: el motivo del tope por persona dice cuántas veces", /3 veces/.test(decideAuto({ ...ok, repliesToSender: 3 }).why) && /1 vez/.test(decideAuto({ ...ok, repliesToSender: 1, settings: { ...ok.settings, autoPerSender: 1 } }).why));
+
+  // Búsquedas ("casas en venta en Ezeiza"): sin propiedad nombrada, pero con propiedades publicadas que coinciden.
+  const search = { availableProperties: 0, searchMatches: 1, searchStrength: 3 };
+  check("auto: una búsqueda con propiedades que coinciden sale sola", decideAuto({ ...ok, ...search }).auto && /tenés publicado/.test(decideAuto({ ...ok, ...search }).why), decideAuto({ ...ok, ...search }));
+  check("auto: una búsqueda sin nada que coincida se confirma, y lo dice", held({ ...search, searchMatches: 0 }) && /no tengo publicado/i.test(decideAuto({ ...ok, ...search, searchMatches: 0 }).why));
+  check("auto: una búsqueda con una sola señal (\"alquileres\") sale sola si hay algo publicado que coincide", !held({ ...search, searchStrength: 1 }) && held({ ...search, searchStrength: 1, searchMatches: 0 }));
+  check("auto: si no pide nada concreto se confirma", held({ ...search, searchStrength: 0 }) && /No identifiqué/.test(decideAuto({ ...ok, ...search, searchStrength: 0 }).why));
+  check("auto: se pueden apagar las respuestas automáticas a búsquedas", held(search, { autoSearches: false }) && /búsquedas están desactivadas/.test(decideAuto({ ...ok, ...search, settings: { ...ok.settings, autoSearches: false } }).why));
+  check("auto: una búsqueda también respeta todo lo demás (remitente, persona, tope)", held({ ...search, authFailed: true }) && held({ ...search, needsHuman: true }) && held({ ...search, replyElsewhere: true }) && held({ ...search, sentToday: 20 }) && held({ ...search, confidence: 0.6 }));
   check("auto: ni dos veces en el mismo hilo", held({ threadAnswered: true }));
   const sched = { enabled: true, from: "09:00", to: "20:00" };
   check("auto: horario → dentro sale, fuera se confirma", !held({}, { schedule: sched }) && held({ now: night }, { schedule: sched }));

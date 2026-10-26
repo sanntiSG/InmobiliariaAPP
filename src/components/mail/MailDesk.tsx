@@ -111,6 +111,8 @@ export function MailDesk({
     })();
     return () => {
       alive = false;
+      // Si el efecto se vuelve a correr (modo estricto de desarrollo o cambio de inmobiliaria), tiene que volver a pedir el mail.
+      handled.current = null;
     };
   }, [openMail, agencyId]);
 
@@ -381,7 +383,9 @@ export function MailDesk({
               <h3 className="font-display text-sm font-bold text-text">{detail.status === "ignored" ? "Por qué lo ignoré" : "Por qué lo detecté así"}</h3>
               <ul className="flex flex-wrap gap-1.5">
                 <li className="rounded-pill bg-accent-soft px-2.5 py-1 text-xs font-medium text-accent">{MAIL_CATEGORY_LABELS[detail.category]}</li>
-                {detail.reasons.map((r) => (
+                {detail.reasons
+                  .filter((r) => !(editable && r.startsWith("No salió sola: ")))
+                  .map((r) => (
                   <li key={r} className="rounded-pill bg-surface-2 px-2.5 py-1 text-xs text-text-muted">
                     {r}
                   </li>
@@ -407,6 +411,15 @@ export function MailDesk({
                 <h3 className="font-display text-sm font-bold text-text">Lo que escribió</h3>
                 <blockquote className="max-h-56 overflow-y-auto whitespace-pre-wrap break-words rounded-media bg-surface-2 p-3.5 text-sm text-text">{detail.text}</blockquote>
               </section>
+            )}
+
+            {editable && detail.reasons.some((r) => r.startsWith("No salió sola: ")) && (
+              <p role="status" className="flex items-start gap-2 rounded-media bg-warning-soft px-3.5 py-3 text-sm text-text">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />
+                <span>
+                  Está en modo automático, pero esta respuesta <strong className="font-semibold">no salió sola</strong>: {detail.reasons.find((r) => r.startsWith("No salió sola: "))!.slice("No salió sola: ".length)}
+                </span>
+              </p>
             )}
 
             {detail.properties.length > 0 && (

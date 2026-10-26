@@ -4,6 +4,7 @@
  */
 import { Types } from "mongoose";
 import { connectDB } from "@/lib/db/connect";
+import { Agency } from "@/lib/db/models/Agency";
 import { Mailbox } from "@/lib/db/models/Mailbox";
 import { MailMessage } from "@/lib/db/models/MailMessage";
 import { mainSiteUrl } from "./heartbeat";
@@ -23,6 +24,8 @@ export type MailOverview = {
   /** Dirección de la web principal, sólo en el respaldo y si ya se sabe. */
   mainSiteUrl: string | null;
   canManage: boolean;
+  /** Nombre de la inmobiliaria (para nombrar su contraseña de aplicación y saber de quién es). */
+  agencyName: string;
   /** Quien mira es admin de la plataforma (no el dueño): puede activar el correo, no hace falta pedírselo a nadie. */
   viewerIsAdmin: boolean;
   mailbox: null | {
@@ -39,10 +42,11 @@ export type MailOverview = {
 
 export async function getOverview(agencyId: string, canManage: boolean, viewerIsAdmin = false): Promise<MailOverview> {
   await connectDB();
-  const [mailbox, settings, grouped] = await Promise.all([
+  const [mailbox, settings, grouped, agency] = await Promise.all([
     Mailbox.findOne({ agencyId }).select("email provider status lastError lastPollAt consentAt createdAt").lean(),
     loadSettings(agencyId),
     MailMessage.aggregate<{ _id: string; n: number }>([{ $match: { agencyId: new Types.ObjectId(agencyId) } }, { $group: { _id: "$status", n: { $sum: 1 } } }]),
+    Agency.findById(agencyId).select("name").lean(),
   ]);
   const n = (s: string) => grouped.find((g) => g._id === s)?.n ?? 0;
   const runtime = mailRuntime();
@@ -53,6 +57,7 @@ export async function getOverview(agencyId: string, canManage: boolean, viewerIs
     platform: runtime.platform,
     mainSiteUrl: runtime.platform === "backup" ? await mainSiteUrl() : null,
     canManage,
+    agencyName: agency?.name ?? "",
     viewerIsAdmin,
     mailbox: mailbox
       ? {

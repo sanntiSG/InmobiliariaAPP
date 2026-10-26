@@ -38,6 +38,8 @@ export type Preview = {
   draft: { subject: string; body: string } | null;
   /** Con la configuración actual: ¿saldría sola o quedaría para confirmar? (suponiendo que quien escribe pasa las verificaciones del correo) */
   autoVerdict: { auto: boolean; why: string } | null;
+  /** Si hoy está en "con confirmación": qué pasaría si se pasara a automático (para probar sin cambiar nada). */
+  ifAuto: { auto: boolean; why: string } | null;
   mode: MailMode;
 };
 
@@ -66,22 +68,26 @@ export async function previewMail(agencyId: string, input: { subject: string; te
     alternatives: analysis.selection.alternatives.map(link),
     mode: settings.mode,
   };
-  if (!isInquiry(cls.category)) return { ...base, inquiry: false, draft: null, autoVerdict: null };
+  if (!isInquiry(cls.category)) return { ...base, inquiry: false, draft: null, autoVerdict: null, ifAuto: null };
 
-  const decision = decideAuto({
-    settings,
+  const autoInput = {
     category: cls.category,
     confidence: cls.confidence,
     needsHuman: cls.needsHuman,
     authFailed: false,
     replyElsewhere: false,
     availableProperties: analysis.selection.properties.length,
+    searchMatches: analysis.selection.fallback ? 0 : analysis.selection.alternatives.length,
+    searchStrength: analysis.selection.search.strength,
     sentToday: 0,
-    senderRepliedRecently: false,
+    repliesToSender: 0,
     threadAnswered: false,
     now: new Date(),
-  });
-  return { ...base, inquiry: true, draft: analysis.compose(decision.auto), autoVerdict: decision };
+  };
+  const decision = decideAuto({ ...autoInput, settings });
+  // En "con confirmación" también se dice qué pasaría en automático, así se prueba sin cambiar la configuración.
+  const ifAuto = settings.mode === "auto" ? null : decideAuto({ ...autoInput, settings: { ...settings, mode: "auto" } });
+  return { ...base, inquiry: true, draft: analysis.compose(decision.auto), autoVerdict: decision, ifAuto };
 }
 
 /** Una consulta de ejemplo (como la escribiría un cliente) para probar al agente. Función pura. */

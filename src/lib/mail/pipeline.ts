@@ -121,9 +121,10 @@ export async function processMail(ctx: PipelineCtx, mail: FetchedMail, counts: C
   if (!isInquiry(cls.category)) return void (await ignore(cls.category, cls.reasons, cls.confidence, cls.category === "other"));
 
   // ¿Puede salir sola?
-  const [sentToday, senderRecently, threadAnswered] = await Promise.all([
+  const [sentToday, repliesToSender, threadAnswered] = await Promise.all([
     MailMessage.countDocuments({ mailboxId: ctx.mailboxId, auto: true, status: { $in: ["queued", "sending", "sent"] }, updatedAt: { $gte: dayStart() } }),
-    MailMessage.exists({ mailboxId: ctx.mailboxId, "from.email": mail.from.email, status: { $in: ["queued", "sending", "sent"] }, createdAt: { $gte: new Date(Date.now() - DAY_MS) } }),
+    // Cuántas respuestas se le dieron a esta persona en el día (también las que confirmó una persona a mano).
+    MailMessage.countDocuments({ mailboxId: ctx.mailboxId, "from.email": mail.from.email, status: { $in: ["queued", "sending", "sent"] }, createdAt: { $gte: new Date(Date.now() - DAY_MS) } }),
     MailMessage.exists({
       mailboxId: ctx.mailboxId,
       messageId: { $in: [mail.inReplyTo, ...mail.references].filter((x): x is string => !!x) },
@@ -140,8 +141,11 @@ export async function processMail(ctx: PipelineCtx, mail: FetchedMail, counts: C
     // Los portales mandan desde una casilla "no-reply" con el mail del cliente en Reply-To: es lo esperado. En otro caso, no.
     replyElsewhere: !pre.portal && base.replyTo !== mail.from.email.toLowerCase(),
     availableProperties: selection.properties.length,
+    // Lo que pide (si lo pide) tiene que coincidir con algo publicado: un reemplazo ("no hay, pero mirá esto") no cuenta.
+    searchMatches: selection.fallback ? 0 : selection.alternatives.length,
+    searchStrength: selection.search.strength,
     sentToday,
-    senderRepliedRecently: !!senderRecently,
+    repliesToSender,
     threadAnswered: !!threadAnswered,
     now: new Date(),
   });

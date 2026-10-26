@@ -12,6 +12,7 @@ import { getPublishedAgents } from "@/lib/advisor/config";
 import { agencyScope } from "@/lib/auth/agency-scope";
 import { requireDashboardAccess } from "@/lib/auth/require-dashboard-access";
 import { MAILBOX_STATUSES } from "@/lib/mail/constants";
+import { appPasswordName } from "@/lib/mail/presets";
 import { MailCenter } from "@/components/mail/MailCenter";
 import { formatRelativeTime } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
@@ -104,6 +105,7 @@ async function AdminMailboxes() {
                       <td className="px-4 py-3 font-medium text-text sm:px-5">
                         {a.name}
                         {m && <span className="mt-0.5 block text-xs font-normal text-text-muted md:hidden">{mask(m.email)}</span>}
+                        <span className="mt-0.5 block text-xs font-normal text-text-muted [overflow-wrap:anywhere]">Su contraseña de aplicación: «{appPasswordName(a.name)}»</span>
                       </td>
                       <td className="hidden px-5 py-3 text-text-muted md:table-cell">{m ? mask(m.email) : "—"}</td>
                       <td className="px-4 py-3 sm:px-5">

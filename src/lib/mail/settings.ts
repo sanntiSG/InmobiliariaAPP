@@ -17,6 +17,8 @@ export type MailSettingsView = {
   maxProperties: number;
   autoCategories: string[];
   autoPerDay: number;
+  autoPerSender: number;
+  autoSearches: boolean;
   schedule: { enabled: boolean; from: string; to: string };
   blockedSenders: string[];
 };
@@ -30,6 +32,8 @@ export const DEFAULT_SETTINGS: MailSettingsView = {
   maxProperties: 3,
   autoCategories: ["availability", "price", "features", "general"],
   autoPerDay: MAIL_LIMITS.autoPerDayDefault,
+  autoPerSender: MAIL_LIMITS.autoPerSenderDefault,
+  autoSearches: true,
   schedule: { enabled: false, from: "09:00", to: "20:00" },
   blockedSenders: [],
 };
@@ -57,6 +61,8 @@ export const settingsPatchSchema = z
     maxProperties: z.number().int().min(MAIL_LIMITS.maxPropertiesMin).max(MAIL_LIMITS.maxPropertiesMax),
     autoCategories: z.array(z.enum(INQUIRY_CATEGORIES as unknown as [string, ...string[]])).max(5),
     autoPerDay: z.number().int().min(1).max(MAIL_LIMITS.autoPerDayMax),
+    autoPerSender: z.number().int().min(1).max(MAIL_LIMITS.autoPerSenderMax),
+    autoSearches: z.boolean(),
     schedule: z.object({ enabled: z.boolean(), from: time, to: time }),
     blockedSenders: z.array(sender).max(50),
   })
@@ -78,6 +84,8 @@ export async function loadSettings(agencyId: string): Promise<MailSettingsView> 
     maxProperties: doc.maxProperties ?? DEFAULT_SETTINGS.maxProperties,
     autoCategories: (doc.autoCategories ?? DEFAULT_SETTINGS.autoCategories).slice(),
     autoPerDay: doc.autoPerDay ?? DEFAULT_SETTINGS.autoPerDay,
+    autoPerSender: doc.autoPerSender ?? DEFAULT_SETTINGS.autoPerSender,
+    autoSearches: doc.autoSearches ?? DEFAULT_SETTINGS.autoSearches,
     schedule: { enabled: doc.schedule?.enabled ?? false, from: doc.schedule?.from ?? "09:00", to: doc.schedule?.to ?? "20:00" },
     blockedSenders: (doc.blockedSenders ?? []).slice(),
   };

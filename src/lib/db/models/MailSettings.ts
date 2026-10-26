@@ -23,6 +23,10 @@ const mailSettingsSchema = new Schema(
     autoCategories: { type: [String], default: ["availability", "price", "features", "general"] },
     /** Tope de respuestas automáticas por día. */
     autoPerDay: { type: Number, default: MAIL_LIMITS.autoPerDayDefault, min: 1, max: MAIL_LIMITS.autoPerDayMax },
+    /** Respuestas automáticas a una misma persona en un día (frena bucles y spam sin impedir las preguntas de seguimiento). */
+    autoPerSender: { type: Number, default: MAIL_LIMITS.autoPerSenderDefault, min: 1, max: MAIL_LIMITS.autoPerSenderMax },
+    /** También responder solo cuando piden algo ("casas en venta en Ezeiza") y hay propiedades publicadas que coinciden. */
+    autoSearches: { type: Boolean, default: true },
     /** Responder automáticamente sólo en este horario (hora de Argentina). Fuera de él, queda para confirmar. */
     schedule: {
       enabled: { type: Boolean, default: false },

@@ -33,7 +33,7 @@ export const PRESETS: Record<Exclude<MailProviderId, "custom">, MailPreset> = {
         action: "Abrir verificación en 2 pasos",
       },
       {
-        text: "Entrá a Contraseñas de aplicaciones, escribí el nombre “Recorrr” y tocá Crear.",
+        text: "Entrá a Contraseñas de aplicaciones, escribí el nombre “{nombre}” y tocá Crear.",
         url: "https://myaccount.google.com/apppasswords",
         action: "Abrir contraseñas de aplicaciones",
       },
@@ -56,7 +56,7 @@ export const PRESETS: Record<Exclude<MailProviderId, "custom">, MailPreset> = {
         url: "https://login.yahoo.com/account/security",
         action: "Abrir seguridad de Yahoo",
       },
-      { text: "Buscá “Conexiones externas” y tocá “Crear contraseña de aplicación”. Ponele el nombre “Recorrr” y generala." },
+      { text: "Buscá “Conexiones externas” y tocá “Crear contraseña de aplicación”. Ponele el nombre “{nombre}” y generala." },
       { text: "Copiá la contraseña que aparece y pegala en el paso siguiente." },
     ],
     trouble: [
@@ -74,7 +74,7 @@ export const PRESETS: Record<Exclude<MailProviderId, "custom">, MailPreset> = {
         url: "https://account.apple.com",
         action: "Abrir cuenta de Apple",
       },
-      { text: "Abrí “Inicio de sesión y seguridad”, elegí “Contraseñas específicas de la app” y creá una con el nombre “Recorrr”." },
+      { text: "Abrí “Inicio de sesión y seguridad”, elegí “Contraseñas específicas de la app” y creá una con el nombre “{nombre}”." },
       { text: "Copiá la contraseña (con el formato xxxx-xxxx-xxxx-xxxx) y pegala en el paso siguiente." },
     ],
     trouble: [
@@ -82,6 +82,21 @@ export const PRESETS: Record<Exclude<MailProviderId, "custom">, MailPreset> = {
     ],
   },
 };
+
+/**
+ * El nombre con el que cada inmobiliaria crea su contraseña de aplicación: "Recorrr - Inmobiliaria SS". En la lista de
+ * contraseñas de Google, Yahoo o Apple cada una queda identificada, y el administrador sabe de quién es cuando le mandan una.
+ * Sin símbolos raros y de hasta 40 caracteres.
+ */
+export function appPasswordName(agencyName: string | null | undefined): string {
+  const clean = (agencyName ?? "")
+    .normalize("NFC")
+    .replace(/[^\p{L}\p{N} .&'-]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const name = clean ? `Recorrr - ${clean}` : "Recorrr";
+  return name.length <= 40 ? name : name.slice(0, 40).trim();
+}
 
 /** Puertos permitidos para servidores propios (IMAP con TLS; SMTP con TLS o STARTTLS). */
 export const ALLOWED_IMAP_PORTS = [993] as const;

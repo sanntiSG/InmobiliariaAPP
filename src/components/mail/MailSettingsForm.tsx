@@ -91,6 +91,18 @@ export function MailSettingsForm({ agencyId, initial, onSaved }: { agencyId: str
 
         {s.mode === "auto" && (
           <div className="mt-5 flex flex-col gap-4 border-t border-border pt-4">
+            <div className="rounded-media bg-surface-2 p-4 text-sm text-text-muted">
+              <p className="font-semibold text-text">Cuándo sale sola una respuesta</p>
+              <ul className="mt-1.5 list-disc pl-5">
+                <li>Es una consulta clara de uno de los tipos de abajo.</li>
+                <li>Nombra una de tus propiedades{s.autoSearches ? ", o pide algo que tenés publicado (por ejemplo “casas en venta en Ezeiza”)" : ""}.</li>
+                <li>Quien escribe pasó las verificaciones del correo (así sé que no es un remitente falso).</li>
+                <li>No hay nada que tenga que contestar una persona (financiación, garantía, permuta, un reclamo…).</li>
+                <li>Está dentro del horario y de los máximos por día y por persona.</li>
+              </ul>
+              <p className="mt-1.5">Si algo de esto no se cumple, la respuesta queda en “Para confirmar” y te digo por qué no salió sola. Se revisa la casilla cada 5 minutos, o al tocar “Revisar ahora”.</p>
+            </div>
+
             <fieldset className="flex flex-col gap-2">
               <legend className="mb-1 text-sm font-medium text-text">Qué puedo responder solo</legend>
               <div className="flex flex-wrap gap-2">
@@ -103,7 +115,7 @@ export function MailSettingsForm({ agencyId, initial, onSaved }: { agencyId: str
                       aria-pressed={on}
                       onClick={() => toggleCategory(c)}
                       className={cn(
-                        "inline-flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-sm font-medium transition-colors",
+                        "inline-flex min-h-11 items-center gap-1.5 rounded-pill px-3.5 py-1.5 text-sm font-medium transition-colors",
                         on ? "bg-accent text-accent-contrast" : "bg-surface-2 text-text-muted hover:text-text"
                       )}
                     >
@@ -116,10 +128,25 @@ export function MailSettingsForm({ agencyId, initial, onSaved }: { agencyId: str
               <p className="text-xs text-text-muted">Las visitas conviene confirmarlas: hay que coordinar un día y un horario.</p>
             </fieldset>
 
-            <label className="flex flex-col gap-1.5 text-sm font-medium text-text">
-              Máximo de respuestas automáticas por día
-              <input type="number" min={1} max={MAIL_LIMITS.autoPerDayMax} value={s.autoPerDay} onChange={(e) => set("autoPerDay", Math.max(1, Math.min(MAIL_LIMITS.autoPerDayMax, Number(e.target.value) || 1)))} className={cn(field, "max-w-32")} />
+            <label className="flex items-start gap-2.5 text-sm text-text">
+              <input type="checkbox" checked={s.autoSearches} onChange={(e) => set("autoSearches", e.target.checked)} className="mt-0.5 size-4 accent-[var(--accent)]" />
+              <span>
+                También responder solo cuando preguntan por algo que tengo publicado, sin nombrar una propiedad puntual (por ejemplo “casas en venta en Ezeiza”): les muestro las propiedades que coinciden.
+                <span className="block text-xs text-text-muted">Si no tengo nada que coincida, la respuesta queda para que la confirmes.</span>
+              </span>
             </label>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="flex flex-col gap-1.5 text-sm font-medium text-text">
+                Máximo de respuestas automáticas por día
+                <input type="number" min={1} max={MAIL_LIMITS.autoPerDayMax} value={s.autoPerDay} onChange={(e) => set("autoPerDay", Math.max(1, Math.min(MAIL_LIMITS.autoPerDayMax, Number(e.target.value) || 1)))} className={cn(field, "max-w-32")} />
+              </label>
+              <label className="flex flex-col gap-1.5 text-sm font-medium text-text">
+                Máximo por persona por día
+                <input type="number" min={1} max={MAIL_LIMITS.autoPerSenderMax} value={s.autoPerSender} onChange={(e) => set("autoPerSender", Math.max(1, Math.min(MAIL_LIMITS.autoPerSenderMax, Number(e.target.value) || 1)))} className={cn(field, "max-w-32")} />
+                <span className="text-xs font-normal text-text-muted">Frena los bucles; pasado el tope, queda para confirmar.</span>
+              </label>
+            </div>
 
             <div className="flex flex-col gap-2">
               <label className="flex items-center gap-2.5 text-sm font-medium text-text">
