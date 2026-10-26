@@ -82,6 +82,8 @@ export async function previewMail(agencyId: string, input: { subject: string; te
     sentToday: 0,
     repliesToSender: 0,
     threadAnswered: false,
+    inherited: analysis.selection.inherited,
+    unanswered: analysis.unanswered,
     now: new Date(),
   };
   const decision = decideAuto({ ...autoInput, settings });

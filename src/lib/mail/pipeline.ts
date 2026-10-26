@@ -85,6 +85,42 @@ export async function recordLead(ctx: PipelineCtx, args: { propertyId: string; n
 
 export type Counts = { drafts: number; queued: number; ignored: number };
 
+/** Un seguimiento ("¿y tiene cochera?") no nombra la propiedad: sólo se busca en la conversación si el mail es corto. */
+const FOLLOW_UP_MAX_CHARS = 600;
+const FOLLOW_UP_WINDOW_MS = 48 * 3_600_000;
+
+/**
+ * Las propiedades de la conversación anterior con esta persona: primero las del mail al que contesta (`In-Reply-To` y
+ * `References`, que incluyen el primer mail aunque lo que contestó fuera nuestra respuesta) y, si no, las de lo último que
+ * escribió en las últimas 48 horas. Sólo propiedades de ESTA casilla; la selección las vuelve a validar contra el catálogo.
+ */
+async function threadProperties(ctx: PipelineCtx, mail: FetchedMail, text: string): Promise<string[]> {
+  if (text.length > FOLLOW_UP_MAX_CHARS) return [];
+  try {
+    const refs = [mail.inReplyTo, ...mail.references].filter((x): x is string => !!x).map((r) => r.slice(0, 400));
+    if (refs.length > 0) {
+      const inThread = await MailMessage.findOne({ mailboxId: ctx.mailboxId, messageId: { $in: refs }, "propertyIds.0": { $exists: true } })
+        .sort({ receivedAt: -1 })
+        .select("propertyIds")
+        .lean();
+      if (inThread?.propertyIds?.length) return inThread.propertyIds.map(String);
+    }
+    const before = await MailMessage.findOne({
+      agencyId: ctx.agencyId,
+      "from.email": mail.from.email.toLowerCase(),
+      receivedAt: { $gte: new Date(mail.date.getTime() - FOLLOW_UP_WINDOW_MS), $lt: mail.date },
+      "propertyIds.0": { $exists: true },
+    })
+      .sort({ receivedAt: -1 })
+      .select("propertyIds")
+      .lean();
+    return before?.propertyIds?.map(String) ?? [];
+  } catch (err) {
+    console.error("mail threadProperties failed:", (err as Error)?.message);
+    return [];
+  }
+}
+
 export async function processMail(ctx: PipelineCtx, mail: FetchedMail, counts: Counts): Promise<void> {
   const text = cleanBody(mail.text);
   const base = {
@@ -111,14 +147,19 @@ export async function processMail(ctx: PipelineCtx, mail: FetchedMail, counts: C
   const pre = prefilter(mail.headers, { ownEmail: ctx.ownEmail, blocked: ctx.settings.blockedSenders });
   if (pre.skip) return void (await ignore(pre.category, [pre.reason]));
 
-  const { selection, classification: cls, compose } = await analyzeMail(ctx, {
+  const { selection, classification: cls, compose, unanswered } = await analyzeMail(ctx, {
     subject: mail.subject,
     text,
     fromName: mail.from.name || null,
     seed: mail.messageId,
     portal: pre.portal,
+    threadPropertyIds: await threadProperties(ctx, mail, text),
   });
-  if (!isInquiry(cls.category)) return void (await ignore(cls.category, cls.reasons, cls.confidence, cls.category === "other"));
+  // Lo que se descartó por el TEXTO (no por los encabezados de lista o de rebote, que ya se filtraron arriba) lo escribió una
+  // persona o lo parece: se guarda 14 días para poder marcarlo "Era una consulta". Antes sólo se guardaba el de "otra cosa", y
+  // una consulta real tomada por promoción o basura no se podía rescatar. Las respuestas automáticas y los rebotes, nunca.
+  const keepText = cls.category === "other" || cls.category === "newsletter" || cls.category === "spam";
+  if (!isInquiry(cls.category)) return void (await ignore(cls.category, cls.reasons, cls.confidence, keepText));
 
   // ¿Puede salir sola?
   const [sentToday, repliesToSender, threadAnswered] = await Promise.all([
@@ -147,6 +188,8 @@ export async function processMail(ctx: PipelineCtx, mail: FetchedMail, counts: C
     sentToday,
     repliesToSender,
     threadAnswered: !!threadAnswered,
+    inherited: selection.inherited,
+    unanswered,
     now: new Date(),
   });
 

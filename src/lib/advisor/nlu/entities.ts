@@ -77,7 +77,8 @@ const TYPE_CONCEPTS: [string, PropertyType][] = [
   ["e.quinta", "quinta"],
 ];
 
-const AMENITY_PATTERNS: [RegExp, Amenity][] = [
+/** Palabras que nombran cada comodidad (sin tildes). Las lee también el agente de correo para ordenar lo que preguntan. */
+export const AMENITY_PATTERNS: [RegExp, Amenity][] = [
   [/\b(?:pileta|piscina|natatorio)\b/, "pileta"],
   [/\b(?:parrilla|quincho|asador)\b/, "parrilla"],
   [/\bbalcon\b/, "balcon"],

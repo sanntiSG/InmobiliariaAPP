@@ -4,6 +4,7 @@
  * respondería" (`preview.ts`), así las dos se comportan igual. No escribe nada: sólo lee el catálogo publicado de ESA
  * inmobiliaria.
  */
+import { answerAsks } from "@/lib/agents/knowledge/answers";
 import { classifyMail, SELLER_TOPIC, UNSURE_REASON, type Classification } from "./classify";
 import { isInquiry } from "./constants";
 import { composeReply, type ReplyProperty } from "./compose";
@@ -22,6 +23,8 @@ export type AnalyzeInput = {
   seed: string;
   /** Viene de un portal inmobiliario reconocido. */
   portal?: boolean;
+  /** Propiedades de la conversación anterior con esta persona (para un seguimiento que no las nombra). */
+  threadPropertyIds?: string[];
 };
 
 export type AnalyzeOptions = {
@@ -36,13 +39,17 @@ export type Analysis = {
   siteUrl: string | null;
   /** Redacta la respuesta; `auto` agrega el aviso de que la preparó un asistente. */
   compose: (auto: boolean) => { subject: string; body: string };
+  /** Cuántas preguntas puntuales ("¿tiene pileta?") la publicación no puede contestar porque el dato no está cargado. */
+  unanswered: number;
 };
 
 /** Enlace público a la ficha de una propiedad, o null si no hay dirección pública configurada. */
 export const propertyUrl = (siteUrl: string | null, slug: string): string | null => (siteUrl ? `${siteUrl}/propiedades/${encodeURIComponent(slug)}` : null);
 
 export async function analyzeMail(ctx: AnalyzeCtx, input: AnalyzeInput, opts: AnalyzeOptions = {}): Promise<Analysis> {
-  const selection = await selectForMail(ctx.agencyId, { subject: input.subject, text: input.text }, siteHosts(), ctx.settings.maxProperties);
+  const selection = await selectForMail(ctx.agencyId, { subject: input.subject, text: input.text }, siteHosts(), ctx.settings.maxProperties, {
+    threadPropertyIds: input.threadPropertyIds,
+  });
   let classification = classifyMail({
     subject: input.subject,
     text: input.text,
@@ -61,6 +68,11 @@ export async function analyzeMail(ctx: AnalyzeCtx, input: AnalyzeInput, opts: An
 
   const siteUrl = publicSiteUrl();
   const toReply = (f: MailSelection["properties"][number]): ReplyProperty => ({ facts: f, url: propertyUrl(siteUrl, f.slug) });
+
+  // Cada pregunta puntual se contesta con los datos de la propiedad (o se dice que no figuran). Para quien quiere vender no hay nada que contestar.
+  const answers = seller || !isInquiry(classification.category) ? [] : selection.properties.slice(0, 3).map((p) => ({ title: p.title, ...answerAsks(p, selection.asks) }));
+  const unanswered = answers.reduce((n, a) => n + a.missing, 0);
+
   const compose = (auto: boolean) =>
     composeReply({
       fromName: input.fromName,
@@ -74,7 +86,9 @@ export async function analyzeMail(ctx: AnalyzeCtx, input: AnalyzeInput, opts: An
       seed: input.seed,
       auto,
       search: !seller && selection.search.strength > 0 ? { label: selection.search.label, fallback: selection.fallback } : undefined,
+      answers: answers.map((a) => ({ title: a.title, sentences: a.sentences, missing: a.missing })),
+      inherited: selection.inherited,
     });
 
-  return { selection, classification, siteUrl, compose };
+  return { selection, classification, siteUrl, compose, unanswered };
 }

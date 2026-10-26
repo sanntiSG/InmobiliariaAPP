@@ -72,12 +72,15 @@ export const SELLER_TOPIC = "tasación o venta de su propiedad";
 
 // Cosas que el agente NO puede contestar por su cuenta: avisa y deja que lo vea una persona.
 const HUMAN: { re: RegExp; topic: string }[] = [
-  { re: /\b(financi\w+|credito|hipotecari\w+|prestamo|banco)\b/, topic: "financiación" },
+  // "banco" solo no es financiación ("trabajo en un banco"): cuenta si habla de crédito, hipoteca o préstamo.
+  { re: /\b(financi\w+|credito|hipotecari\w+|prestamo)\b|\bbanco\b.{0,40}\b(hipoteca|aprobad\w+|preaprobad\w+|cuotas)\b/, topic: "financiación" },
   { re: /\b(permut\w+|canje)\b/, topic: "permuta" },
-  { re: /\bmascotas?|perros?|gatos?\b/, topic: "mascotas" },
+  // Con límites de palabra en las tres opciones: un apellido como "Pegatos" no son mascotas.
+  { re: /\b(?:mascotas?|perros?|gatos?)\b/, topic: "mascotas" },
   { re: /\b(garantia|garante|seguro de caucion|recibo de sueldo|requisitos)\b/, topic: "requisitos del alquiler" },
   { re: /\b(escritura|escriturar|boleto|comision|honorarios)\b/, topic: "escritura o comisión" },
-  { re: /\b(negociable|negociar|rebaja|mejor precio|hacer una oferta|oferta de)\b/, topic: "negociación del precio" },
+  // "oferta de departamentos" es otra cosa: negociar es hacer una oferta/contraoferta o ofrecer un monto.
+  { re: /\b(negociable|negociar|rebaja|mejor precio|hacer(?:les|le)? una oferta|una contraoferta|contraoferta|ofertar|oferto|ofrezco)\b|\boferta de (?:usd|u\$s|us\$|\$|\d)/, topic: "negociación del precio" },
   { re: /\b(reclamo|queja|denuncia|abogado|demanda|estafa)\b/, topic: "un reclamo" },
   { re: /\b(tasacion|tasar\w*|tasen|vender mi|vender mis|quiero vender|queremos vender|para vender|vendo mi|vendo una|publicar mi|ofrecer mi|ofrecerles mi)\b/, topic: SELLER_TOPIC },
 ];

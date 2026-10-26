@@ -14,7 +14,15 @@ import { extractSlugs } from "../src/lib/mail/refs";
 import { readRequest, searchSignal } from "../src/lib/mail/signals";
 
 export type Label = "inq" | "clear" | "no" | "maybe";
-export type Sample = { l: Label; s?: string; t: string; /** Viene de un portal reconocido. */ portal?: boolean };
+export type Sample = {
+  l: Label;
+  s?: string;
+  t: string;
+  /** Viene de un portal reconocido. */
+  portal?: boolean;
+  /** Temas que tiene que contestar una persona (financiación, mascotas…). `[]` = ninguno. Si falta, no se mide. */
+  h?: string[];
+};
 
 /** Catálogo de mentira: lo que sabe la inmobiliaria (zonas y títulos reales de sus propiedades). */
 const INDEX = buildEntityIndex({
@@ -251,6 +259,34 @@ export const CORPUS: Sample[] = [
   { l: "maybe", t: "Me mudé a una casa nueva, ¡te invito a conocerla!" },
   { l: "maybe", s: "Consulta", t: "Buenas, ¿podrían llamarme? Gracias." },
   { l: "maybe", t: "Quiero hablar con el dueño de la casa de Alan, por un tema de medianera." },
+  // ── Preguntas puntuales y temas para una persona (segunda tanda, escrita sin mirar el clasificador) ──
+  { l: "clear", h: [], t: "Hola, buen día! Consulto por la casa de Alan: ¿tiene pileta? ¿Cuántos dormitorios? Gracias" },
+  { l: "clear", h: [], t: "Buenas tardes, del departamento luminoso en Palermo ¿cuánto son las expensas? ¿Tiene baulera?" },
+  { l: "clear", h: [], t: "Hola, vi el PH de Villa Crespo, ¿tiene patio propio? ¿En qué piso está?" },
+  { l: "clear", h: [], t: "Quería saber la antigüedad de la casa en Canning con pileta y si da al norte" },
+  { l: "clear", h: [], t: "Hola! La oficina de Flores tiene baño privado? cuántos m2 son?" },
+  { l: "clear", h: ["escritura o comisión"], t: "Buen día, el terreno de Pilar tiene escritura? cuántos metros son?" },
+  { l: "clear", h: ["financiación"], t: "Hola, ¿el departamento de Palermo es apto crédito?" },
+  { l: "inq", h: ["mascotas"], t: "Tengo un perro mediano, ¿puedo alquilar el PH de Villa Crespo?" },
+  { l: "inq", h: ["negociación del precio"], t: "¿Se puede negociar el precio de la casa de Alan? Estoy interesado" },
+  { l: "inq", h: [], t: "Trabajo en el Banco Provincia y me interesa ver el departamento de Palermo" },
+  { l: "inq", h: ["requisitos del alquiler"], t: "Hola, ¿me pueden decir si aceptan garantía propietaria para el PH de Villa Crespo?" },
+  { l: "inq", h: ["escritura o comisión"], t: "Me interesa la casa de Alan, ¿cuánto es la comisión de la inmobiliaria?" },
+  { l: "inq", h: [], t: "Buenas, vi su oferta de propiedades en Palermo. ¿Tienen departamentos de 2 ambientes?" },
+  { l: "inq", h: ["negociación del precio"], t: "Quisiera hacer una oferta por la casa de Alan, ¿sigue disponible?" },
+  { l: "inq", h: ["negociación del precio"], t: "Estimados: ofrezco USD 180.000 por la casa en Canning con pileta, ¿les interesa?" },
+  { l: "clear", h: [], t: "Hola, soy Gabriela Pegatos, me interesa el departamento de Palermo, ¿sigue disponible?" },
+  { l: "inq", h: ["mascotas"], t: "Hola, estoy buscando casa en Ezeiza con jardín, tengo un gato y un perro, ¿aceptan?" },
+  { l: "inq", h: ["financiación"], t: "El depto de Palermo ¿se puede pagar con crédito hipotecario del Banco Nación?" },
+  { l: "inq", h: ["permuta"], t: "Hola! ¿Cuánto sale la casa de Alan? ¿Aceptan permuta por un auto?" },
+  { l: "inq", h: ["tasación o venta de su propiedad"], t: "Consulta: tengo una casa en Quilmes para vender, ¿hacen tasaciones?" },
+  { l: "clear", h: [], t: "Buen día, ¿la casa en Canning con pileta sigue disponible? ¿Cuántos baños tiene?" },
+  { l: "clear", h: [], t: "Hola, ¿el terreno de Pilar tiene luz y agua? ¿Cuánto sale?" },
+  { l: "inq", h: [], t: "Hola, el PH de Villa Crespo, ¿se puede ver el sábado a la mañana?" },
+  { l: "inq", h: ["requisitos del alquiler"], t: "Buenas! Para alquilar la oficina de Flores, ¿qué requisitos piden?" },
+  { l: "no", t: "Te paso los datos de la cuenta del banco para la transferencia de la factura" },
+  { l: "no", t: "Mi perro se llama Rocky, nos vemos en el parque el domingo" },
+  { l: "no", t: "Se busca administrativo/a para empresa financiera, enviar CV" },
 ];
 
 export const THRESHOLDS = {
@@ -260,12 +296,14 @@ export const THRESHOLDS = {
   clearRecall: 0.9,
   /** De las no-consultas, cuántas tienen que descartarse. */
   noiseRejected: 0.95,
+  /** De las consultas con los temas para una persona anotados, en cuántas el agente acierta exactamente cuáles son. */
+  humanTopics: 0.95,
 };
 
 export type Outcome = "clear" | "unsure" | "ignored";
 
 /** Corre el clasificador igual que la revisión real (con el catálogo de mentira), sin base de datos. */
-export function classifySample(sample: Sample): { outcome: Outcome; category: string; confidence: number; reasons: string[] } {
+export function classifySample(sample: Sample): { outcome: Outcome; category: string; confidence: number; reasons: string[]; humanTopics: string[] } {
   const subject = sample.s ?? "";
   const text = cleanBody(sample.t);
   const read = readRequest(subject, text, INDEX);
@@ -274,7 +312,7 @@ export function classifySample(sample: Sample): { outcome: Outcome; category: st
   const search = searchSignal(read.slots, body);
   const r = classifyMail({ subject, text, hasPropertyRef: named, searchHits: false, portal: sample.portal, search });
   const inquiry = ["availability", "price", "features", "visit", "general"].includes(r.category);
-  return { outcome: !inquiry ? "ignored" : r.uncertain ? "unsure" : "clear", category: r.category, confidence: r.confidence, reasons: r.reasons };
+  return { outcome: !inquiry ? "ignored" : r.uncertain ? "unsure" : "clear", category: r.category, confidence: r.confidence, reasons: r.reasons, humanTopics: r.humanTopics };
 }
 
 export function runCorpus() {
@@ -285,7 +323,12 @@ export function runCorpus() {
   const inquiryOk = inq.filter((r) => r.outcome !== "ignored").length;
   const clearOk = clear.filter((r) => r.outcome === "clear").length;
   const noOk = no.filter((r) => r.outcome === "ignored").length;
+  const withTopics = rows.filter((r) => r.s.h !== undefined && r.outcome !== "ignored");
+  const topicsMiss = withTopics.filter((r) => [...r.humanTopics].sort().join("|") !== [...(r.s.h ?? [])].sort().join("|"));
   return {
+    humanTopics: withTopics.length === 0 ? 1 : 1 - topicsMiss.length / withTopics.length,
+    humanTopicsTotal: withTopics.length,
+    humanTopicsMisses: topicsMiss,
     total: rows.length,
     inquiryRecall: inquiryOk / inq.length,
     clearRecall: clearOk / clear.length,

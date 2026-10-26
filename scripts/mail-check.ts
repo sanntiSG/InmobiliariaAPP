@@ -21,6 +21,10 @@ import { PRESETS, appPasswordName, presetFor, providerFromEmail, smtpImplicitTls
 import { buildSample } from "../src/lib/mail/preview";
 import { CORPUS, THRESHOLDS, classifySample, runCorpus } from "./mail-corpus";
 import { propertyUrl } from "../src/lib/mail/analyze";
+import { stripAccents } from "../src/lib/advisor/nlu/normalize";
+import { detectAsks, soundsLikeQuestion } from "../src/lib/agents/knowledge/asks";
+import { answerAsks } from "../src/lib/agents/knowledge/answers";
+import { readRequest } from "../src/lib/mail/signals";
 import type { PropertyFacts } from "../src/lib/agents/knowledge/facts";
 
 let failed = 0;
@@ -318,6 +322,12 @@ async function hosts() {
     { name: "búsqueda sin enlace (plural: salen)", text: "Hola, ¿tienen departamentos en venta en Palermo? ¿Cuánto salen?", hits: true, expect: "price" },
     { name: "búsqueda sin precio", text: "Buenas tardes, estoy buscando una casa en alquiler en Tigre, ¿tienen algo?", hits: true, expect: "general" },
     { name: "menciona la zona pero no es una consulta", text: "Nos vemos el domingo en Palermo, llevo las medialunas", hits: true, expect: "other" },
+    { name: "'oferta de' suelta no es negociar el precio", text: "Hola, vi su oferta de departamentos en Palermo. ¿Sigue disponible el de Palermo?", ref: true, expect: "availability" },
+    { name: "'banco' sin pedir financiación", text: "Trabajo en un banco y quisiera visitar la casa de Alan este sábado, ¿se puede?", ref: true, expect: "general" },
+    { name: "un apellido que termina en 'gatos' no son mascotas", text: "Hola, ¿cuánto sale la casa? Saludos, Pegatos", ref: true, expect: "price" },
+    { name: "hacer una oferta sí es negociar", text: "¿Puedo hacer una oferta por la casa? ¿Sigue disponible?", ref: true, expect: "availability", human: ["negociación del precio"] },
+    { name: "crédito de un banco sí es financiación", text: "¿Aceptan crédito del Banco Nación? ¿Sigue disponible?", ref: true, expect: "availability", human: ["financiación"] },
+    { name: "perros sí son mascotas", text: "Tengo dos perros, ¿puedo vivir ahí? ¿Sigue disponible?", ref: true, expect: "availability", human: ["mascotas"] },
     { name: "saludo corto", text: "Hola", expect: "other" },
     { name: "agradecimiento", text: "Gracias por la información!", expect: "other" },
     { name: "mail personal", text: "Nos vemos el domingo en el asado, llevo el vino.", expect: "other" },
@@ -348,6 +358,11 @@ async function hosts() {
   check(`corpus: al menos ${pct(THRESHOLDS.clearRecall)} de las consultas claras salen como claras (hoy ${pct(r.clearRecall)})`, r.clearRecall >= THRESHOLDS.clearRecall, detail(r.notClear));
   check(`corpus: descarta al menos ${pct(THRESHOLDS.noiseRejected)} de lo que no es consulta (hoy ${pct(r.noiseRejected)})`, r.noiseRejected >= THRESHOLDS.noiseRejected, detail(r.falseAlarms));
   check("corpus: ninguna consulta con palabras del rubro se descarta en silencio", r.missedInquiries.length === 0, detail(r.missedInquiries));
+  check(
+    `corpus: reconoce qué temas tiene que contestar una persona en al menos ${pct(THRESHOLDS.humanTopics)} de ${r.humanTopicsTotal} consultas anotadas (hoy ${pct(r.humanTopics)})`,
+    r.humanTopics >= THRESHOLDS.humanTopics,
+    r.humanTopicsMisses.slice(0, 6).map((x) => `${x.s.t.slice(0, 70)} → esperaba [${(x.s.h ?? []).join(", ")}], dio [${x.humanTopics.join(", ")}]`)
+  );
 
   // Los dos mails reales que se ignoraron en la primera prueba.
   const sol = classifySample({ l: "clear", s: "Casas en venta en Ezeiza", t: "" });
@@ -444,6 +459,141 @@ async function hosts() {
   check("asunto: vacío o muy largo", replySubject("") === "Re: Tu consulta" && replySubject(null) === "Re: Tu consulta" && replySubject("x".repeat(500)).length <= 154);
   const attack = composeReply({ ...base, fromName: "Ana\nBcc: x@y.com <script>", subject: "Hola\r\nBcc: a@b.com" });
   check("respuesta: ni el nombre ni el asunto del remitente inyectan encabezados", !/\nBcc:/i.test(attack.body) && !/[\r\n]/.test(attack.subject) && !/<script>/.test(attack.body), attack);
+}
+
+// ── Contestar lo que preguntan (preguntas puntuales y respuestas con datos reales) ─────────
+{
+  const asksOf = (text: string) => {
+    const { slots } = readRequest("", text);
+    return soundsLikeQuestion(text) ? detectAsks(stripAccents(text.toLowerCase()), slots.amenities) : [];
+  };
+  const kinds = (text: string) => asksOf(text).map((a) => (a.kind === "amenity" ? `amenity:${a.amenity}` : a.kind)).join(",");
+  check("preguntas: comodidades", kinds("¿Tiene pileta y cochera?") === "amenity:pileta,amenity:cochera", kinds("¿Tiene pileta y cochera?"));
+  check("preguntas: expensas y metros, en el orden en que aparecen", kinds("¿Cuánto son las expensas? ¿Y los metros cubiertos?") === "expenses,area", kinds("¿Cuánto son las expensas? ¿Y los metros cubiertos?"));
+  check("preguntas: ambientes, dormitorios y baños", kinds("¿Cuántos ambientes, dormitorios y baños tiene?") === "bedrooms,bathrooms,rooms" || kinds("¿Cuántos ambientes, dormitorios y baños tiene?").split(",").sort().join() === "bathrooms,bedrooms,rooms", kinds("¿Cuántos ambientes, dormitorios y baños tiene?"));
+  check("preguntas: mascotas y recorrido", kinds("¿Aceptan mascotas? ¿Tiene recorrido virtual?").includes("amenity:mascotas") && kinds("¿Aceptan mascotas? ¿Tiene recorrido virtual?").includes("tour"));
+  check("preguntas: un mail que no pregunta no suma preguntas", asksOf("Gracias por la info. Mañana les aviso.").length === 0);
+  check("preguntas: sin signo de pregunta también (\"quisiera saber si tiene pileta\")", kinds("Hola, quisiera saber si tiene pileta").includes("amenity:pileta"), kinds("Hola, quisiera saber si tiene pileta"));
+  check("preguntas: reconoce lo que suena a pregunta", soundsLikeQuestion("¿Sigue?") && soundsLikeQuestion("Tiene cochera") && soundsLikeQuestion("cuanto sale") && !soundsLikeQuestion("Gracias, quedo atento."));
+
+  const f = (over: Partial<PropertyFacts> = {}): PropertyFacts => ({
+    id: "p".repeat(24),
+    slug: "casa",
+    title: "Casa en Canning",
+    description: "",
+    type: "casa",
+    operation: "venta",
+    price: { amount: 210_000, currency: "USD", expenses: 0, period: "total" },
+    neighborhood: "Canning",
+    city: "Ezeiza",
+    rooms: 5,
+    bedrooms: 3,
+    bathrooms: 2,
+    garages: 2,
+    coveredArea: 220,
+    totalArea: 600,
+    age: 12,
+    floor: null,
+    orientation: "Norte",
+    amenities: ["pileta", "cochera", "mascotas"],
+    hasTour: true,
+    hasAmbient: false,
+    videoCount: 0,
+    ...over,
+  });
+  const say = (text: string, over: Partial<PropertyFacts> = {}) => answerAsks(f(over), asksOf(text));
+  const a1 = say("¿Tiene pileta? ¿Y cochera?");
+  check("respuestas: dice que sí con lo que figura (y cuenta las cocheras)", a1.sentences.join(" ") === "Sí, tiene pileta y 2 cocheras.", a1.sentences);
+  const a2 = say("¿Tiene parrilla? ¿Y balcón?");
+  check("respuestas: lo que no figura NO se afirma como 'no tiene'", a2.sentences.join(" ") === "En la publicación no figura parrilla ni balcón." && a2.missing === 2 && a2.known === 0, a2);
+  const a3 = say("¿Tiene pileta y parrilla?");
+  check("respuestas: mezcla lo que sí y lo que no figura", a3.sentences.join(" ") === "Sí, tiene pileta. En la publicación no figura parrilla." && a3.known === 1 && a3.missing === 1, a3);
+  const a4 = say("¿Aceptan mascotas?");
+  check("respuestas: mascotas con dato", a4.sentences.join(" ") === "Sí, acepta mascotas.", a4.sentences);
+  check("respuestas: mascotas sin dato", say("¿Aceptan mascotas?", { amenities: [] }).sentences.join(" ") === "En la publicación no figura que acepte mascotas.");
+  check("respuestas: expensas sin cargar", say("¿Cuánto son las expensas?").sentences.join(" ") === "En la publicación no figuran expensas." && say("¿Cuánto son las expensas?").missing === 1);
+  check("respuestas: expensas con dato", /Las expensas son .*120\.000/.test(say("¿Cuánto son las expensas?", { price: { amount: 1, currency: "ARS", expenses: 120_000, period: "mensual" } }).sentences.join(" ")));
+  check("respuestas: superficie cubierta y total", say("¿Cuántos metros tiene?").sentences.join(" ") === "Tiene 220 m² cubiertos y 600 m² totales.", say("¿Cuántos metros tiene?").sentences);
+  check("respuestas: ambientes, dormitorios y baños", say("¿Cuántos dormitorios y baños?").sentences.join(" ") === "Tiene 3 dormitorios. Tiene 2 baños.", say("¿Cuántos dormitorios y baños?").sentences);
+  check("respuestas: antigüedad, orientación y zona", say("¿Qué antigüedad tiene? ¿Qué orientación? ¿Dónde queda?").sentences.join(" ") === "Tiene 12 años de antigüedad. Su orientación es norte. Está en Canning, Ezeiza.", say("¿Qué antigüedad tiene? ¿Qué orientación? ¿Dónde queda?").sentences);
+  check("respuestas: a estrenar", say("¿Qué antigüedad tiene?", { age: 0 }).sentences.join(" ") === "Es a estrenar.");
+  check("respuestas: recorrido con y sin", /Sí, tiene recorrido 360°/.test(say("¿Tiene recorrido virtual?").sentences.join(" ")) && /no tiene recorrido 360°/.test(say("¿Tiene recorrido virtual?", { hasTour: false }).sentences.join(" ")));
+  check("respuestas: sin preguntas no inventa nada", answerAsks(f(), []).sentences.length === 0);
+  check("respuestas: una sola frase por tipo de pregunta", say("¿Tiene pileta? ¿Tiene cochera? ¿Y balcón?").sentences.length === 2, say("¿Tiene pileta? ¿Tiene cochera? ¿Y balcón?").sentences);
+
+  // Dentro de la respuesta completa.
+  const rp = (over: Partial<PropertyFacts> = {}): ReplyProperty => ({ facts: f(over), url: "https://recorrr.example/propiedades/casa" });
+  const compose = (text: string, extra: Partial<ComposeInput> = {}, over: Partial<PropertyFacts> = {}) => {
+    const set = answerAsks(f(over), asksOf(text));
+    return composeReply({
+      fromName: "Juan",
+      subject: "Casa",
+      classification: { topics: ["features"], category: "features", needsHuman: false, humanTopics: [] },
+      properties: [rp(over)],
+      unavailable: false,
+      alternatives: [],
+      settings: { signature: "", greeting: "", closing: "", disclose: true, maxProperties: 3 },
+      agencyName: "Umbral",
+      seed: "m1",
+      auto: false,
+      answers: [{ title: f(over).title, sentences: set.sentences, missing: set.missing }],
+      ...extra,
+    }).body;
+  };
+  const r1 = compose("¿Tiene pileta y parrilla?");
+  check("redacción: responde la pregunta puntual", /Sí, tiene pileta\./.test(r1) && /no figura parrilla/.test(r1), r1);
+  check("redacción: con respuesta puntual no vuelca todos los datos", !/Datos:/.test(r1) && /Casa en Canning/.test(r1), r1);
+  check("redacción: avisa que lo que no figura se confirma con el equipo", /equipo/.test(r1) && /no figura parrilla/.test(r1), r1);
+  const r2 = compose("¿Tiene pileta?");
+  check("redacción: si todo figura, no promete confirmar nada", !/confirmamos con el equipo|consultamos con el equipo/.test(r2), r2);
+  const r3 = compose("¿Tiene pileta? ¿Y cochera? ¿Cuántos baños?");
+  check("redacción: varias frases van en viñetas", (r3.match(/^• /gm) ?? []).length >= 2 && /Sí, tiene pileta y 2 cocheras\./.test(r3), r3);
+  const r4 = compose("¿Y tiene cochera?", { inherited: true });
+  check("redacción: un seguimiento aclara de qué propiedad habla", /Casa en Canning/.test(r4) && /(consulta anterior|veníamos viendo)/.test(r4), r4);
+  const r5 = compose("hola", { answers: [] });
+  check("redacción: sin preguntas puntuales sigue trayendo el detalle de características", /Datos:/.test(r5), r5);
+  const rv = compose("¿Tiene pileta?", { classification: { topics: ["availability"], category: "availability", needsHuman: false, humanTopics: [] } });
+  check("redacción: disponibilidad + pregunta → dice las dos cosas", /sigue disponible/.test(rv) && /Sí, tiene pileta/.test(rv), rv);
+  const two = composeReply({
+    fromName: "Ana",
+    subject: "Dos casas",
+    classification: { topics: ["features"], category: "features", needsHuman: false, humanTopics: [] },
+    properties: [rp({ title: "Casa Uno" }), rp({ title: "Casa Dos", id: "q".repeat(24), amenities: [] })],
+    unavailable: false,
+    alternatives: [],
+    settings: { signature: "", greeting: "", closing: "", disclose: true, maxProperties: 3 },
+    agencyName: "Umbral",
+    seed: "m2",
+    auto: false,
+    answers: [
+      { title: "Casa Uno", sentences: ["Sí, tiene pileta."], missing: 0 },
+      { title: "Casa Dos", sentences: ["En la publicación no figura pileta."], missing: 1 },
+    ],
+  }).body;
+  check("redacción: con varias propiedades contesta por cada una", /Sobre «Casa Uno»: Sí, tiene pileta\./.test(two) && /Sobre «Casa Dos»: En la publicación no figura pileta\./.test(two), two);
+  check("redacción: lo que preguntó no se copia al revés (sin repetir sus palabras)", !/Tiene pileta y parrilla\?/.test(r1));
+
+  // Decisión automática con seguimiento y datos faltantes.
+  const autoBase: AutoInput = {
+    settings: { mode: "auto", autoCategories: ["availability", "price", "features", "general"], autoPerDay: 20, autoPerSender: 3, autoSearches: true, schedule: { enabled: false, from: "09:00", to: "20:00" } },
+    category: "features",
+    confidence: 0.9,
+    needsHuman: false,
+    authFailed: false,
+    replyElsewhere: false,
+    availableProperties: 1,
+    searchMatches: 0,
+    searchStrength: 0,
+    sentToday: 0,
+    repliesToSender: 0,
+    threadAnswered: false,
+    now: new Date("2026-10-25T15:00:00Z"),
+  };
+  check("automático: una pregunta que figura en la publicación sale sola", decideAuto({ ...autoBase, unanswered: 0 }).auto);
+  const missing = decideAuto({ ...autoBase, unanswered: 1 });
+  check("automático: si el dato no está cargado, queda para confirmar (con el motivo)", !missing.auto && /no tiene cargado/.test(missing.why), missing);
+  const inherited = decideAuto({ ...autoBase, inherited: true });
+  check("automático: una propiedad retomada de antes nunca sale sola", !inherited.auto && /retomé la de su consulta anterior/.test(inherited.why), inherited);
 }
 
 // ── Decisión automática ─────────────────────────────────────────────────────

@@ -31,6 +31,10 @@ export type ComposeInput = {
   auto: boolean;
   /** Lo que pidió ("casas en venta en Ezeiza"), si pidió algo concreto; `fallback`: lo que se sugiere no coincide, es lo más reciente. */
   search?: { label: string; fallback: boolean };
+  /** Respuestas puntuales a lo que preguntó ("¿tiene pileta?"), una por propiedad mostrada. Vacío si no preguntó nada concreto. */
+  answers?: { title: string; sentences: string[]; missing: number }[];
+  /** El mail no nombró la propiedad: se retomó la de una conversación anterior con la misma persona. */
+  inherited?: boolean;
 };
 
 const FEATURE_ICONS = new Set(["rooms", "bedrooms", "bathrooms", "area", "garage", "age", "floor", "orientation", "amenity"]);
@@ -62,6 +66,22 @@ function propertyBlock(p: ReplyProperty, withDetails: boolean): string {
   return lines.join("\n");
 }
 
+/**
+ * Las respuestas a lo que preguntó, en un bloque de texto: una sola propiedad va en una línea ("Sobre lo que nos preguntás: …")
+ * o en viñetas si son varias frases; con varias propiedades, una línea por cada una con su título.
+ */
+function answersFor(answers: ComposeInput["answers"], shown: ReplyProperty[], seed: number): { text: string; missing: number } | null {
+  const usable = (answers ?? []).filter((a) => a.sentences.length > 0 && shown.some((s) => s.facts.title === a.title)).slice(0, 3);
+  if (usable.length === 0) return null;
+  const missing = usable.reduce((n, a) => n + a.missing, 0);
+  if (usable.length === 1) {
+    const sentences = usable[0]!.sentences;
+    const intro = pick(["Sobre lo que nos preguntás:", "Te contesto lo que preguntaste:", "Respecto de tu consulta:"], seed >>> 5);
+    return { text: sentences.length === 1 ? `${intro} ${sentences[0]}` : `${intro}\n${sentences.map((s) => `• ${s}`).join("\n")}`, missing };
+  }
+  return { text: usable.map((a) => `Sobre «${a.title}»: ${a.sentences.join(" ")}`).join("\n"), missing };
+}
+
 export function composeReply(input: ComposeInput): { subject: string; body: string } {
   const { settings, classification: c } = input;
   const seed = seedOf(input.seed, input.agencyName);
@@ -70,7 +90,9 @@ export function composeReply(input: ComposeInput): { subject: string; body: stri
   const shown = input.properties.slice(0, max);
   const alternatives = input.alternatives.filter((a) => !shown.some((s) => s.facts.id === a.facts.id)).slice(0, max);
   const top = c.topics[0] ?? c.category;
-  const details = c.topics.includes("features") || top === "features";
+  const answers = shown.length > 0 ? answersFor(input.answers, shown, seed) : null;
+  // Si preguntó algo puntual, la respuesta es lo importante: no se vuelcan todos los datos de la ficha.
+  const details = (c.topics.includes("features") || top === "features") && !answers;
 
   const seller = c.humanTopics.includes(SELLER_TOPIC);
   const parts: string[] = [name ? `Hola ${name},` : "Hola,"];
@@ -78,19 +100,31 @@ export function composeReply(input: ComposeInput): { subject: string; body: stri
 
   if (shown.length > 0) {
     const one = shown.length === 1;
-    const lead =
-      top === "availability"
+    const lead = input.inherited
+      ? one
+        ? pick([`Seguimos con «${shown[0]!.facts.title}», la propiedad de tu consulta anterior.`, `Sobre «${shown[0]!.facts.title}», la propiedad que veníamos viendo:`], seed >>> 2)
+        : "Seguimos con las propiedades de tu consulta anterior."
+      : top === "availability"
         ? one
           ? `Sí, «${shown[0]!.facts.title}» sigue disponible.`
           : pick(["Sí, estas propiedades siguen disponibles:", "Sí, tenemos disponibles estas propiedades:"], seed >>> 2)
         : top === "price"
           ? pick(["Te paso el precio y los datos de la propiedad:", "Estos son el precio y los datos:"], seed >>> 2)
           : top === "features"
-            ? pick(["Te cuento cómo es:", "Estas son sus características:"], seed >>> 2)
+            ? answers
+              ? ""
+              : pick(["Te cuento cómo es:", "Estas son sus características:"], seed >>> 2)
             : top === "visit"
               ? "¡Claro! Con gusto coordinamos una visita. Primero, los datos de la propiedad:"
-              : pick(["Te cuento sobre la propiedad:", "Estos son los datos que tenemos:"], seed >>> 2);
-    parts.push(lead);
+              : answers
+                ? ""
+                : pick(["Te cuento sobre la propiedad:", "Estos son los datos que tenemos:"], seed >>> 2);
+    if (lead) parts.push(lead);
+    if (answers) {
+      parts.push(answers.text);
+      if (answers.missing > 0) parts.push(pick(["Lo que no figura en la publicación lo confirmamos con el equipo y te avisamos.", "Eso que no está en la publicación lo consultamos con el equipo y te respondemos."], seed >>> 6));
+      parts.push(pick(["Y estos son los datos de la propiedad:", "Te dejo también los datos de la propiedad:"], seed >>> 8));
+    }
     parts.push(shown.map((p) => propertyBlock(p, details)).join("\n\n"));
     if (top === "visit" || c.topics.includes("visit")) parts.push("Contanos qué días y horarios te quedan mejor y lo coordinamos.");
   } else if (input.unavailable) {

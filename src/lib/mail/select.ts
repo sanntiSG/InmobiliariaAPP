@@ -9,9 +9,11 @@ import { Property } from "@/lib/db/models/Property";
 import { memo } from "@/lib/intelligence/cache";
 import { buildSearchFilter } from "@/lib/advisor/data/market";
 import { buildEntityIndex, type EntityIndex } from "@/lib/advisor/nlu/entities";
+import { stripAccents } from "@/lib/advisor/nlu/normalize";
+import { detectAsks, soundsLikeQuestion, type Ask } from "@/lib/agents/knowledge/asks";
 import { toFacts, type PropertyDocLike, type PropertyFacts } from "@/lib/agents/knowledge/facts";
 import { extractSlugs } from "./refs";
-import { readRequest, searchSignal, type SearchSignal } from "./signals";
+import { readCues, readRequest, searchSignal, type SearchSignal } from "./signals";
 
 const FIELDS = "status slug title description type operation price address features amenities media.hasTour3d media.hasAmbientCover media.videos";
 
@@ -26,6 +28,15 @@ export type MailSelection = {
   search: SearchSignal;
   /** Las sugerencias no coinciden con lo que pidió: son lo más reciente de la inmobiliaria. */
   fallback: boolean;
+  /** Los datos concretos que pregunta ("¿tiene pileta?", "¿y las expensas?"), para contestar cada uno. Vacío si no pregunta nada. */
+  asks: Ask[];
+  /** El mail no nombra la propiedad: se retomó la de una conversación anterior con la misma persona. */
+  inherited: boolean;
+};
+
+export type SelectOptions = {
+  /** Propiedades de la conversación anterior (mismo hilo o la misma persona en las últimas horas), para un seguimiento corto. */
+  threadPropertyIds?: string[];
 };
 
 function agencyIndex(agencyId: string): Promise<EntityIndex> {
@@ -39,7 +50,13 @@ function agencyIndex(agencyId: string): Promise<EntityIndex> {
 const load = (filter: Record<string, unknown>, limit: number) => Property.find(filter).select(FIELDS).sort({ publishedAt: -1 }).limit(limit).lean();
 const factsOf = (docs: unknown[]): PropertyFacts[] => docs.map((d) => toFacts(d as PropertyDocLike));
 
-export async function selectForMail(agencyId: string, mail: { subject: string; text: string }, siteHosts: readonly string[], max: number): Promise<MailSelection> {
+export async function selectForMail(
+  agencyId: string,
+  mail: { subject: string; text: string },
+  siteHosts: readonly string[],
+  max: number,
+  opts: SelectOptions = {}
+): Promise<MailSelection> {
   const agency = new Types.ObjectId(agencyId);
   const body = `${mail.subject}\n${mail.text}`;
 
@@ -50,19 +67,32 @@ export async function selectForMail(agencyId: string, mail: { subject: string; t
   const index = await agencyIndex(agencyId);
   const { slots } = readRequest(mail.subject, mail.text, index);
   const search = searchSignal(slots, body);
+  // Qué datos puntuales pregunta: sólo si el mail realmente pregunta (un "busco casa con pileta" no es una pregunta sobre una ficha).
+  const cues = readCues(mail.subject, mail.text);
+  const asking = soundsLikeQuestion(body) || cues.ask;
+  const asks = asking ? detectAsks(stripAccents(body.toLowerCase()).slice(0, 2000), slots.amenities) : [];
 
   if (slugs.length > 0) {
     const docs = await load({ agencyId: agency, slug: { $in: slugs } }, 10);
     const published = docs.filter((d) => d.status === "published");
     unavailable = docs.length > published.length;
-    if (published.length > 0) return { properties: factsOf(published).slice(0, max), unavailable: false, alternatives: [], search, fallback: false };
+    if (published.length > 0) return { properties: factsOf(published).slice(0, max), unavailable: false, alternatives: [], search, fallback: false, asks, inherited: false };
   }
 
   // 2) El nombre de una publicación, o lo que pide.
   const ids = (slots.propertyIds ?? []).filter((id) => Types.ObjectId.isValid(id)).slice(0, max);
   if (ids.length > 0) {
     const docs = await load({ _id: { $in: ids.map((i) => new Types.ObjectId(i)) }, agencyId: agency, status: "published" }, max);
-    if (docs.length > 0) return { properties: factsOf(docs), unavailable: false, alternatives: [], search, fallback: false };
+    if (docs.length > 0) return { properties: factsOf(docs), unavailable: false, alternatives: [], search, fallback: false, asks, inherited: false };
+  }
+
+  // 3) Un seguimiento corto sin nombrar la propiedad ("¿y tiene cochera?"): se retoma la de la conversación anterior. Sólo si
+  // de verdad pregunta, no es un cierre ("gracias") y no pide algo distinto (zona, tipo…).
+  const followUp = !cues.closing && search.strength < 2 && (asks.length > 0 || cues.questionMarks > 0 || cues.interrogative);
+  const threadIds = (opts.threadPropertyIds ?? []).filter((id) => Types.ObjectId.isValid(id)).slice(0, max);
+  if (followUp && threadIds.length > 0) {
+    const docs = await load({ _id: { $in: threadIds.map((i) => new Types.ObjectId(i)) }, agencyId: agency, status: "published" }, max);
+    if (docs.length > 0) return { properties: factsOf(docs), unavailable: false, alternatives: [], search, fallback: false, asks, inherited: true };
   }
 
   const wants = !!(slots.zones?.length || slots.types?.length || slots.operation || slots.priceMax || slots.rooms != null);
@@ -77,7 +107,7 @@ export async function selectForMail(agencyId: string, mail: { subject: string; t
       docs = await load({ status: "published", agencyId: agency }, max);
       fallback = docs.length > 0;
     }
-    return { properties: [], unavailable, alternatives: factsOf(docs), search, fallback };
+    return { properties: [], unavailable, alternatives: factsOf(docs), search, fallback, asks, inherited: false };
   }
-  return { properties: [], unavailable, alternatives: [], search, fallback: false };
+  return { properties: [], unavailable, alternatives: [], search, fallback: false, asks, inherited: false };
 }
