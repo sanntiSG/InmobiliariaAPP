@@ -16,12 +16,13 @@ import { firstNameOf, prefilter, replyAddress, type MailHeaders } from "../src/l
 import { classifyMail } from "../src/lib/mail/classify";
 import { extractSlugs } from "../src/lib/mail/refs";
 import { composeReply, replySubject, type ComposeInput, type ReplyProperty } from "../src/lib/mail/compose";
-import { argentinaClock, decideAuto, inSchedule, type AutoInput } from "../src/lib/mail/decide";
+import { AUTO_MIN_CONFIDENCE, argentinaClock, decideAuto, inSchedule, type AutoInput } from "../src/lib/mail/decide";
 import { PRESETS, appPasswordName, presetFor, providerFromEmail, smtpImplicitTls } from "../src/lib/mail/presets";
 import { buildSample } from "../src/lib/mail/preview";
 import { CORPUS, THRESHOLDS, classifySample, runCorpus } from "./mail-corpus";
 import { propertyUrl } from "../src/lib/mail/analyze";
 import { stripAccents } from "../src/lib/advisor/nlu/normalize";
+import { DISMISS_MIN_SIMILARITY, LIFT_MIN_SIMILARITY, applyMailLessons, mailFingerprint, type MailLessons } from "../src/lib/mail/lessons";
 import { detectAsks, soundsLikeQuestion } from "../src/lib/agents/knowledge/asks";
 import { answerAsks } from "../src/lib/agents/knowledge/answers";
 import { readRequest } from "../src/lib/mail/signals";
@@ -630,6 +631,52 @@ async function hosts() {
   check("automático: si el dato no está cargado, queda para confirmar (con el motivo)", !missing.auto && /no tiene cargado/.test(missing.why), missing);
   const inherited = decideAuto({ ...autoBase, inherited: true });
   check("automático: una propiedad retomada de antes nunca sale sola", !inherited.auto && /retomé la de su consulta anterior/.test(inherited.why), inherited);
+}
+
+// ── Lo que se le enseña al agente (sólo ayuda en los casos dudosos) ──────────
+{
+  const lessons = (yes: [string, string][] = [], no: [string, string][] = []): MailLessons => ({
+    inquiry: yes.map(([s, t]) => mailFingerprint(s, t)),
+    notInquiry: no.map(([s, t]) => mailFingerprint(s, t)),
+  });
+  const subject = "Lo del cartel";
+  const text = "Hola, vi el cartel de la ruta 9 cuando pasaba ayer. ¿Me pueden llamar para contarme los detalles de ese terreno?";
+  const raw = classifyMail({ subject, text, hasPropertyRef: false });
+  // Punto de partida: sin nombrar nada del catálogo, el agente lo descarta o lo deja dudoso.
+  const base = raw.category === "other" ? raw : { ...raw, category: "other" as const, topics: [], uncertain: false, reasons: ["no nombra una propiedad ni pide nada del rubro inmobiliario"], confidence: 0.7, needsHuman: false };
+
+  const taught = applyMailLessons(base, subject, text, lessons([[subject, text]]));
+  check("lecciones (correo): un mail descartado que se parece a uno marcado como consulta pasa a revisarse", taught.category === "general" && taught.uncertain && taught.needsHuman, taught);
+  check("lecciones (correo): nunca queda con confianza para responder solo", taught.confidence < AUTO_MIN_CONFIDENCE, taught.confidence);
+  check("lecciones (correo): explica por qué", taught.reasons.some((r) => /ya marcó como consulta/.test(r)), taught.reasons);
+  const similar = applyMailLessons(base, subject, text.replace("ese terreno", "ese lote"), lessons([[subject, text]]));
+  check("lecciones (correo): un mail muy parecido también", similar.category === "general", similar.category);
+  const unrelated = applyMailLessons(base, subject, text, lessons([["Factura", "Adjunto la factura del mes de octubre por el servicio de limpieza"]]));
+  check("lecciones (correo): una lección que no se parece no cambia nada", unrelated.category === "other", unrelated.category);
+  check("lecciones (correo): sin lecciones o vacías, igual", applyMailLessons(base, subject, text, undefined) === base && applyMailLessons(base, subject, text, lessons()) === base);
+  const conflicting = applyMailLessons(base, subject, text, lessons([[subject, text]], [[subject, text]]));
+  check("lecciones (correo): si se parece igual a una consulta y a un 'no', gana lo descartado", conflicting.category === "other", conflicting.category);
+
+  // Sólo los dudosos: nada firme se toca.
+  const clear = classifyMail({ subject: "", text: "¿Sigue disponible? ¿Cuánto sale?", hasPropertyRef: true });
+  check("lecciones (correo): una consulta clara no se descarta aunque se le enseñe lo contrario", applyMailLessons(clear, "", "¿Sigue disponible? ¿Cuánto sale?", lessons([], [["", "¿Sigue disponible? ¿Cuánto sale?"]])).category === clear.category && !clear.uncertain);
+  const promo = classifyMail({ subject: "", text: "Descuentos exclusivos en muebles. Para darse de baja haga clic aquí. Promoción imperdible", hasPropertyRef: false });
+  check("lecciones (correo): una promoción firme no se rescata", applyMailLessons(promo, "", "Descuentos exclusivos en muebles. Para darse de baja haga clic aquí. Promoción imperdible", lessons([["", "Descuentos exclusivos en muebles. Para darse de baja haga clic aquí. Promoción imperdible"]])).category === "newsletter", promo.category);
+
+  const doubt = classifyMail({ subject: "", text: "Hola, pasó algo con la propiedad", hasPropertyRef: false });
+  check("lecciones (correo): (punto de partida) una consulta dudosa", doubt.uncertain && doubt.category === "general", doubt);
+  const dismissed = applyMailLessons(doubt, "", "Hola, pasó algo con la propiedad", lessons([], [["", "Hola, pasó algo con la propiedad"]]));
+  check("lecciones (correo): una consulta dudosa parecida a un 'no es una consulta' se descarta", dismissed.category === "other" && !dismissed.needsHuman, dismissed);
+  const stays = applyMailLessons(doubt, "", "Hola, pasó algo con la propiedad", lessons([], [["Factura", "Adjunto la factura del mes de octubre"]]));
+  check("lecciones (correo): si el 'no' no se parece, la duda queda", stays.category === "general" && stays.uncertain, stays);
+
+  // Privacidad: lo que se compara no contiene datos personales y son sólo raíces.
+  const fp = mailFingerprint("Consulta", "Soy Juan, mi mail es juan.perez@gmail.com y mi celular +54 9 11 3779-6683. Mirá https://x.com/mi-perfil");
+  const joined = [...fp].join(" ");
+  check("lecciones (correo): la huella no incluye emails, teléfonos ni links", !/gmail|3779|x\.com|perez@/.test(joined), joined);
+
+  // Banco de frases: el gancho 'banco' sigue sin disparar financiación aunque haya lecciones.
+  check("lecciones (correo): los umbrales protegen (parecido mínimo alto)", LIFT_MIN_SIMILARITY >= 0.6 && DISMISS_MIN_SIMILARITY >= LIFT_MIN_SIMILARITY);
 }
 
 // ── Decisión automática ─────────────────────────────────────────────────────

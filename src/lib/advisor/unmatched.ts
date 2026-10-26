@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { connectDB } from "@/lib/db/connect";
 import { AdvisorUnmatched } from "@/lib/db/models/AdvisorUnmatched";
+import { maskPersonalData } from "@/lib/agents/knowledge/mask";
 import type { AdvisorMode } from "./types";
 import { normalizeText } from "./nlu/normalize";
 
@@ -11,15 +12,8 @@ const MAX_TEXT = 120;
  * Saca lo que podría identificar a alguien antes de guardar la pregunta:
  * emails, links, teléfonos / números largos y usuarios (@algo).
  */
-export function maskQuestion(raw: string): string {
-  return raw
-    .replace(/https?:\/\/\S+/gi, "[link]")
-    .replace(/\S+@\S+\.\S+/g, "[email]")
-    .replace(/@\w+/g, "[usuario]")
-    .replace(/\+?\d[\d\s().-]{5,}\d/g, "[número]")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, MAX_TEXT);
+export function maskQuestion(raw: string, max = MAX_TEXT): string {
+  return maskPersonalData(raw, max);
 }
 
 /**

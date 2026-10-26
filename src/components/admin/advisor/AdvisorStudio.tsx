@@ -13,6 +13,8 @@ import type { AdminConfigState, AdvisorContent, AdvisorFraming, AdvisorRoles, Cl
 import { toPublicConfig } from "@/lib/advisor/public-config";
 import { AGENTS, type AgentId } from "@/lib/agents/registry";
 import type { UnmatchedRow } from "@/app/api/admin/advisor/unmatched/route";
+import type { LessonRow } from "@/lib/agents/lessons";
+import { AgentLessons, TeachRow, reloadLessons, type IntentOption } from "./AgentLessons";
 
 const MODEL_MAX_BYTES = 10 * 1024 * 1024;
 const BUNDLED = { source: "bundled" as const, url: "/advisor/agent.glb", label: "Modelo incluido" };
@@ -58,7 +60,22 @@ const json = (body: unknown): RequestInit => ({ method: "POST", headers: { "Cont
  * cualquier agente (`agentId`); lo único propio del asesor es la lista de "preguntas que no entendió". Los modelos 3D
  * subidos son una biblioteca compartida por todos los agentes.
  */
-export function AdvisorStudio({ initial, unmatched: initialUnmatched, agentId = "advisor" }: { initial: AdminConfigState; unmatched?: UnmatchedRow[]; agentId?: AgentId }) {
+export function AdvisorStudio({
+  initial,
+  unmatched: initialUnmatched,
+  agentId = "advisor",
+  lessons: initialLessons,
+  intentOptions = [],
+  intentLabels = {},
+}: {
+  initial: AdminConfigState;
+  unmatched?: UnmatchedRow[];
+  agentId?: AgentId;
+  /** Lo que el admin le enseñó a este agente (sólo el asesor y el correo aprenden). */
+  lessons?: LessonRow[];
+  intentOptions?: IntentOption[];
+  intentLabels?: Record<string, string>;
+}) {
   const router = useRouter();
   const def = AGENTS[agentId];
   const isAdvisor = agentId === "advisor";
@@ -75,6 +92,7 @@ export function AdvisorStudio({ initial, unmatched: initialUnmatched, agentId = 
   const [progress, setProgress] = useState<number | null>(null);
   const [toDelete, setToDelete] = useState<LibraryEntry | null>(null);
   const [unmatched, setUnmatched] = useState(initialUnmatched ?? []);
+  const [lessons, setLessons] = useState<LessonRow[]>(initialLessons ?? []);
   const viewer = useRef<MascotHandle>(null);
   const dirty = useRef(false);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -521,18 +539,28 @@ export function AdvisorStudio({ initial, unmatched: initialUnmatched, agentId = 
                 )}
               </div>
             </div>
-            <p className="mt-1 text-sm text-text-muted">Anónimas y sin datos personales: sirven para sumar sinónimos o intenciones nuevas. Se borran solas a los 90 días.</p>
+            <p className="mt-1 text-sm text-text-muted">Anónimas y sin datos personales. Con “Enseñar qué quiso decir” el asesor las aprende (queda en “Lo que le enseñaste”); si no, se borran solas a los 90 días.</p>
             {unmatched.length === 0 ? (
               <p className="mt-4 text-sm text-text-muted">Todavía no hay ninguna.</p>
             ) : (
               <ul className="mt-4 flex flex-col divide-y divide-border">
                 {unmatched.map((u) => (
                   <li key={u.id} className="flex items-start gap-3 py-2.5 text-sm">
-                    <span className="min-w-0 flex-1">
+<span className="min-w-0 flex-1">
                       <span className="block text-text">{u.text}</span>
                       <span className="text-xs text-text-muted">
                         {u.mode === "agency" ? "Inmobiliaria" : "Explorador"} · {u.kind === "clarify" ? "dudó" : "no entendió"} · {u.count} {u.count === 1 ? "vez" : "veces"}
                       </span>
+                      <TeachRow
+                        text={u.text}
+                        mode={u.mode}
+                        unmatchedId={u.id}
+                        options={intentOptions}
+                        onTaught={() => {
+                          setUnmatched((list) => list.filter((x) => x.id !== u.id));
+                          void reloadLessons("advisor").then(setLessons);
+                        }}
+                      />
                     </span>
                     <button type="button" aria-label="Borrar" className="grid h-8 w-8 pointer-coarse:size-11 place-items-center rounded-full text-text-muted hover:bg-surface-2 hover:text-danger" onClick={() => removeUnmatched({ id: u.id })}>
                       <Trash2 className="h-4 w-4" aria-hidden />
@@ -542,6 +570,11 @@ export function AdvisorStudio({ initial, unmatched: initialUnmatched, agentId = 
               </ul>
             )}
           </section>
+          )}
+
+          {/* Lo que se le enseñó (el asesor y el correo aprenden; marketing guía pasos y no interpreta texto) */}
+          {(isAdvisor || agentId === "mail") && (
+            <AgentLessons agent={agentId === "mail" ? "mail" : "advisor"} items={lessons} setItems={setLessons} intentOptions={intentOptions} intentLabels={intentLabels} />
           )}
         </div>
       </div>

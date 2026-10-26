@@ -9,6 +9,7 @@ import type { AdvisorContext, AdvisorMode, IntentId, Slots } from "../types";
 import { extractSlots, type EntityIndex } from "./entities";
 import { detectConcepts } from "./lexicon";
 import { INTENT_BY_ID, intentsFor, type ClassifyInput, type IntentDef } from "./intents";
+import { bestDice } from "@/lib/agents/knowledge/similarity";
 import { normalizeText, stems, tokenize } from "./normalize";
 
 export type Alternative = { intent: IntentId; score: number };
@@ -40,26 +41,27 @@ function exampleSets(def: IntentDef): Set<string>[] {
   return sets;
 }
 
-/** Coeficiente de Dice entre la pregunta y la frase de ejemplo más parecida (0..1). */
-function bestDice(question: Set<string>, examples: Set<string>[]): number {
-  if (question.size === 0) return 0;
-  let best = 0;
-  for (const ex of examples) {
-    let shared = 0;
-    for (const t of question) if (ex.has(t)) shared++;
-    const dice = (2 * shared) / (question.size + ex.size);
-    if (dice > best) best = dice;
-  }
-  return best;
-}
+/**
+ * Lo que el admin le enseñó al asesor: frases (como conjuntos de raíces) por intención. Sólo SUMA: una pregunta muy parecida a una
+ * frase enseñada sube el puntaje de esa intención (con un piso de parecido para que una coincidencia vaga no cuente), y nada
+ * de lo enseñado resta puntaje a otra intención ni se salta las reglas.
+ */
+export type TaughtExamples = ReadonlyMap<string, readonly Set<string>[]>;
 
-function score(def: IntentDef, input: ClassifyInput, questionStems: Set<string>): number {
+/** Parecido mínimo con una frase enseñada para que cuente. */
+export const LESSON_MIN_SIMILARITY = 0.65;
+/** Cuántos puntos vale una coincidencia perfecta con una frase enseñada (con 0,65 de parecido valen ~7,8: justo sobre `ACCEPT`). */
+export const LESSON_WEIGHT = 12;
+
+function score(def: IntentDef, input: ClassifyInput, questionStems: Set<string>, taught?: readonly Set<string>[]): number {
+  const sim = taught && taught.length > 0 ? bestDice(questionStems, taught) : 0;
+  const lesson = sim >= LESSON_MIN_SIMILARITY ? sim * LESSON_WEIGHT : 0;
   let total = 0;
   for (const s of def.signals) if (s.test(input)) total += s.w;
   // Las señales positivas son el piso: sin ninguna, sólo la similitud no alcanza para activar la intención.
-  if (total === 0) return bestDice(questionStems, exampleSets(def)) * EXAMPLE_WEIGHT * 0.5;
+  if (total === 0) return bestDice(questionStems, exampleSets(def)) * EXAMPLE_WEIGHT * 0.5 + lesson;
   for (const n of def.negatives ?? []) if (n.test(input)) total -= n.w;
-  return Math.max(0, total) + bestDice(questionStems, exampleSets(def)) * EXAMPLE_WEIGHT;
+  return Math.max(0, total) + bestDice(questionStems, exampleSets(def)) * EXAMPLE_WEIGHT + lesson;
 }
 
 /** Combina lo que se entendió ahora con lo conversado antes: lo nuevo pisa a lo anterior. */
@@ -74,7 +76,9 @@ export function understand(
   text: string,
   mode: AdvisorMode,
   index: EntityIndex,
-  ctx?: AdvisorContext
+  ctx?: AdvisorContext,
+  /** Frases que el admin le enseñó (opcional): ver `TaughtExamples`. */
+  taught?: TaughtExamples
 ): Understanding {
   const norm = normalizeText(text.slice(0, MAX_QUESTION_LENGTH));
   const tokens = tokenize(norm);
@@ -86,7 +90,7 @@ export function understand(
   const qStems = new Set(stems(norm));
 
   const ranked: Alternative[] = intentsFor(mode)
-    .map((def) => ({ intent: def.id, score: score(def, input, qStems) }))
+    .map((def) => ({ intent: def.id, score: score(def, input, qStems, taught?.get(def.id)) }))
     .sort((a, b) => b.score - a.score);
   const best = ranked[0];
   const second = ranked[1];

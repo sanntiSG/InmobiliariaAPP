@@ -3,6 +3,7 @@ import { Types } from "mongoose";
 import { z } from "zod";
 import { connectDB } from "@/lib/db/connect";
 import { MailMessage } from "@/lib/db/models/MailMessage";
+import { saveLesson } from "@/lib/agents/lessons";
 import { mailAccess, sendEnabled } from "@/lib/mail/access";
 import { noteAdminView } from "@/lib/mail/audit";
 import { messageDetail } from "@/lib/mail/messages";
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   try {
     await connectDB();
     const scope = { _id: id, agencyId: a.agencyId };
-    const current = await MailMessage.findOne(scope).select("status draft from").lean();
+    const current = await MailMessage.findOne(scope).select("status draft from subject text").lean();
     if (!current) return NextResponse.json({ error: "No encontré ese mail." }, { status: 404, headers: NO_STORE });
     const conflict = () => NextResponse.json({ error: "Este mail ya fue atendido (quizás por otra persona). Actualizá la lista." }, { status: 409, headers: NO_STORE });
 
@@ -115,6 +116,14 @@ export async function POST(req: NextRequest, { params }: Ctx) {
       { returnDocument: "after" }
     ).select("_id");
     if (!moved) return conflict();
+    // Una persona dijo "no es una consulta": el agente aprende a descartar mails parecidos de ESTA inmobiliaria (se guardan las
+    // raíces de las palabras, no el texto; el texto del mail se borra arriba). Nunca rompe la acción.
+    try {
+      await saveLesson({ agent: "mail", target: "not_inquiry", text: `${current.subject ?? ""}
+${current.text ?? ""}`, source: "mail_dismiss", agencyId: a.agencyId, userId: a.userId });
+    } catch (err) {
+      console.error("not_inquiry: no se pudo guardar la lección:", (err as Error)?.message);
+    }
     const sender = current.from?.email;
     let blocked = false;
     if (sender && a.canManage) {

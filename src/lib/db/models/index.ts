@@ -19,6 +19,7 @@ export { AgencyDeletionNotice } from "./AgencyDeletionNotice";
 export { SocialContent, SOCIAL_MODES } from "./SocialContent";
 export { ActivityLog, ACTIVITY_KINDS } from "./ActivityLog";
 export { AdvisorUnmatched } from "./AdvisorUnmatched";
+export { AgentLesson, LESSON_AGENTS, LESSON_SOURCES } from "./AgentLesson";
 export { AdvisorConfig } from "./AdvisorConfig";
 export { AmbientCover, AMBIENT_COVER_STATUSES } from "./AmbientCover";
 export { Mailbox } from "./Mailbox";

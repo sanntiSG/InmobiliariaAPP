@@ -8,6 +8,7 @@ import { connectDB } from "@/lib/db/connect";
 import { Agency } from "@/lib/db/models/Agency";
 import { Mailbox } from "@/lib/db/models/Mailbox";
 import { MailMessage } from "@/lib/db/models/MailMessage";
+import { saveLesson } from "@/lib/agents/lessons";
 import { analyzeMail } from "./analyze";
 import { MAIL_LIMITS } from "./constants";
 import { recordLead } from "./pipeline";
@@ -55,6 +56,14 @@ export async function rescueIgnored(agencyId: string, messageId: string, userId:
     { returnDocument: "after" }
   ).select("_id");
   if (!moved) return { ok: false, reason: "not_found" };
+
+  // Una persona dijo "era una consulta": el agente aprende a no descartar a ciegas mails parecidos de ESTA inmobiliaria (se
+  // guardan las raíces de las palabras, no el texto; ver `agents/lessons.ts`). Nunca rompe el rescate.
+  try {
+    await saveLesson({ agent: "mail", target: "inquiry", text: `${msg.subject ?? ""}\n${msg.text}`, source: "mail_rescue", agencyId, userId });
+  } catch (err) {
+    console.error("rescueIgnored: no se pudo guardar la lección:", (err as Error)?.message);
+  }
 
   const first = analysis.selection.properties[0];
   if (first) {

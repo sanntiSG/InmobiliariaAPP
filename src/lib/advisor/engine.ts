@@ -15,6 +15,7 @@ import { INTENT_LABELS, defaultSuggestions } from "./compose/labels";
 import { dedupeSuggestions, sug } from "./compose/suggest";
 import { clarifyLead, unknownHelp } from "./compose/unknown";
 import { phrase } from "@/lib/agents/knowledge/phrasing";
+import { loadAdvisorLessons } from "@/lib/agents/lessons";
 import { loadMarketIndex } from "./data/market";
 import { loadPortfolio, type Portfolio } from "./data/portfolio";
 import { understand } from "./nlu/classify";
@@ -128,7 +129,7 @@ export async function willConsumeQuota(params: Pick<AskParams, "mode" | "input" 
   if (!("text" in params.input)) return !free(params.input.query.intent);
   const ctx = sanitizeContext(params.context ?? { turn: 0 }, null);
   const index = await loadMarketIndex();
-  const u = understand(params.input.text, params.mode, index, ctx);
+  const u = understand(params.input.text, params.mode, index, ctx, await loadAdvisorLessons());
   return u.kind === "intent" && !free(u.intent);
 }
 
@@ -147,7 +148,8 @@ export async function answer(params: AskParams): Promise<AdvisorAnswer> {
   let confidence = 1;
 
   if ("text" in params.input) {
-    const u = understand(params.input.text, mode, index, ctx);
+    // Lo que el admin le enseñó al asesor suma a lo que ya sabe (ver `agents/lessons.ts`); si no se puede leer, sigue igual.
+    const u = understand(params.input.text, mode, index, ctx, await loadAdvisorLessons());
     if (u.kind === "clarify") {
       const followUps = dedupeSuggestions(u.alternatives.map((a) => sug(a.intent, INTENT_LABELS[a.intent], { slots: sanitizeSlots(u.slots, portfolio) }))).slice(0, 3);
       return {

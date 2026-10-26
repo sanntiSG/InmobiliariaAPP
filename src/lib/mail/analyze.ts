@@ -5,6 +5,8 @@
  * inmobiliaria.
  */
 import { answerAsks } from "@/lib/agents/knowledge/answers";
+import { loadMailLessons } from "@/lib/agents/lessons";
+import { applyMailLessons, type MailLessons } from "./lessons";
 import { classifyMail, SELLER_TOPIC, UNSURE_REASON, type Classification } from "./classify";
 import { isInquiry } from "./constants";
 import { composeReply, type ReplyProperty } from "./compose";
@@ -30,6 +32,8 @@ export type AnalyzeInput = {
 export type AnalyzeOptions = {
   /** Una persona dijo "era una consulta": se responde aunque el agente no la hubiera tomado como tal. */
   forceInquiry?: boolean;
+  /** Lo que se le enseñó al agente (para pruebas). Si falta se carga el de la inmobiliaria; `null` = nada. */
+  lessons?: MailLessons | null;
 };
 
 export type Analysis = {
@@ -61,6 +65,10 @@ export async function analyzeMail(ctx: AnalyzeCtx, input: AnalyzeInput, opts: An
   });
   if (opts.forceInquiry && !isInquiry(classification.category)) {
     classification = { ...classification, category: "general", topics: ["general"], confidence: 0.5, uncertain: true, needsHuman: true, reasons: [UNSURE_REASON] };
+  } else {
+    // Lo que las personas del equipo marcaron antes ("era / no era una consulta") ayuda sólo en los casos dudosos.
+    const lessons = opts.lessons === undefined ? await loadMailLessons(ctx.agencyId) : (opts.lessons ?? undefined);
+    classification = applyMailLessons(classification, input.subject, input.text, lessons);
   }
 
   // A quien quiere vender o tasar no se le ofrecen propiedades del catálogo: lo atiende una persona.

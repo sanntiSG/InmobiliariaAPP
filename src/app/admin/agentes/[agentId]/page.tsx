@@ -5,6 +5,9 @@ import { ArrowLeft } from "lucide-react";
 import { connectDB } from "@/lib/db/connect";
 import { AdvisorUnmatched } from "@/lib/db/models/AdvisorUnmatched";
 import { getAdminConfigState } from "@/lib/advisor/config";
+import { INTENT_LABELS } from "@/lib/advisor/compose/labels";
+import { INTENT_BY_ID } from "@/lib/advisor/nlu/intents";
+import { listLessons, type LessonRow } from "@/lib/agents/lessons";
 import { AGENTS, isAgentId } from "@/lib/agents/registry";
 import { requireFreshAdmin } from "@/lib/auth/require-fresh-admin";
 import { getActivationStatus } from "@/lib/mail/activation";
@@ -34,11 +37,15 @@ export default async function AgentStudioPage({ params }: Props) {
   if (!admin) redirect("/ingresar");
 
   await connectDB();
-  const [state, rows] = await Promise.all([
+  const [state, rows, lessons] = await Promise.all([
     getAdminConfigState(agentId),
     // Sólo el asesor conversa: el resto no tiene "preguntas que no entendió".
     agentId === "advisor" ? AdvisorUnmatched.find({}).sort({ count: -1, lastAt: -1 }).limit(100).lean() : Promise.resolve([]),
+    // El asesor y el correo aprenden de lo que el admin les enseña; marketing guía pasos y no interpreta texto.
+    agentId === "advisor" || agentId === "mail" ? listLessons(agentId) : Promise.resolve([] as LessonRow[]),
   ]);
+  const intentOptions = agentId === "advisor" ? [...INTENT_BY_ID.values()].filter((d) => !d.id.startsWith("common.")).map((d) => ({ id: d.id, label: INTENT_LABELS[d.id], audience: d.audience })) : [];
+  const intentLabels = Object.fromEntries(intentOptions.map((o) => [o.id, o.label]));
   const unmatched: UnmatchedRow[] = rows.map((r) => ({
     id: String(r._id),
     text: r.text,
@@ -61,7 +68,7 @@ export default async function AgentStudioPage({ params }: Props) {
         <p className="mt-1 max-w-2xl text-sm text-text-muted">{INTRO[agentId]}</p>
       </header>
       {mailStatus && <MailActivation status={mailStatus} />}
-      <AdvisorStudio key={agentId} initial={state} unmatched={unmatched} agentId={agentId} />
+      <AdvisorStudio key={agentId} initial={state} unmatched={unmatched} agentId={agentId} lessons={lessons} intentOptions={intentOptions} intentLabels={intentLabels} />
     </div>
   );
 }

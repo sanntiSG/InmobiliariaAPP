@@ -6,6 +6,8 @@
 import { buildEntityIndex } from "../src/lib/advisor/nlu/entities";
 import { understand } from "../src/lib/advisor/nlu/classify";
 import type { AdvisorContext, AdvisorMode, Slots } from "../src/lib/advisor/types";
+import { stemSet } from "../src/lib/agents/knowledge/similarity";
+import type { TaughtExamples } from "../src/lib/advisor/nlu/classify";
 
 const index = buildEntityIndex({
   zones: ["Ezeiza", "Canning", "Palermo", "Palermo Soho", "Belgrano", "Villa Crespo", "Tigre", "Nordelta", "San Isidro", "Caballito"],
@@ -240,5 +242,49 @@ for (const c of CASES) {
   }
 }
 
-console.log(`\n${CASES.length - failed}/${CASES.length} casos correctos`);
+// ── Lo que el admin le enseña: sólo suma ─────────────────────────────────────
+let extra = 0;
+function expectThat(name: string, ok: boolean, detail?: unknown) {
+  extra++;
+  if (!ok) {
+    failed++;
+    console.log(`✗ ${name}${detail !== undefined ? `\n    ${JSON.stringify(detail)}` : ""}`);
+  }
+}
+const teach = (pairs: [string, string][]): TaughtExamples => {
+  const map = new Map<string, Set<string>[]>();
+  for (const [intent, phrase] of pairs) map.set(intent, [...(map.get(intent) ?? []), stemSet(phrase)]);
+  return map;
+};
+const outcome = (q: string, mode: AdvisorMode, ctx?: AdvisorContext, taught?: TaughtExamples) => {
+  const u = understand(q, mode, index, ctx, taught);
+  return u.kind === "intent" ? u.intent : u.kind;
+};
+{
+  const base = outcome("decime algo copado de mi negocio", "agency");
+  expectThat("lecciones: sin enseñarle, una frase rara no se entiende", base === "unknown" || base === "clarify", base);
+  const taught = teach([["agency.overview", "decime algo copado de mi negocio"]]);
+  expectThat("lecciones: la frase enseñada se entiende", outcome("decime algo copado de mi negocio", "agency", undefined, taught) === "agency.overview");
+  expectThat("lecciones: una variante muy parecida también", outcome("decime algo muy copado sobre mi negocio", "agency", undefined, taught) === "agency.overview", outcome("decime algo muy copado sobre mi negocio", "agency", undefined, taught));
+  expectThat("lecciones: una frase distinta no se contagia", outcome("cuanto cuesta un departamento en palermo", "explorer", undefined, taught) === "explorer.price_typical");
+  expectThat("lecciones: lo enseñado a una intención no la activa en el otro modo", outcome("decime algo copado de mi negocio", "explorer", undefined, taught) !== "agency.overview");
+  const nothing = teach([]);
+  expectThat("lecciones: sin lecciones todo sigue igual", outcome("que casas rinden peor", "agency", undefined, nothing) === "agency.worst");
+
+  // Lecciones absurdas o mal puestas no cambian NADA de lo que ya entendía (todas las preguntas conocidas de arriba dan lo mismo).
+  const absurd = teach([
+    ["agency.best", "asdf qwer zxcv"],
+    ["agency.worst", "hola buen dia como estas"],
+    ["explorer.new", "gracias por todo"],
+    ["agency.leads", "quien sabe que sera"],
+    ["explorer.popular", "una frase que nadie va a decir nunca jamas"],
+  ]);
+  const changed = CASES.filter((c) => outcome(c.q, c.mode ?? "agency", c.ctx) !== outcome(c.q, c.mode ?? "agency", c.ctx, absurd)).map((c) => c.q);
+  expectThat("lecciones: lecciones sin relación no cambian ninguna de las preguntas conocidas", changed.length === 0, changed);
+  // Un parecido flojo no alcanza: hace falta un parecido alto para que cuente.
+  const vague = teach([["agency.best", "las propiedades que mejor funcionan en mis zonas favoritas del mes pasado"]]);
+  expectThat("lecciones: un parecido flojo no cuenta", outcome("que casas rinden peor", "agency", undefined, vague) === "agency.worst");
+}
+
+console.log(`\n${CASES.length + extra - failed}/${CASES.length + extra} casos correctos`);
 process.exit(failed > 0 ? 1 : 0);
