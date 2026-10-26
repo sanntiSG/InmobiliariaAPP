@@ -16,6 +16,8 @@ const nextConfig: NextConfig = {
   // Tipografías del render de publicaciones (se leen con fs): que viajen en el deploy.
   outputFileTracingIncludes: {
     "/api/dashboard/social/image": ["./src/lib/social/fonts/**/*"],
+    // La imagen al compartir el perfil de una inmobiliaria usa las mismas tipografías.
+    "/inmobiliarias/[slug]/opengraph-image": ["./src/lib/social/fonts/**/*"],
   },
   images: {
     // Fotos reducidas por el CDN de cada origen (ver src/lib/images/loader.ts), no por el optimizador de Next.

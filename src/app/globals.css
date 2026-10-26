@@ -1439,6 +1439,23 @@ body {
   }
 }
 
+/* Entrada corta de las opciones dentro de una hoja o un cartel (compartir, filtros…): sube un poco y se funde, en cascada. */
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+}
+.pop-in {
+  animation: pop-in 220ms var(--ease-out) backwards;
+  animation-delay: calc(var(--rise-i, 0) * 40ms + 80ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  .pop-in {
+    animation: none;
+  }
+}
+
 /* Cambio de filtro o pestaña: la lista nueva entra en un instante (se repite muchas veces, por eso es cortísima). */
 @keyframes swap-in {
   from {

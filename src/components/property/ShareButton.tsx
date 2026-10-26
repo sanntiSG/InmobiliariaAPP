@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Link2, Share2 } from "lucide-react";
 import { Button, buttonClasses } from "@/components/ui/Button";
-import { buildWhatsappLink } from "@/config/site";
+import { buildWhatsappShareLink } from "@/config/site";
 import { track } from "@/lib/tracking/client";
 
 /**
@@ -58,7 +58,8 @@ export function ShareButton({ propertyId, title }: { propertyId: string; title: 
     }
   }
 
-  const whatsappHref = typeof window === "undefined" ? "#" : buildWhatsappLink(`${title} — ${window.location.href}`);
+  // Compartir por WhatsApp abre la lista de contactos (antes escribía al número del proveedor de la plataforma).
+  const whatsappHref = typeof window === "undefined" ? "#" : buildWhatsappShareLink(`${title} — ${window.location.href}`);
 
   return (
     <div ref={wrapperRef} className="relative">

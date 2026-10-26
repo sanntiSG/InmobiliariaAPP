@@ -30,6 +30,14 @@ export function buildWhatsappLink(message: string, phone = PROVIDER_WHATSAPP) {
   return `https://wa.me/${phone}?text=${encoded}`;
 }
 
+/**
+ * Abre WhatsApp para COMPARTIR un texto con quien se elija (sin número de destino). `buildWhatsappLink` en cambio escribe a un número
+ * concreto —por defecto el del proveedor—: sirve para consultar, no para compartir.
+ */
+export function buildWhatsappShareLink(message: string) {
+  return `https://wa.me/?text=${encodeURIComponent(message)}`;
+}
+
 /** Centro y bounds por defecto del mapa: Buenos Aires / AMBA. */
 export const MAP_DEFAULTS = {
   center: [-58.4173, -34.6118] as [number, number],

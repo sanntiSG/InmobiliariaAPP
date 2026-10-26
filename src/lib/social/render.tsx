@@ -9,8 +9,8 @@ type FontDef = { name: string; data: ArrayBuffer; weight: 500 | 700 | 800; style
 const FONT_DIR = path.join(process.cwd(), "src", "lib", "social", "fonts");
 let fontsPromise: Promise<FontDef[]> | null = null;
 
-/** Las tipografías de la marca (OFL, @fontsource) se leen una vez y quedan en memoria. */
-function loadFonts(): Promise<FontDef[]> {
+/** Las tipografías de la marca (OFL, @fontsource) se leen una vez y quedan en memoria. También las usa la imagen al compartir el perfil de una inmobiliaria. */
+export function loadFonts(): Promise<FontDef[]> {
   fontsPromise ??= (async () => {
     const files: [string, string, FontDef["weight"]][] = [
       ["bricolage-grotesque-latin-800-normal.woff", "Bricolage", 800],

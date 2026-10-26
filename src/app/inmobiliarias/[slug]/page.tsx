@@ -14,6 +14,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { AgencyAvatar } from "@/components/property/AgencyAvatar";
 import { AgencyPropertiesTabs } from "@/components/agency/AgencyPropertiesTabs";
 import { FollowButton } from "@/components/agency/FollowButton";
+import { ShareAgencyButton } from "@/components/agency/ShareAgencyButton";
 import { buttonClasses } from "@/components/ui/Button";
 import { buildWhatsappLink } from "@/config/site";
 import { brand } from "@/config/brand";
@@ -30,11 +31,11 @@ export async function generateMetadata({ params }: PageProps<"/inmobiliarias/[sl
   if (!agency) return { title: "Inmobiliaria no encontrada" };
 
   const description = agency.description?.slice(0, 160) || `Propiedades de ${agency.name} en ${brand.name}.`;
-  const image = agency.cover || agency.logo;
   return {
     title: agency.name,
     description,
-    openGraph: { title: agency.name, description, images: image ? [{ url: image }] : undefined },
+    // La imagen al compartir el enlace la arma `opengraph-image.tsx` (portada, logo, nombre y cantidad de propiedades).
+    openGraph: { title: agency.name, description },
   };
 }
 
@@ -132,6 +133,7 @@ export default async function AgencyProfilePage({ params }: PageProps<"/inmobili
                 <Globe className="h-4 w-4" aria-hidden /> Sitio web
               </a>
             )}
+            <ShareAgencyButton name={agency.name} slug={agency.slug} logo={agency.logo} cover={agency.cover} place={place} />
             {/* <a> y no <Link>: el mapa lee el filtro de la URL en una carga completa. */}
             {properties.length > 0 && (
               <a href={`/mapa?agency=${agencyId}`} className={buttonClasses("primary", "sm")}>
