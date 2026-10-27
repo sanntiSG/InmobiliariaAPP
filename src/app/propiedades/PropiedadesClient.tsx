@@ -16,6 +16,9 @@ import { filtersToSearchParams } from "@/lib/filters/state";
 import { cn } from "@/lib/utils/cn";
 import type { PropertyCardData } from "@/components/property/types";
 
+/** Cuánto se espera tras el último cambio de filtros antes de pedir los resultados (igual que el mapa). */
+const FILTER_DEBOUNCE_MS = 300;
+
 const SORTS = ["recientes", "precio_asc", "precio_desc"] as const;
 type Sort = (typeof SORTS)[number];
 const SORT_LABELS: Record<Sort, string> = {
@@ -43,31 +46,53 @@ export default function PropiedadesClient({ initialFilters, agencyName }: { init
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  /** El último pedido falló: se dice (con "Reintentar") en vez de dejar en pantalla el resultado anterior, que podía ser un "0". */
+  const [failed, setFailed] = useState(false);
+  const [moreFailed, setMoreFailed] = useState(false);
+  const [retry, setRetry] = useState(0);
 
   const abortRef = useRef<AbortController | null>(null);
+  const moreAbortRef = useRef<AbortController | null>(null);
+  const firstLoad = useRef(true);
 
   useEffect(() => {
     abortRef.current?.abort();
+    // Una página extra pedida con los filtros anteriores ya no vale: no tiene que sumarse a esta lista.
+    moreAbortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
     // Sincroniza con la API externa al cambiar filtros/orden — no es
     // estado derivado de props, es el disparador de un fetch real.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
+    setFailed(false);
+    setMoreFailed(false);
+    setLoadingMore(false);
     setPage(1);
 
-    fetchListing(filters, sort, 1, controller.signal)
-      .then((data) => {
-        setItems(data.items);
-        setTotal(data.total);
-        setLoading(false);
-      })
-      .catch((err) => {
-        if (err.name !== "AbortError") setLoading(false);
-      });
+    // El primer pedido sale enseguida; los siguientes esperan un instante por si siguen tipeando o moviendo un control
+    // (antes salía uno por cada tecla o paso del deslizador y el límite de pedidos por minuto podía cortar el último).
+    const delay = firstLoad.current ? 0 : FILTER_DEBOUNCE_MS;
+    firstLoad.current = false;
+    const timer = setTimeout(() => {
+      fetchListing(filters, sort, 1, controller.signal)
+        .then((data) => {
+          setItems(data.items);
+          setTotal(data.total);
+          setLoading(false);
+        })
+        .catch((err) => {
+          if (err.name === "AbortError") return;
+          setFailed(true);
+          setLoading(false);
+        });
+    }, delay);
 
-    return () => controller.abort();
-  }, [filters, sort]);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [filters, sort, retry]);
 
   // La dirección acompaña a los filtros (sin recargar): se puede copiar, compartir o volver a ella.
   useEffect(() => {
@@ -90,14 +115,22 @@ export default function PropiedadesClient({ initialFilters, agencyName }: { init
   }
 
   async function loadMore() {
+    moreAbortRef.current?.abort();
+    const controller = new AbortController();
+    moreAbortRef.current = controller;
     setLoadingMore(true);
+    setMoreFailed(false);
     const nextPage = page + 1;
     try {
-      const data = await fetchListing(filters, sort, nextPage, new AbortController().signal);
+      const data = await fetchListing(filters, sort, nextPage, controller.signal);
+      if (controller.signal.aborted) return;
       setItems((prev) => [...prev, ...data.items]);
       setPage(nextPage);
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") setMoreFailed(true);
     } finally {
-      setLoadingMore(false);
+      // Si cambiaron los filtros mientras tanto, el efecto de arriba ya apagó esto.
+      if (moreAbortRef.current === controller) setLoadingMore(false);
     }
   }
 
@@ -139,11 +172,19 @@ export default function PropiedadesClient({ initialFilters, agencyName }: { init
           </div>
         )}
 
-        <p className="mt-4 text-sm text-text-muted">
-          {loading ? "Buscando…" : `${total} propiedad${total === 1 ? "" : "es"} encontrada${total === 1 ? "" : "s"}`}
+        <p className="mt-4 text-sm text-text-muted" aria-live="polite">
+          {loading ? "Buscando…" : failed ? "No pudimos cargar los resultados" : `${total} propiedad${total === 1 ? "" : "es"} encontrada${total === 1 ? "" : "s"}`}
         </p>
 
-        {loading ? (
+        {failed ? (
+          <div className="flex flex-col items-center gap-3 py-24 text-center text-text-muted" role="alert">
+            <p className="font-display text-lg font-semibold text-text">No pudimos cargar las propiedades</p>
+            <p className="max-w-sm text-sm">Puede ser la conexión o un momento de mucha demanda. Tus filtros siguen como estaban.</p>
+            <Button variant="secondary" onClick={() => setRetry((n) => n + 1)}>
+              Reintentar
+            </Button>
+          </div>
+        ) : loading ? (
           <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="flex flex-col gap-3">
@@ -171,10 +212,15 @@ export default function PropiedadesClient({ initialFilters, agencyName }: { init
               ))}
             </div>
             {hasMore && (
-              <div className="mt-8 flex justify-center">
+              <div className="mt-8 flex flex-col items-center gap-2">
                 <Button variant="secondary" onClick={loadMore} disabled={loadingMore}>
-                  {loadingMore ? "Cargando…" : "Cargar más"}
+                  {loadingMore ? "Cargando…" : moreFailed ? "Reintentar" : "Cargar más"}
                 </Button>
+                {moreFailed && (
+                  <p className="text-sm text-text-muted" role="alert">
+                    No pudimos cargar más propiedades.
+                  </p>
+                )}
               </div>
             )}
           </>

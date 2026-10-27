@@ -21,7 +21,8 @@ const baseFiltersShape = {
   operation: z.enum(OPERATIONS).optional(),
   type: z.string().optional().transform(typeListTransform),
   priceMin: z.coerce.number().nonnegative().optional(),
-  priceMax: z.coerce.number().positive().optional(),
+  // `nonnegative` (no `positive`): cualquier valor que arma la interfaz tiene que ser válido acá; un 0 da "sin resultados", no un 400.
+  priceMax: z.coerce.number().nonnegative().optional(),
   minRooms: z.coerce.number().int().nonnegative().optional(),
   amenities: z.string().optional().transform(amenityListTransform),
   tour3d: z
@@ -35,7 +36,7 @@ const baseFiltersShape = {
   minBathrooms: z.coerce.number().int().nonnegative().max(50).optional(),
   minGarages: z.coerce.number().int().nonnegative().max(50).optional(),
   areaMin: z.coerce.number().nonnegative().max(1_000_000).optional(),
-  areaMax: z.coerce.number().positive().max(1_000_000).optional(),
+  areaMax: z.coerce.number().nonnegative().max(1_000_000).optional(),
   /** Ubicación exacta (los valores salen de /api/properties/facets). */
   city: z.string().trim().min(1).max(80).optional(),
   neighborhood: z.string().trim().min(1).max(80).optional(),

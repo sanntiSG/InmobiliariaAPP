@@ -42,7 +42,9 @@ export function buildPropertyQuery(filters: BaseFilters): Record<string, unknown
   if (filters.agencyId && Types.ObjectId.isValid(filters.agencyId)) {
     query.agencyId = new Types.ObjectId(filters.agencyId);
   }
-  if (filters.currency) query["price.currency"] = filters.currency;
+  // La moneda sólo acota junto con un rango de precio. Sola no es un filtro que la persona pueda ver ni quitar, y antes dejaba
+  // en cero, por ejemplo, los alquileres en pesos cuando quedaba elegida "Dólares" sin precio.
+  if (filters.currency && (filters.priceMin != null || filters.priceMax != null)) query["price.currency"] = filters.currency;
   if (filters.minBedrooms) query["features.bedrooms"] = { $gte: filters.minBedrooms };
   if (filters.minBathrooms) query["features.bathrooms"] = { $gte: filters.minBathrooms };
   if (filters.minGarages) query["features.garages"] = { $gte: filters.minGarages };

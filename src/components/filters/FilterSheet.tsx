@@ -9,7 +9,7 @@ import { Sheet } from "@/components/ui/Sheet";
 import { AMENITIES, AMENITY_LABELS, CURRENCIES, OPERATIONS, OPERATION_LABELS, PROPERTY_TYPES, PROPERTY_TYPE_LABELS, type Amenity, type Currency } from "@/config/filters";
 import { areaBounds, priceBounds } from "@/lib/filters/bounds";
 import type { Facets } from "@/lib/filters/facets";
-import { DEFAULT_FILTERS, RECENT_DAYS, activeChips, countActiveFilters, type PropertyFiltersState } from "@/lib/filters/state";
+import { DEFAULT_FILTERS, RECENT_DAYS, activeChips, type PropertyFiltersState } from "@/lib/filters/state";
 import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
 import { formatPriceCompact } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
@@ -102,12 +102,12 @@ export function FilterSheet({ open, onClose, value, onChange, resultCount }: Pro
   const wide = useMediaQuery("(min-width: 768px)");
   const { facets, failed } = useFacets(open, value.agencyId);
   const chips = useMemo(() => activeChips(value), [value]);
-  const active = countActiveFilters(value);
 
   const set = (patch: Partial<PropertyFiltersState>) => onChange({ ...value, ...patch });
   const toggleType = (t: (typeof PROPERTY_TYPES)[number]) => set({ types: value.types.includes(t) ? value.types.filter((x) => x !== t) : [...value.types, t] });
   const toggleAmenity = (a: Amenity) => set({ amenities: value.amenities.includes(a) ? value.amenities.filter((x) => x !== a) : [...value.amenities, a] });
-  const clearAll = () => onChange({ ...DEFAULT_FILTERS, q: value.q, agencyId: value.agencyId });
+  // Limpia todo lo que se ve como etiqueta (también el texto de búsqueda); la inmobiliaria tiene su propia etiqueta aparte.
+  const clearAll = () => onChange({ ...DEFAULT_FILTERS, agencyId: value.agencyId });
 
   // Precio: el rango sale de lo publicado en esa moneda (y operación). Al llegar a un extremo deja de filtrar por ese lado.
   const price = priceBounds(facets, value.currency, value.operation);
@@ -131,7 +131,7 @@ export function FilterSheet({ open, onClose, value, onChange, resultCount }: Pro
           <button
             type="button"
             onClick={clearAll}
-            disabled={active === 0}
+            disabled={chips.length === 0}
             className="min-h-11 text-sm font-medium text-text-muted underline-offset-2 transition-colors hover:text-text hover:underline disabled:pointer-events-none disabled:opacity-40"
           >
             Limpiar filtros

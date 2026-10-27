@@ -76,12 +76,16 @@ const full: PropertyFiltersState = {
   check("contar: la moneda sola no es un filtro", countActiveFilters({ ...DEFAULT_FILTERS, currency: "USD" }) === 0);
 
   const chips = activeChips(full);
-  check("etiquetas: una por filtro (tipos y comodidades por separado)", chips.length === 16, chips.map((c) => c.id));
+  // 15 filtros del botón + la búsqueda de texto (que tiene etiqueta para poder quitarla) + 1 (tipos y comodidades van por separado)
+  check("etiquetas: una por filtro (tipos y comodidades por separado) y una para el texto", chips.length === 17, chips.map((c) => c.id));
+  check("etiquetas: el texto de búsqueda tiene la suya", chips.some((c) => c.id === "q" && c.label === "Texto: palermo"), chips.map((c) => c.label));
+  check("etiquetas: un texto largo se acorta", activeChips({ ...DEFAULT_FILTERS, q: "x".repeat(60) })[0]!.label.length <= 31);
   check("etiquetas: texto claro", chips.some((c) => c.label === "Alquiler") && chips.some((c) => c.label === "PH") && chips.some((c) => c.label === "Palermo, CABA") && chips.some((c) => c.label === "2+ dormitorios") && chips.some((c) => c.label === "60 – 200 m²"), chips.map((c) => c.label));
   check("etiquetas: el precio lleva la moneda", chips.find((c) => c.id === "price")?.label === "$ 150k – 900k", chips.find((c) => c.id === "price")?.label);
   check("etiquetas: precio con un solo extremo", activeChips({ ...DEFAULT_FILTERS, currency: "USD", priceMax: 120000 })[0]?.label === "Hasta US$ 120k" && activeChips({ ...DEFAULT_FILTERS, currency: "USD", priceMin: 2_500_000 })[0]?.label === "Desde US$ 2.5M");
   const cleared = chips.reduce((state, c) => c.clear(state), full);
-  check("quitar todas las etiquetas deja sólo la búsqueda, la moneda y la inmobiliaria", countActiveFilters(cleared) === 0 && cleared.q === "palermo" && cleared.agencyId === full.agencyId, cleared);
+  check("quitar todas las etiquetas deja sólo la inmobiliaria (que tiene la suya aparte)", JSON.stringify(cleared) === JSON.stringify({ ...DEFAULT_FILTERS, agencyId: full.agencyId }), cleared);
+  check("quitar el precio quita también la moneda", activeChips(full).find((c) => c.id === "price")!.clear(full).currency === null);
   const oneType = activeChips(full).find((c) => c.id === "type:casa")!.clear(full);
   check("quitar un tipo deja el otro", oneType.types.join() === "ph");
   const oneAmenity = activeChips(full).find((c) => c.id === "amenity:pileta")!.clear(full);
@@ -101,6 +105,7 @@ const full: PropertyFiltersState = {
     check("la validación convierte lo que corresponde", list.data.currency === "ARS" && list.data.minBedrooms === 2 && list.data.areaMax === 200 && list.data.ambient === true && list.data.videos === true && list.data.recent === true && list.data.city === "CABA", list.data);
   }
   check("una moneda inventada se rechaza", !listFiltersSchema.safeParse({ currency: "EUR" }).success);
+  check("un máximo en 0 es válido (da cero resultados, no un error 400)", listFiltersSchema.safeParse({ priceMax: "0", areaMax: "0" }).success && mapFiltersSchema.safeParse({ priceMax: "0" }).success);
   check("una marca que no es true/false se rechaza", !listFiltersSchema.safeParse({ ambient: "si" }).success);
   check("los parámetros de siempre siguen valiendo", listFiltersSchema.safeParse({ operation: "venta", type: "casa,ph", priceMin: "1000", minRooms: "2", tour3d: "true", page: "2" }).success);
 }
@@ -124,6 +129,43 @@ const full: PropertyFiltersState = {
   check("sin filtros: sólo lo publicado", JSON.stringify(buildPropertyQuery({})) === JSON.stringify({ status: "published" }));
   check("una inmobiliaria inválida se ignora", !("agencyId" in buildPropertyQuery({ agencyId: "no-es-un-id" })));
   check("sólo mínimo de superficie", JSON.stringify((buildPropertyQuery({ areaMin: 50 }).$or as { [k: string]: unknown }[])[1]!["features.totalArea"]) === JSON.stringify({ $gte: 50 }));
+  check("la moneda sola no restringe nada", JSON.stringify(buildPropertyQuery({ currency: "USD" })) === JSON.stringify({ status: "published" }));
+  check("la moneda acota junto con el precio", buildPropertyQuery({ currency: "USD", priceMax: 100 })["price.currency"] === "USD" && buildPropertyQuery({ currency: "USD", priceMin: 1 })["price.currency"] === "USD");
+}
+
+// ── Filtros acumulativos y reversibles (el error: filtrar, quitar el filtro y seguir viendo cero) ──────
+{
+  /** La consulta que llega a Mongo para un estado: la misma ruta que recorre la pantalla (dirección → validación → filtro). */
+  const queryFor = (state: PropertyFiltersState) => JSON.stringify(buildPropertyQuery(listFiltersSchema.parse(Object.fromEntries(filtersToSearchParams(state).entries()))));
+  const base = queryFor(DEFAULT_FILTERS);
+  check("1. sin filtros: sólo lo publicado", base === JSON.stringify({ status: "published" }), base);
+
+  const withOp = { ...DEFAULT_FILTERS, operation: "alquiler" as const };
+  const withPrice = { ...withOp, currency: "USD" as const, priceMax: 100_000 };
+  check("2. aplicar un filtro cambia la consulta", queryFor(withOp) !== base);
+  check("3. sumar un segundo filtro los combina", /"operation":"alquiler"/.test(queryFor(withPrice)) && /"price\.amount"/.test(queryFor(withPrice)) && /"price\.currency":"USD"/.test(queryFor(withPrice)), queryFor(withPrice));
+  const priceChip = activeChips(withPrice).find((c) => c.id === "price")!;
+  check("4. quitar uno conserva el otro y no deja restos del quitado", queryFor(priceChip.clear(withPrice)) === queryFor(withOp), queryFor(priceChip.clear(withPrice)));
+  check("4b. el caso del informe: alquiler + dólares + precio, quitar el precio no deja la moneda", !/currency/.test(queryFor(priceChip.clear(withPrice))) && !filtersToSearchParams(priceChip.clear(withPrice)).has("currency"));
+  const textChip = activeChips({ ...withOp, q: "palerm" }).find((c) => c.id === "q")!;
+  check("4c. quitar el texto de búsqueda deja los demás filtros y saca el $text", queryFor(textChip.clear({ ...withOp, q: "palerm" })) === queryFor(withOp) && /"\$text"/.test(queryFor({ ...withOp, q: "palerm" })));
+  const noAgency: PropertyFiltersState = { ...full, agencyId: null };
+  check("5. limpiar todo vuelve al estado inicial", queryFor(activeChips(full).reduce((s, c) => c.clear(s), noAgency)) === base);
+  check("6. modificar un filtro recalcula con el valor nuevo, sin el anterior", (() => {
+    const a = queryFor({ ...withPrice, priceMax: 200_000 });
+    return /"\$lte":200000/.test(a) && !/100000/.test(a);
+  })());
+  check("7. cambiar la operación no deja la anterior", !/alquiler/.test(queryFor({ ...withOp, operation: "venta" })) && !/operation/.test(queryFor({ ...withOp, operation: "todas" })));
+
+  // Propiedad general: si se quitan todas las etiquetas MENOS una y después se quita esa, nunca queda un filtro escondido.
+  const all = activeChips(full);
+  const hidden = all.filter((target) => {
+    const others = all.filter((c) => c.id !== target.id).reduce((s, c) => c.clear(s), noAgency);
+    return queryFor(target.clear(others)) !== base;
+  });
+  check("8. ninguna etiqueta deja un filtro escondido al quitarla", hidden.length === 0, hidden.map((c) => c.id));
+  // Lo mismo para los controles de la hoja que fijan la moneda antes de elegir un precio.
+  check("9. la moneda elegida sin precio no cambia los resultados", queryFor({ ...DEFAULT_FILTERS, currency: "USD" }) === base && queryFor({ ...withOp, currency: "USD" }) === queryFor(withOp));
 }
 
 // ── Límites de los controles deslizantes ────────────────────────────────────

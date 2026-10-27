@@ -23,6 +23,7 @@ export function AddressSearch({
   /** Se dispara en cada tecla, además de la búsqueda — para usos "duales"
    *  donde el mismo texto también filtra otra cosa (ej: propiedades por texto). */
   onQueryChange,
+  syncValue,
   className,
   inputClassName,
 }: {
@@ -30,7 +31,10 @@ export function AddressSearch({
   /** Valor inicial del texto — el componente queda no-controlado a partir de ahí (usar `key` para forzar un reset externo). */
   initialValue?: string;
   onSelect: (result: GeocodeResult) => void;
+  /** Texto que el llamador usa como filtro. Elegir una sugerencia lo deja en "" (el lugar elegido reemplaza a lo tipeado). */
   onQueryChange?: (text: string) => void;
+  /** El texto-filtro actual del llamador: si cambia desde afuera (quitar la etiqueta, limpiar filtros) el cuadro se vacía. */
+  syncValue?: string;
   className?: string;
   inputClassName?: string;
 }) {
@@ -39,8 +43,21 @@ export function AddressSearch({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  // Lo último que este cuadro le avisó al llamador: lo que difiera de `syncValue` es un cambio hecho desde afuera.
+  const emitted = useRef(initialValue);
+  // La sugerencia elegida queda escrita en el cuadro: no hay que volver a buscarla (reabría la lista recién cerrada).
+  const picked = useRef<string | null>(null);
 
   useEffect(() => {
+    if (syncValue === undefined || syncValue === emitted.current) return;
+    emitted.current = syncValue;
+    // El filtro se cambió fuera del cuadro (etiqueta quitada o "Limpiar filtros"): el texto visible tiene que acompañarlo.
+    setQuery(syncValue);
+    setResults([]);
+  }, [syncValue]);
+
+  useEffect(() => {
+    if (query === picked.current) return;
     if (query.trim().length < 3) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- sincroniza el dropdown con el largo del texto; no dispara un fetch
       setResults([]);
@@ -75,10 +92,19 @@ export function AddressSearch({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  function emit(text: string) {
+    emitted.current = text;
+    onQueryChange?.(text);
+  }
+
   function handleSelect(result: GeocodeResult) {
     onSelect(result);
+    picked.current = result.label;
     setQuery(result.label);
     setOpen(false);
+    // El texto que se venía tipeando ("palerm") seguía filtrando por palabras sueltas aunque el cuadro ya mostrara el lugar
+    // elegido: dejaba la búsqueda en cero sin nada que se pudiera quitar. El lugar elegido lo reemplaza.
+    if (emitted.current !== "") emit("");
   }
 
   return (
@@ -86,8 +112,9 @@ export function AddressSearch({
       <Input
         value={query}
         onChange={(e) => {
+          picked.current = null;
           setQuery(e.target.value);
-          onQueryChange?.(e.target.value);
+          emit(e.target.value);
         }}
         onFocus={() => results.length > 0 && setOpen(true)}
         onKeyDown={(e) => {

@@ -40,6 +40,7 @@ export function MapFilters({
         <Search className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-text-muted" aria-hidden />
         <AddressSearch
           initialValue={value.q}
+          syncValue={value.q}
           onQueryChange={(text) => onChange({ ...value, q: text })}
           onSelect={(result) => onLocationSelect?.(result)}
           placeholder="Barrio, ciudad o dirección..."

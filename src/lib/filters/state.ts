@@ -71,7 +71,11 @@ export const DEFAULT_FILTERS: PropertyFiltersState = {
   agencyId: null,
 };
 
-/** Cuántos filtros hay activos, para el número del botón "Filtros" (no cuenta la búsqueda por texto ni la inmobiliaria: tienen su lugar). */
+/**
+ * Cuántos filtros hay activos, para el número del botón "Filtros". No cuenta la búsqueda por texto ni la inmobiliaria: la primera
+ * se ve en su propio cuadro y la segunda tiene su etiqueta aparte. La búsqueda por texto sí tiene etiqueta en la hoja de filtros
+ * (`activeChips`), para que nunca quede un filtro que restringe los resultados sin poder verlo ni quitarlo.
+ */
 export function countActiveFilters(f: PropertyFiltersState): number {
   return (
     (f.operation !== "todas" ? 1 : 0) +
@@ -97,7 +101,8 @@ export function filtersToSearchParams(filters: PropertyFiltersState): URLSearchP
   if (filters.q.trim()) p.set("q", filters.q.trim());
   if (filters.operation !== "todas") p.set("operation", filters.operation);
   if (filters.types.length > 0) p.set("type", filters.types.join(","));
-  if (filters.currency) p.set("currency", filters.currency);
+  // La moneda sólo tiene sentido acompañando a un rango de precio: sola no restringe nada (y no debe quedar viajando oculta).
+  if (filters.currency && (filters.priceMin != null || filters.priceMax != null)) p.set("currency", filters.currency);
   if (filters.priceMin != null) p.set("priceMin", String(filters.priceMin));
   if (filters.priceMax != null) p.set("priceMax", String(filters.priceMax));
   if (filters.minRooms) p.set("minRooms", String(filters.minRooms));
@@ -196,13 +201,16 @@ function priceChip(f: PropertyFiltersState): string {
 /** Los filtros activos como etiquetas removibles, en el mismo orden en que aparecen en la hoja de filtros. */
 export function activeChips(f: PropertyFiltersState): FilterChip[] {
   const chips: FilterChip[] = [];
+  const text = f.q.trim();
+  if (text) chips.push({ id: "q", label: `Texto: ${text.length > 24 ? `${text.slice(0, 23)}…` : text}`, clear: (s) => ({ ...s, q: "" }) });
   if (f.operation !== "todas") chips.push({ id: "operation", label: OPERATION_LABELS[f.operation], clear: (s) => ({ ...s, operation: "todas" }) });
   for (const t of f.types) chips.push({ id: `type:${t}`, label: PROPERTY_TYPE_LABELS[t], clear: (s) => ({ ...s, types: s.types.filter((x) => x !== t) }) });
   if (f.neighborhood || f.city) {
     chips.push({ id: "place", label: [f.neighborhood, f.city].filter(Boolean).join(", "), clear: (s) => ({ ...s, city: null, neighborhood: null }) });
   }
   if (f.priceMin != null || f.priceMax != null) {
-    chips.push({ id: "price", label: priceChip(f), clear: (s) => ({ ...s, priceMin: null, priceMax: null }) });
+    // Quitar el precio quita también la moneda: si no, quedaría una restricción que ya no se ve en ninguna etiqueta.
+    chips.push({ id: "price", label: priceChip(f), clear: (s) => ({ ...s, currency: null, priceMin: null, priceMax: null }) });
   }
   if (f.minRooms) chips.push({ id: "rooms", label: `${f.minRooms}+ ambientes`, clear: (s) => ({ ...s, minRooms: null }) });
   if (f.minBedrooms) chips.push({ id: "bedrooms", label: `${f.minBedrooms}+ dormitorios`, clear: (s) => ({ ...s, minBedrooms: null }) });
