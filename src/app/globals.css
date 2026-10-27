@@ -344,6 +344,54 @@ body {
 .maplibregl-ctrl-attrib a {
   color: var(--text-muted);
 }
+/* Tu ubicación en el mapa: el único azul del mapa (las propiedades son arena o bronce), con una flecha y un pulso suave. La flecha toma el
+   contraste del acento: clara sobre el azul oscuro del tema claro y oscura sobre el azul claro del tema oscuro. */
+.user-pin {
+  position: relative;
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+}
+.user-pin-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: color-mix(in oklab, var(--info) 34%, transparent);
+  animation: user-pin-pulse 2.6s var(--ease-out) infinite;
+}
+.user-pin-core {
+  position: relative;
+  display: grid;
+  width: 1.625rem;
+  height: 1.625rem;
+  place-items: center;
+  border-radius: 9999px;
+  background: var(--info);
+  color: var(--accent-contrast);
+  box-shadow:
+    0 0 0 3px oklch(99% 0.004 85),
+    0 3px 10px rgb(0 0 0 / 0.28);
+}
+@keyframes user-pin-pulse {
+  from {
+    transform: scale(0.55);
+    opacity: 0.9;
+  }
+  70%,
+  to {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .user-pin-pulse {
+    animation: none;
+    transform: scale(0.8);
+    opacity: 0.35;
+  }
+}
+
 /* El CSS de maplibre-gl se importa dentro del componente dinámico del mapa, así que llega DESPUÉS de este archivo y,
    con el mismo peso, pisaba estas reglas: de ahí el recuadro blanco alrededor de la tarjeta en modo oscuro. Con
    `.umbral-popup` delante gana siempre, sin depender del orden de carga. */

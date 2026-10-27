@@ -25,13 +25,23 @@ function storeDecision(v: StoredDecision) {
   }
 }
 
+/**
+ * Tu ubicación en el mapa: un círculo AZUL con una flecha de navegación y un pulso suave (ver `.user-pin` en globals.css). Las
+ * propiedades son siempre arena o bronce (el acento) y nunca llevan ese azul, así tu posición no se confunde con un aviso.
+ */
 function createUserMarkerElement(): HTMLDivElement {
   const root = document.createElement("div");
-  root.className = "relative flex h-[18px] w-[18px] items-center justify-center";
-  root.setAttribute("aria-hidden", "true");
+  root.className = "user-pin";
+  root.setAttribute("role", "img");
+  root.setAttribute("aria-label", "Tu ubicación");
+  root.title = "Tu ubicación";
   root.innerHTML = `
-    <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent/40"></span>
-    <span class="relative inline-flex h-3.5 w-3.5 rounded-full bg-accent ring-2 ring-surface"></span>
+    <span class="user-pin-pulse"></span>
+    <span class="user-pin-core">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true">
+        <polygon points="3 11 22 2 13 21 11 13 3 11" />
+      </svg>
+    </span>
   `;
   return root;
 }
