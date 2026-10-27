@@ -33,6 +33,19 @@ const mailMessageSchema = new Schema(
     reasons: { type: [String], default: [] },
     /** Hay algo que el agente no puede contestar solo (financiación, mascotas, permuta…): lo ve una persona. */
     needsHuman: { type: Boolean, default: false },
+    /** Los temas concretos para una persona ("mascotas", "financiación"…), para mostrarlos y avisar de qué duda se trata. */
+    humanTopics: { type: [{ type: String, maxlength: 80 }], default: [] },
+    /** Preguntas puntuales que la publicación no podía contestar (la respuesta dice "no figura"). */
+    missingData: { type: Number, default: 0 },
+    /** Quien escribe contestó un mail AUTOMÁTICO de la inmobiliaria: posiblemente quiere hablar con una persona. */
+    repliedToAuto: { type: Boolean, default: false },
+    /**
+     * Seguimiento de la duda: `pending` = el equipo todavía tiene que contestar algo (se avisó con una notificación y sigue a
+     * la vista hasta que se resuelva), `resolved` = ya se contestó o se marcó resuelta, `none` = nada pendiente.
+     */
+    humanState: { type: String, enum: ["none", "pending", "resolved"], default: "none" },
+    humanResolvedAt: { type: Date },
+    humanResolvedBy: { type: Schema.Types.ObjectId, ref: "User" },
     /** El servidor del remitente no pasó las verificaciones (SPF/DKIM/DMARC): nunca se responde solo. */
     authFailed: { type: Boolean, default: false },
     propertyIds: [{ type: Schema.Types.ObjectId, ref: "Property" }],
@@ -60,6 +73,7 @@ const mailMessageSchema = new Schema(
 mailMessageSchema.index({ mailboxId: 1, messageId: 1 }, { unique: true });
 mailMessageSchema.index({ agencyId: 1, status: 1, receivedAt: -1 });
 mailMessageSchema.index({ agencyId: 1, "from.email": 1, receivedAt: -1 });
+mailMessageSchema.index({ agencyId: 1, humanState: 1, receivedAt: -1 });
 mailMessageSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 export type MailMessageDoc = InferSchemaType<typeof mailMessageSchema>;

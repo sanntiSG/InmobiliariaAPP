@@ -85,6 +85,22 @@ const HUMAN: { re: RegExp; topic: string }[] = [
   { re: /\b(tasacion|tasar\w*|tasen|vender mi|vender mis|quiero vender|queremos vender|para vender|vendo mi|vendo una|publicar mi|ofrecer mi|ofrecerles mi)\b/, topic: SELLER_TOPIC },
 ];
 
+/**
+ * Temas que el agente no puede resolver solo pero que NO impiden responder ya con lo que sí sabe: la respuesta dice "sobre
+ * mascotas te lo confirmamos a la brevedad" y el equipo recibe el aviso de esa duda puntual. El resto (reclamos, negociar el
+ * precio, permutas, escritura o comisión, quien quiere vender o tasar) se retiene entero: ahí una respuesta parcial puede
+ * comprometer a la inmobiliaria o ser mal recibida.
+ */
+export const SOFT_HUMAN_TOPICS: readonly string[] = ["financiación", "mascotas", "requisitos del alquiler"];
+
+/** ¿Hay algo para una persona que obliga a retener la respuesta (no sale sola ni parcial)? */
+export function needsHardHuman(c: Pick<Classification, "needsHuman" | "humanTopics" | "uncertain">): boolean {
+  if (!c.needsHuman) return false;
+  // Una duda del propio agente, o sin un tema concreto, siempre la mira una persona antes.
+  if (c.uncertain || c.humanTopics.length === 0) return true;
+  return c.humanTopics.some((t) => !SOFT_HUMAN_TOPICS.includes(t));
+}
+
 const FEATURE_CAP = 4.5;
 const PRIORITY: MailCategory[] = ["visit", "price", "availability", "features", "general"];
 

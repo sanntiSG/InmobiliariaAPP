@@ -8,6 +8,7 @@ import { connectDB } from "@/lib/db/connect";
 import { Agency } from "@/lib/db/models/Agency";
 import { Property } from "@/lib/db/models/Property";
 import { analyzeMail, propertyUrl } from "./analyze";
+import { needsHardHuman } from "./classify";
 import { cleanBody } from "./clean";
 import { MAIL_CATEGORY_LABELS, isInquiry, type MailCategory, type MailMode } from "./constants";
 import { decideAuto } from "./decide";
@@ -78,6 +79,7 @@ export async function previewMail(
     category: cls.category,
     confidence: cls.confidence,
     needsHuman: cls.needsHuman,
+    humanHard: needsHardHuman(cls),
     authFailed: false,
     replyElsewhere: false,
     availableProperties: analysis.selection.properties.length,

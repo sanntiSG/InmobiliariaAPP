@@ -23,6 +23,14 @@ export type AutoInput = {
   category: MailCategory;
   confidence: number;
   needsHuman: boolean;
+  /**
+   * Lo que hay para una persona obliga a retener la respuesta (reclamo, negociación, permuta, duda del agente…). Si no viene,
+   * se toma `needsHuman`. Los temas "blandos" (mascotas, financiación, requisitos) no lo activan: la respuesta sale con lo
+   * que se sabe, dice que eso se confirma, y el equipo recibe el aviso (ver `needsHardHuman` en `classify.ts`).
+   */
+  humanHard?: boolean;
+  /** Quien escribe contesta un mail AUTOMÁTICO nuestro: posiblemente quiere hablar con una persona, nunca se le responde solo. */
+  repliedToAuto?: boolean;
   /** El servidor del remitente no pasó SPF/DKIM/DMARC. */
   authFailed: boolean;
   /**
@@ -44,7 +52,10 @@ export type AutoInput = {
   threadAnswered: boolean;
   /** La propiedad no se nombró en este mail: se retomó la de una conversación anterior con la misma persona. */
   inherited?: boolean;
-  /** Preguntas puntuales ("¿tiene pileta?") que la publicación no puede contestar porque el dato no está cargado. */
+  /**
+   * Preguntas puntuales ("¿tiene pileta?") que la publicación no puede contestar porque el dato no está cargado. No impide
+   * que la respuesta salga: dice "en la publicación no figura…" y el equipo recibe el aviso. Lo usa la notificación.
+   */
   unanswered?: number;
   now: Date;
 };
@@ -70,9 +81,9 @@ export function decideAuto(i: AutoInput): AutoDecision {
   if (i.settings.mode !== "auto") return hold("El agente está en modo confirmación.");
   if (!i.settings.autoCategories.includes(i.category)) return hold("Este tipo de consulta se confirma siempre.");
   if (i.confidence < AUTO_MIN_CONFIDENCE) return hold("No estoy del todo seguro de qué pregunta.");
-  if (i.needsHuman) return hold("Hay algo que tiene que contestar una persona.");
+  if (i.repliedToAuto) return hold("Contestó a un mail automático: posiblemente quiere hablar con una persona.");
+  if (i.humanHard ?? i.needsHuman) return hold("Hay algo que tiene que contestar una persona.");
   if (i.inherited) return hold("No nombró la propiedad: retomé la de su consulta anterior y conviene que revises que sea esa.");
-  if (i.unanswered && i.unanswered > 0) return hold("Preguntó algo que la publicación no tiene cargado: revisá la respuesta antes de enviarla.");
   if (i.authFailed) return hold("El remitente no pasó las verificaciones del correo (puede ser falso).");
   if (i.replyElsewhere) return hold("Pide que se responda a otra dirección distinta de la que escribió.");
   if (i.availableProperties < 1) {

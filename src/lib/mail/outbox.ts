@@ -63,7 +63,8 @@ export async function sendQueued(messageId: string): Promise<SendResult> {
       await Lead.updateOne({ _id: doc.leadId, status: "nuevo" }, { $set: { status: "contactado", lastContactAt: now }, $push: { history: { status: "contactado", at: now, by: doc.decidedBy ?? null } } });
       await Lead.updateOne({ _id: doc.leadId }, { $set: { lastContactAt: now } });
     }
-    if (doc.auto) {
+    // Si quedó una duda para una persona, el aviso de "necesita a alguien" (que ya salió al leer el mail) cubre esta respuesta.
+    if (doc.auto && doc.humanState !== "pending") {
       await createNotificationForMany(await agencyMemberIds(String(doc.agencyId)), {
         type: "mail_draft",
         title: "Se respondió una consulta automáticamente.",

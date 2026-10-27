@@ -13,7 +13,8 @@ import { getPublicSiteUrl, publicSiteUrl, siteHosts } from "../src/lib/mail/site
 import { assertSafeMailHost, HostError, isPrivateIp } from "../src/lib/mail/hosts";
 import { cleanBody, htmlToText } from "../src/lib/mail/clean";
 import { firstNameOf, prefilter, replyAddress, type MailHeaders } from "../src/lib/mail/prefilter";
-import { classifyMail } from "../src/lib/mail/classify";
+import { classifyMail, needsHardHuman, SOFT_HUMAN_TOPICS } from "../src/lib/mail/classify";
+import { attentionNotice, isClosingReason, needsAttention, quotesAutoFooter, type AttentionInput } from "../src/lib/mail/attention";
 import { extractSlugs } from "../src/lib/mail/refs";
 import { composeReply, replySubject, type ComposeInput, type ReplyProperty } from "../src/lib/mail/compose";
 import { AUTO_MIN_CONFIDENCE, argentinaClock, decideAuto, inSchedule, type AutoInput } from "../src/lib/mail/decide";
@@ -628,7 +629,7 @@ async function hosts() {
   };
   check("automático: una pregunta que figura en la publicación sale sola", decideAuto({ ...autoBase, unanswered: 0 }).auto);
   const missing = decideAuto({ ...autoBase, unanswered: 1 });
-  check("automático: si el dato no está cargado, queda para confirmar (con el motivo)", !missing.auto && /no tiene cargado/.test(missing.why), missing);
+  check("automático: si el dato no está cargado igual sale sola (dice 'no figura' y el equipo recibe el aviso)", missing.auto, missing);
   const inherited = decideAuto({ ...autoBase, inherited: true });
   check("automático: una propiedad retomada de antes nunca sale sola", !inherited.auto && /retomé la de su consulta anterior/.test(inherited.why), inherited);
 }
@@ -726,6 +727,58 @@ async function hosts() {
   check("hora: se lee en Argentina", argentinaClock(noon) === "12:00" && argentinaClock(night) === "23:00", [argentinaClock(noon), argentinaClock(night)]);
   check("hora: horarios mal escritos nunca habilitan", !inSchedule(noon, "9", "20") && !inSchedule(noon, "09:00", "xx"));
   check("auto: dice por qué se confirma", /confirmaci/i.test(decideAuto({ ...ok, settings: { ...ok.settings, mode: "confirm" } }).why) && /una persona/i.test(decideAuto({ ...ok, needsHuman: true }).why));
+}
+
+// ── Un cliente nunca queda sin seguimiento: dudas para una persona y respuestas a mails automáticos ──────
+{
+  // El mail del informe: pregunta por casas que acepten mascotas.
+  const pets = classifyMail({ subject: "", text: "Hola queria preguntarte por casas en venta que acepten mascotas,\n\nGracias", hasPropertyRef: false });
+  check("atención: 'acepten mascotas' es una duda para una persona (tema mascotas)", pets.needsHuman && pets.humanTopics.includes("mascotas"), pets);
+  check("atención: mascotas es un tema blando: no retiene la respuesta", !needsHardHuman(pets), pets);
+  check("atención: financiación y requisitos también son blandos", SOFT_HUMAN_TOPICS.includes("financiación") && SOFT_HUMAN_TOPICS.includes("requisitos del alquiler"));
+  const hard = (text: string) => needsHardHuman(classifyMail({ subject: "Consulta por una casa", text, hasPropertyRef: true }));
+  check("atención: un reclamo, una permuta, negociar el precio o escriturar retienen la respuesta", hard("Quiero hacer un reclamo por la casa") && hard("¿Aceptan permuta por mi auto?") && hard("¿Es negociable el precio de la casa?") && hard("¿Cuándo se escritura la casa?"));
+  check("atención: quien quiere vender también se retiene", hard("Hola, quiero vender mi casa, ¿me la pueden tasar?"));
+  check("atención: sin ningún tema para una persona no hay nada que retener", !needsHardHuman({ needsHuman: false, humanTopics: [], uncertain: false }));
+  check("atención: una duda del propio agente siempre la mira una persona", needsHardHuman({ needsHuman: true, humanTopics: [], uncertain: true }) && needsHardHuman({ needsHuman: true, humanTopics: ["mascotas"], uncertain: true }));
+
+  // La decisión: lo blando sale con lo que se sabe; lo duro y la respuesta a un mail automático, no.
+  const base: AutoInput = {
+    settings: { mode: "auto", autoCategories: ["availability", "price", "features", "general"], autoPerDay: 20, autoPerSender: 3, autoSearches: true, schedule: { enabled: false, from: "09:00", to: "20:00" } },
+    category: "general",
+    confidence: 0.9,
+    needsHuman: true,
+    humanHard: false,
+    authFailed: false,
+    replyElsewhere: false,
+    availableProperties: 0,
+    searchMatches: 1,
+    searchStrength: 3,
+    sentToday: 0,
+    repliesToSender: 0,
+    threadAnswered: false,
+    now: new Date("2026-10-25T15:00:00Z"),
+  };
+  check("atención: una duda blanda (mascotas) sale sola con lo que se sabe", decideAuto(base).auto, decideAuto(base));
+  check("atención: una duda dura retiene la respuesta", !decideAuto({ ...base, humanHard: true }).auto && /una persona/i.test(decideAuto({ ...base, humanHard: true }).why));
+  const toAuto = decideAuto({ ...base, needsHuman: false, repliedToAuto: true });
+  check("atención: quien contesta un mail automático nunca recibe otra respuesta sola, y el motivo lo dice", !toAuto.auto && /mail automático/.test(toAuto.why) && /persona/.test(toAuto.why), toAuto);
+  check("atención: sin 'humanHard' se sigue tomando 'needsHuman' (compatibilidad)", !decideAuto({ ...base, humanHard: undefined }).auto);
+
+  // Qué se detecta en el hilo.
+  check("atención: el pie de una respuesta automática citado en el mail se reconoce", quotesAutoFooter("Gracias!\n\n> --\n> Esta respuesta fue preparada por un asistente automático de Inmobiliaria SS. Si necesitás hablar con una persona, respondé este mail.") && !quotesAutoFooter("Hola, quiero ver la casa."));
+  check("atención: un agradecimiento no cuenta como algo para una persona", isClosingReason(["es un agradecimiento o un cierre, no una consulta nueva"]) && !isClosingReason(["no nombra una propiedad ni pide nada del rubro inmobiliario"]));
+
+  // El texto del aviso.
+  const mk = (patch: Partial<AttentionInput> = {}): AttentionInput => ({ repliedToAuto: false, uncertain: false, humanTopics: [], missing: 0, autoSent: false, awaiting: false, who: "Santi", subject: "Casas en venta", ...patch });
+  check("aviso: sin nada pendiente no hay aviso", attentionNotice(mk()) === null && !needsAttention(mk()));
+  const noticePets = attentionNotice(mk({ humanTopics: ["mascotas"], autoSent: true }))!;
+  check("aviso: la duda de mascotas dice de qué se trata y que ya se respondió lo demás", /mascotas/.test(noticePets.body) && /Ya se le respondió/.test(noticePets.body) && /Santi: Casas en venta/.test(noticePets.body) && /duda/.test(noticePets.title), noticePets);
+  const noticeAuto = attentionNotice(mk({ repliedToAuto: true, awaiting: true }))!;
+  check("aviso: responder un mail automático lo aclara (posiblemente quiere hablar con una persona)", /respondió a un correo automático/.test(noticeAuto.title) && /hablar con una persona/.test(noticeAuto.body) && /para confirmar/.test(noticeAuto.body), noticeAuto);
+  check("aviso: un dato que la publicación no tiene se avisa", /no tiene/.test(attentionNotice(mk({ missing: 2 }))!.title) && /Confirmá el dato/.test(attentionNotice(mk({ missing: 2 }))!.body));
+  check("aviso: lo que el agente no entendió se avisa", /No supe bien/.test(attentionNotice(mk({ uncertain: true }))!.title));
+  check("aviso: el texto es corto y no copia el mail", attentionNotice(mk({ humanTopics: ["mascotas", "financiación"], missing: 1, subject: "x".repeat(500), awaiting: true }))!.body.length <= 200);
 }
 
 hosts().then(() => {

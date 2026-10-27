@@ -16,6 +16,8 @@ import { createNotification, createNotificationForMany } from "@/lib/notificatio
 import { agencyMemberIds } from "@/lib/notifications/agency-members";
 import { dayStart } from "@/lib/tracking/record";
 import { analyzeMail } from "./analyze";
+import { attentionNotice, isClosingReason, needsAttention, quotesAutoFooter, REPLIED_TO_AUTO_REASON } from "./attention";
+import { needsHardHuman } from "./classify";
 import { cleanBody } from "./clean";
 import { openCreds } from "./creds";
 import { MAIL_LIMITS, isInquiry, type MailCategory } from "./constants";
@@ -147,14 +149,23 @@ export async function processMail(ctx: PipelineCtx, mail: FetchedMail, counts: C
   const pre = prefilter(mail.headers, { ownEmail: ctx.ownEmail, blocked: ctx.settings.blockedSenders });
   if (pre.skip) return void (await ignore(pre.category, [pre.reason]));
 
-  const { selection, classification: cls, compose, unanswered } = await analyzeMail(ctx, {
+  // ¿Quien escribe contesta un mail AUTOMÁTICO nuestro? Entonces posiblemente quiere hablar con una persona.
+  const repliedToAuto = await isReplyToAuto(ctx, mail);
+  const analyzeInput = {
     subject: mail.subject,
     text,
     fromName: mail.from.name || null,
     seed: mail.messageId,
     portal: pre.portal,
     threadPropertyIds: await threadProperties(ctx, mail, text),
-  });
+  };
+  let analysis = await analyzeMail(ctx, analyzeInput);
+  // Una persona que contesta nuestro mail automático nunca se ignora en silencio ("quiero hablar con alguien" no suena a consulta):
+  // sólo un agradecimiento o un cierre se deja pasar. Lo demás queda para que lo vea el equipo.
+  if (repliedToAuto && !isInquiry(analysis.classification.category) && analysis.classification.category === "other" && !isClosingReason(analysis.classification.reasons)) {
+    analysis = await analyzeMail(ctx, analyzeInput, { forceInquiry: true });
+  }
+  const { selection, classification: cls, compose, unanswered } = analysis;
   // Lo que se descartó por el TEXTO (no por los encabezados de lista o de rebote, que ya se filtraron arriba) lo escribió una
   // persona o lo parece: se guarda 14 días para poder marcarlo "Era una consulta". Antes sólo se guardaba el de "otra cosa", y
   // una consulta real tomada por promoción o basura no se podía rescatar. Las respuestas automáticas y los rebotes, nunca.
@@ -177,6 +188,8 @@ export async function processMail(ctx: PipelineCtx, mail: FetchedMail, counts: C
     category: cls.category,
     confidence: cls.confidence,
     needsHuman: cls.needsHuman,
+    humanHard: needsHardHuman(cls),
+    repliedToAuto,
     // Sin la marca "pass" del servidor de origen no se responde sola: puede ser un remitente falso.
     authFailed: mail.auth !== "pass",
     // Los portales mandan desde una casilla "no-reply" con el mail del cliente en Reply-To: es lo esperado. En otro caso, no.
@@ -195,9 +208,12 @@ export async function processMail(ctx: PipelineCtx, mail: FetchedMail, counts: C
 
   const draft = compose(decision.auto);
   const reasons = [...cls.reasons];
-  if (cls.needsHuman) reasons.push(`Una persona tiene que revisar: ${cls.humanTopics.join(", ")}.`);
+  if (repliedToAuto) reasons.push(REPLIED_TO_AUTO_REASON);
+  if (cls.needsHuman && cls.humanTopics.length > 0) reasons.push(`Una persona tiene que revisar: ${cls.humanTopics.join(", ")}.`);
+  if (unanswered > 0) reasons.push("Preguntó algo que la publicación no tiene cargado: la respuesta lo dice y queda para que lo confirme una persona.");
   if (ctx.settings.mode === "auto" && !decision.auto) reasons.push(`No salió sola: ${decision.why}`);
 
+  const pending = needsAttention({ repliedToAuto, uncertain: cls.uncertain, humanTopics: cls.humanTopics, missing: unanswered });
   let created;
   try {
     created = await MailMessage.create({
@@ -206,7 +222,11 @@ export async function processMail(ctx: PipelineCtx, mail: FetchedMail, counts: C
       category: cls.category,
       confidence: cls.confidence,
       reasons,
-      needsHuman: cls.needsHuman,
+      needsHuman: cls.needsHuman || repliedToAuto,
+      humanTopics: cls.humanTopics.slice(0, 8),
+      missingData: unanswered,
+      repliedToAuto,
+      humanState: pending ? "pending" : "none",
       propertyIds: selection.properties.map((p) => new Types.ObjectId(p.id)),
       status: decision.auto ? "queued" : "awaiting_confirmation",
       auto: decision.auto,
@@ -224,18 +244,50 @@ export async function processMail(ctx: PipelineCtx, mail: FetchedMail, counts: C
     if (leadId) await MailMessage.updateOne({ _id: created._id }, { $set: { leadId } });
   }
 
-  if (decision.auto) {
-    counts.queued++;
-    return;
-  }
-  counts.drafts++;
-  await createNotificationForMany(await agencyMemberIds(ctx.agencyId), {
-    type: "mail_draft",
-    title: "Hay una respuesta para confirmar.",
-    body: `${mail.from.name || mail.from.email}: ${mail.subject}`.slice(0, 200),
-    href: `/dashboard/agentes/correo?m=${created._id}`,
-    dedupeKey: `mail:${created._id}`,
+  if (decision.auto) counts.queued++;
+  else counts.drafts++;
+
+  // Si quedó algo para una persona (una duda, un dato que falta, la respuesta a un mail automático), un solo aviso lo dice y abre
+  // justo esa conversación; si no, sólo se avisa cuando hay un borrador para confirmar.
+  const href = `/dashboard/agentes/correo?m=${created._id}`;
+  const notice = attentionNotice({
+    repliedToAuto,
+    uncertain: cls.uncertain,
+    humanTopics: cls.humanTopics,
+    missing: unanswered,
+    autoSent: decision.auto,
+    awaiting: !decision.auto,
+    who: mail.from.name || mail.from.email,
+    subject: mail.subject,
   });
+  if (notice) {
+    await createNotificationForMany(await agencyMemberIds(ctx.agencyId), { type: "mail_attention", ...notice, href, dedupeKey: `mail-human:${created._id}` });
+  } else if (!decision.auto) {
+    await createNotificationForMany(await agencyMemberIds(ctx.agencyId), {
+      type: "mail_draft",
+      title: "Hay una respuesta para confirmar.",
+      body: `${mail.from.name || mail.from.email}: ${mail.subject}`.slice(0, 200),
+      href,
+      dedupeKey: `mail:${created._id}`,
+    });
+  }
+}
+
+/**
+ * ¿Este mail contesta una respuesta AUTOMÁTICA de la inmobiliaria? Se mira el hilo (`In-Reply-To` y `References` contra un mail
+ * al que se respondió solo) y, si el cliente de correo no los manda, el pie de "asistente automático" citado en el texto.
+ */
+async function isReplyToAuto(ctx: PipelineCtx, mail: FetchedMail): Promise<boolean> {
+  try {
+    const refs = [mail.inReplyTo, ...mail.references].filter((x): x is string => !!x).map((r) => r.slice(0, 400)).slice(0, 40);
+    if (refs.length > 0) {
+      const hit = await MailMessage.exists({ mailboxId: ctx.mailboxId, messageId: { $in: refs }, auto: true, status: { $in: ["queued", "sending", "sent"] } });
+      if (hit) return true;
+    }
+  } catch (err) {
+    console.error("mail isReplyToAuto failed:", (err as Error)?.message);
+  }
+  return quotesAutoFooter(mail.text);
 }
 
 /** Revisa un buzón. Nunca lanza: devuelve qué pasó. */
