@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils/cn";
@@ -25,7 +26,18 @@ export function MailSettingsForm({ agencyId, initial, onSaved }: { agencyId: str
   const [blocked, setBlocked] = useState(initial.blockedSenders.join("\n"));
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<null | { ok: boolean; text: string }>(null);
-  const set = <K extends keyof MailSettingsView>(key: K, value: MailSettingsView[K]) => {
+  /** El HTML de la firma de ejemplo (viene del servidor), "error" si no se pudo armar, o null mientras carga. */
+  const [preview, setPreview] = useState<string | "error" | null>(null);
+  useEffect(() => {
+    let alive = true;
+    mailApi<{ html: string | null }>("/signature", agencyId)
+      .then((r) => alive && setPreview(r.html ?? "error"))
+      .catch(() => alive && setPreview("error"));
+    return () => {
+      alive = false;
+    };
+  }, [agencyId]);
+  const set =<K extends keyof MailSettingsView>(key: K, value: MailSettingsView[K]) => {
     setStatus(null);
     setS((prev) => ({ ...prev, [key]: value }));
   };
@@ -97,7 +109,7 @@ export function MailSettingsForm({ agencyId, initial, onSaved }: { agencyId: str
                 <li>Es una consulta clara de uno de los tipos de abajo.</li>
                 <li>Nombra una de tus propiedades{s.autoSearches ? ", o pide algo que tenés publicado (por ejemplo “casas en venta en Ezeiza”)" : ""}.</li>
                 <li>Quien escribe pasó las verificaciones del correo (así sé que no es un remitente falso).</li>
-                <li>No hay nada que tenga que contestar una persona (financiación, garantía, permuta, un reclamo…).</li>
+                <li>No hay nada delicado para una persona (un reclamo, negociar el precio, una permuta, escritura…). Si pregunta algo que sólo una persona sabe, como mascotas o financiación, respondo lo que sé, le digo que eso se confirma y te aviso la duda.</li>
                 <li>Está dentro del horario y de los máximos por día y por persona.</li>
               </ul>
               <p className="mt-1.5">Si algo de esto no se cumple, la respuesta queda en “Para confirmar” y te digo por qué no salió sola. Se revisa la casilla cada 5 minutos, o al tocar “Revisar ahora”.</p>
@@ -201,6 +213,36 @@ export function MailSettingsForm({ agencyId, initial, onSaved }: { agencyId: str
               ))}
             </select>
           </label>
+        </div>
+      </section>
+
+      <section className={box} aria-labelledby="mail-banner">
+        <h2 id="mail-banner" className="font-display text-lg font-bold text-text">
+          Firma con los datos de tu inmobiliaria
+        </h2>
+        <p className="mt-1 text-sm text-text-muted">
+          Debajo de cada respuesta aparece un banner con tu logo, dirección, teléfono, WhatsApp, sitio web y redes, en el color de tu inmobiliaria. Se arma con lo que cargaste en{" "}
+          <Link href={`/dashboard/inmobiliaria${agencyId ? `?agencyId=${agencyId}` : ""}`} className="font-medium text-accent underline-offset-2 hover:underline">
+            Mi inmobiliaria
+          </Link>
+          .
+        </p>
+        <label className="mt-3 flex items-start gap-2.5 text-sm text-text">
+          <input type="checkbox" checked={s.banner} onChange={(e) => set("banner", e.target.checked)} className="mt-0.5 size-4 accent-[var(--accent)]" />
+          <span>Agregar la firma con los datos de la inmobiliaria a mis respuestas.</span>
+        </label>
+        <div className={cn("mt-4 transition-opacity duration-200", !s.banner && "opacity-50")}>
+          <p className="mb-1.5 text-xs font-medium text-text-muted">Así se ve en el mail de quien consulta</p>
+          {preview === null ? (
+            <p className="rounded-media bg-surface-2 px-4 py-8 text-center text-sm text-text-muted" role="status">
+              Armando la vista previa…
+            </p>
+          ) : preview === "error" ? (
+            <p className="rounded-media bg-surface-2 px-4 py-6 text-sm text-text-muted">No pude armar la vista previa, pero la firma se va a enviar igual con tus datos.</p>
+          ) : (
+            // Sin scripts ni enlaces activos: el HTML lo arma el servidor con todo escapado y aun así se aísla.
+            <iframe title="Vista previa de la firma" sandbox="" srcDoc={preview} className="h-[31rem] w-full rounded-media border border-border bg-white" />
+          )}
         </div>
       </section>
 

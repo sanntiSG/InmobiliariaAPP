@@ -267,6 +267,8 @@ export type OutgoingReply = {
   fromName: string;
   subject: string;
   text: string;
+  /** La misma respuesta con la firma en HTML (ver `signature.ts`). Si no viene, sale sólo el texto. */
+  html?: string | null;
   inReplyTo: string | null;
   references: string[];
   /** Salió sin que una persona la revisara: se marca como respuesta automática (así otros sistemas no le contestan en bucle). */
@@ -287,6 +289,7 @@ export async function sendReply(creds: MailCreds, mail: OutgoingReply): Promise<
       envelope: { from: creds.email, to: [mail.to] },
       subject: clean(mail.subject).slice(0, 200),
       text: mail.text,
+      ...(mail.html ? { html: mail.html } : {}),
       ...(mail.inReplyTo ? { inReplyTo: clean(mail.inReplyTo) } : {}),
       ...(mail.references.length > 0 ? { references: mail.references.map(clean).slice(-10) } : {}),
       ...(mail.auto ? { headers: { "Auto-Submitted": "auto-replied", "X-Auto-Response-Suppress": "All" } } : {}),

@@ -40,6 +40,10 @@ export async function PATCH(req: Request) {
       "address.city": data.city,
       "address.province": data.province ?? "",
     };
+    // `socialField` ya dejó cada red vacía o como dirección canónica (hosts fijos); si no vino, no se toca.
+    if (data.instagram !== undefined) update["contact.instagram"] = data.instagram;
+    if (data.facebook !== undefined) update["contact.facebook"] = data.facebook;
+    if (data.tiktok !== undefined) update["contact.tiktok"] = data.tiktok;
     if (data.logo !== undefined) update.logo = data.logo || null;
     if (data.cover !== undefined) update.cover = data.cover || null;
 

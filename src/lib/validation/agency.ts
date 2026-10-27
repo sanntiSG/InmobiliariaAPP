@@ -1,4 +1,21 @@
 import { z } from "zod";
+import { parseSocial, type SocialNetwork } from "./social";
+
+/**
+ * Una red social opcional: acepta usuario o enlace y guarda la dirección canónica (ver `parseSocial`). Si el campo no viene
+ * (una pantalla vieja), queda `undefined` y no se toca lo que ya estaba guardado.
+ */
+const socialField = (network: SocialNetwork) =>
+  z
+    .string()
+    .max(200)
+    .transform((value, ctx) => {
+      const r = parseSocial(network, value);
+      if (r.ok) return r.url;
+      ctx.addIssue({ code: "custom", message: r.error });
+      return z.NEVER;
+    })
+    .optional();
 
 export const AGENCY_STATUSES = ["active", "suspended", "pending"] as const;
 export const AGENCY_STATUS_LABELS: Record<(typeof AGENCY_STATUSES)[number], string> = {
@@ -74,6 +91,9 @@ export const agencyProfileSchema = z.object({
     .max(200)
     .optional()
     .or(z.literal("")),
+  instagram: socialField("instagram"),
+  facebook: socialField("facebook"),
+  tiktok: socialField("tiktok"),
   city: z.string().trim().min(2).max(80),
   province: z.string().trim().max(80).optional().or(z.literal("")),
   logo: ownedImageUrl.optional(),

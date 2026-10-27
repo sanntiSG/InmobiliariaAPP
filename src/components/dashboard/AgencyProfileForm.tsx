@@ -14,6 +14,9 @@ export type AgencyProfileValues = {
   phone: string;
   email: string;
   website: string;
+  instagram: string;
+  facebook: string;
+  tiktok: string;
   city: string;
   province: string;
   logo: string;
@@ -146,6 +149,18 @@ export function AgencyProfileForm({
             onChange={(e) => set("website", e.target.value)}
             error={errors.website}
           />
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
+        <div>
+          <h2 className="font-display text-lg font-semibold text-text">Redes sociales</h2>
+          <p className="mt-1 text-sm text-text-muted">Opcionales. Se ven en tu perfil público y en la firma de los mails que responde el agente de correo. Podés poner el usuario o pegar el enlace.</p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <FormField label="Instagram" placeholder="@tu_inmobiliaria" value={values.instagram} onChange={(e) => set("instagram", e.target.value)} error={errors.instagram} autoComplete="off" />
+          <FormField label="Facebook" placeholder="tu.pagina o enlace" value={values.facebook} onChange={(e) => set("facebook", e.target.value)} error={errors.facebook} autoComplete="off" />
+          <FormField label="TikTok" placeholder="@tu_inmobiliaria" value={values.tiktok} onChange={(e) => set("tiktok", e.target.value)} error={errors.tiktok} autoComplete="off" />
         </div>
       </section>
 

@@ -17,6 +17,8 @@ const mailSettingsSchema = new Schema(
     closing: { type: String, default: "", maxlength: 160, trim: true },
     /** Avisar en las respuestas automáticas que las preparó un asistente. */
     disclose: { type: Boolean, default: true },
+    /** Firma corporativa en HTML debajo de cada respuesta (logo, dirección, contacto y redes, ver `lib/mail/signature.ts`). */
+    banner: { type: Boolean, default: true },
     /** Cuántas propiedades como máximo incluye una respuesta. */
     maxProperties: { type: Number, default: 3, min: MAIL_LIMITS.maxPropertiesMin, max: MAIL_LIMITS.maxPropertiesMax },
     /** Categorías que se pueden responder sin confirmar (sólo en modo automático). */

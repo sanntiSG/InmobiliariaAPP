@@ -18,6 +18,7 @@ import { sendEnabled } from "./access";
 import { replySubject } from "./compose";
 import type { MailMessageStatus } from "./constants";
 import { openCreds } from "./creds";
+import { composeOutgoing } from "./outgoing";
 import { explain, sendReply } from "./transport";
 
 const STUCK_SENDING_MS = 10 * 60_000;
@@ -47,11 +48,13 @@ export async function sendQueued(messageId: string): Promise<SendResult> {
     if (!mailbox || mailbox.status === "paused") return await fail("El buzón ya no está conectado.");
     const creds = openCreds(mailbox);
     const to = doc.replyTo || doc.from?.email || "";
+    const out = await composeOutgoing(String(doc.agencyId), doc.draft?.body ?? "");
     await sendReply(creds, {
       to,
       fromName: agency?.name ?? "Inmobiliaria",
       subject: doc.draft?.subject ?? `Re: ${doc.subject}`,
-      text: doc.draft?.body ?? "",
+      text: out.text,
+      html: out.html,
       inReplyTo: doc.messageId.startsWith("uid:") ? null : doc.messageId,
       references: [...(doc.references ?? []), ...(doc.messageId.startsWith("uid:") ? [] : [doc.messageId])],
       auto: !!doc.auto,
@@ -110,11 +113,13 @@ export async function sendFollowUp(messageId: string, followUpId: string): Promi
     ]);
     if (!mailbox || mailbox.status === "paused") return await fail("El buzón ya no está conectado.");
     const real = !claimed.messageId.startsWith("uid:");
+    const out = await composeOutgoing(String(claimed.agencyId), followUp.body);
     await sendReply(openCreds(mailbox), {
       to: claimed.replyTo || claimed.from?.email || "",
       fromName: agency?.name ?? "Inmobiliaria",
       subject: replySubject(claimed.subject),
-      text: followUp.body,
+      text: out.text,
+      html: out.html,
       inReplyTo: real ? claimed.messageId : null,
       references: [...(claimed.references ?? []), ...(real ? [claimed.messageId] : [])],
       auto: false,

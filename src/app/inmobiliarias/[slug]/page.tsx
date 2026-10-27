@@ -2,7 +2,7 @@ import { cache } from "react";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { Globe, Mail, MapPin, MessageCircle, Phone } from "lucide-react";
+import { AtSign, Globe, Mail, MapPin, MessageCircle, Phone } from "lucide-react";
 import { auth } from "@/auth";
 import { connectDB } from "@/lib/db/connect";
 import { Agency } from "@/lib/db/models/Agency";
@@ -18,6 +18,7 @@ import { ShareAgencyButton } from "@/components/agency/ShareAgencyButton";
 import { buttonClasses } from "@/components/ui/Button";
 import { buildWhatsappLink } from "@/config/site";
 import { brand } from "@/config/brand";
+import { socialLinks } from "@/lib/validation/social";
 
 /** Sólo inmobiliarias activas tienen perfil público (suspendidas o pendientes se comportan como inexistentes). */
 const getAgency = cache(async (slug: string) => {
@@ -133,6 +134,11 @@ export default async function AgencyProfilePage({ params }: PageProps<"/inmobili
                 <Globe className="h-4 w-4" aria-hidden /> Sitio web
               </a>
             )}
+            {socialLinks(agency.contact).map((s) => (
+              <a key={s.network} href={s.url} target="_blank" rel="noopener noreferrer nofollow" className={buttonClasses("secondary", "sm")}>
+                <AtSign className="h-4 w-4" aria-hidden /> {s.label}
+              </a>
+            ))}
             <ShareAgencyButton name={agency.name} slug={agency.slug} logo={agency.logo} cover={agency.cover} place={place} />
             {/* <a> y no <Link>: el mapa lee el filtro de la URL en una carga completa. */}
             {properties.length > 0 && (

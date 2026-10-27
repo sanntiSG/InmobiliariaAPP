@@ -16,6 +16,8 @@ import { firstNameOf, prefilter, replyAddress, type MailHeaders } from "../src/l
 import { classifyMail, needsHardHuman, SOFT_HUMAN_TOPICS } from "../src/lib/mail/classify";
 import { attentionNotice, isClosingReason, needsAttention, quotesAutoFooter, type AttentionInput } from "../src/lib/mail/attention";
 import { cleanFollowUp, followUpStarter, FOLLOWUP_LIMITS } from "../src/lib/mail/followup";
+import { parseSocial, socialLinks, type SocialNetwork } from "../src/lib/validation/social";
+import { FALLBACK_ACCENT, buildOutgoing, mailLogoUrl, readableOn, safeHex, signatureHtml, signatureText, textToHtml, type SignatureAgency } from "../src/lib/mail/signature";
 import { extractSlugs } from "../src/lib/mail/refs";
 import { composeReply, replySubject, type ComposeInput, type ReplyProperty } from "../src/lib/mail/compose";
 import { AUTO_MIN_CONFIDENCE, argentinaClock, decideAuto, inSchedule, type AutoInput } from "../src/lib/mail/decide";
@@ -789,6 +791,54 @@ async function hosts() {
   check("seguimiento: sin nombre ni tema no inventa nada", /^Hola,\n/.test(bare) && !/undefined|null|Sobre/.test(bare), bare);
   check("seguimiento: se limpian los caracteres de control y los saltos de línea", cleanFollowUp("Hola\r\n\u0000mundo\u0007\r\n") === "Hola\n" + "mundo" && cleanFollowUp("  hola  ") === "hola");
   check("seguimiento: tope de respuestas y de largo", FOLLOWUP_LIMITS.max === 10 && FOLLOWUP_LIMITS.maxChars === 6000 && FOLLOWUP_LIMITS.minChars >= 1);
+}
+
+// ── Redes sociales y firma corporativa de los mails ──────────────────────────
+{
+  const ok = (n: SocialNetwork, raw: string) => {
+    const r = parseSocial(n, raw);
+    return r.ok ? r.url : `ERROR:${r.error}`;
+  };
+  check("redes: un usuario se vuelve la dirección canónica", ok("instagram", "@casa_ss") === "https://www.instagram.com/casa_ss" && ok("tiktok", "casa.ss") === "https://www.tiktok.com/@casa.ss" && ok("facebook", "inmobiliaria.ss") === "https://www.facebook.com/inmobiliaria.ss");
+  check("redes: un enlace se normaliza (sin parámetros, sin barra final, con https)", ok("instagram", "instagram.com/casa_ss/?utm_source=x#top") === "https://www.instagram.com/casa_ss" && ok("facebook", "http://m.facebook.com/mi.pagina/") === "https://www.facebook.com/mi.pagina");
+  check("redes: el perfil de Facebook sin nombre conserva sólo su número", ok("facebook", "https://www.facebook.com/profile.php?id=1000123456789&ref=x") === "https://www.facebook.com/profile.php?id=1000123456789" && ok("facebook", "https://facebook.com/profile.php?id=abc").startsWith("ERROR"));
+  check("redes: vacío es válido (es opcional)", ok("instagram", "") === "" && ok("tiktok", "   ") === "");
+  check("redes: normalizar dos veces da lo mismo", ["@casa_ss", "instagram.com/casa_ss/", "https://www.instagram.com/casa_ss"].every((v) => ok("instagram", ok("instagram", v)) === ok("instagram", v)));
+  check("redes: un dominio ajeno nunca pasa (ni disfrazado)", ["https://evil.com/casa", "https://instagram.com.evil.com/casa", "https://evil.com/instagram.com/casa", "https://user:pass@instagram.com/casa", "https://instagram.com:8080/casa"].every((v) => ok("instagram", v).startsWith("ERROR")));
+  check("redes: esquemas raros y basura se rechazan", ["javascript:alert(1)", "data:text/html,hola", "ftp://instagram.com/x", "@", "a b", "https://www.instagram.com", "instagram.com"].every((v) => ok("instagram", v).startsWith("ERROR")), ["javascript:alert(1)", "https://www.instagram.com", "instagram.com"].map((v) => ok("instagram", v)));
+  check("redes: un enlace de otra red no vale para esta", ok("tiktok", "https://www.instagram.com/casa") === "ERROR:Ese enlace no es de TikTok.");
+  check("redes: sólo se listan las cargadas", socialLinks({ instagram: "@casa_ss", facebook: "", tiktok: "https://evil.com/x" }).map((s) => s.label).join() === "Instagram");
+
+  const agency: SignatureAgency = {
+    name: "Inmobiliaria SS",
+    slug: "inmobiliaria-ss",
+    logo: "https://res.cloudinary.com/demo/image/upload/v1/umbral/agencies/abc/logo.jpg",
+    accentColor: "#2b7fff",
+    contact: { phone: "011 4444-5555", whatsapp: "+54 9 11 3779-6683", email: "contacto@ss.com", website: "https://www.ss.com.ar/", instagram: "@ss_inmo", facebook: "ss.inmo", tiktok: "@ss_inmo" },
+    address: { street: "Av. Siempre Viva 742", city: "Ezeiza", province: "Buenos Aires" },
+  };
+  const html = signatureHtml(agency, "https://recorrr.example");
+  check("firma: trae nombre, dirección, contacto, redes y el enlace al perfil", ["Inmobiliaria SS", "Av. Siempre Viva 742, Ezeiza, Buenos Aires", "tel:01144445555", "https://wa.me/5491137796683", "mailto:contacto@ss.com", "https://www.ss.com.ar/", "https://www.instagram.com/ss_inmo", "https://www.facebook.com/ss.inmo", "https://www.tiktok.com/@ss_inmo", "https://recorrr.example/inmobiliarias/inmobiliaria-ss"].every((x) => html.includes(x)), html.length);
+  check("firma: usa el color de la inmobiliaria y el logo reducido a PNG", html.includes("#2b7fff") && html.includes("/upload/w_120,h_120,c_fill,f_png/v1/umbral/agencies/abc/logo.jpg"));
+  check("firma: es liviana (una sola imagen, sin scripts ni estilos externos)", (html.match(/<img /g) ?? []).length === 1 && !/<script|<link|<style|@import|javascript:/i.test(html) && html.length < 6000, html.length);
+  const evil = signatureHtml({ name: `<script>alert(1)</script> "&"`, slug: "x", accentColor: "red; background:url(https://evil.com)", logo: "https://evil.com/logo.png", contact: { email: "a@b.co", website: "javascript:alert(1)", phone: "123", whatsapp: "x", instagram: "https://evil.com/x" }, address: { city: "<b>Ezeiza</b>" } }, null);
+  check("firma: nada de lo cargado puede inyectar HTML, estilos ni esquemas raros", !/<script|<b>|javascript:|evil\.com|url\(/i.test(evil) && evil.includes("&lt;script&gt;") && evil.includes(FALLBACK_ACCENT), evil);
+  check("firma: sin logo propio se dibuja la inicial con el color", /<div style="width:56px;[^"]*">I<\/div>/.test(signatureHtml({ ...agency, logo: null }, null)) && !signatureHtml({ ...agency, logo: null }, null).includes("<img"));
+  check("firma: el logo sólo sale de nuestro almacenamiento", mailLogoUrl("https://evil.com/logo.png", "https://x.com") === null && mailLogoUrl("/uploads/a.png", "https://x.com") === "https://x.com/uploads/a.png" && mailLogoUrl("/uploads/a.png", null) === null);
+  check("firma: el color del texto sobre el botón siempre se lee", readableOn("#ffffff") === "#111111" && readableOn("#d4c5a9") === "#111111" && readableOn("#78582e") === "#ffffff" && readableOn("#0e0f11") === "#ffffff");
+  check("firma: un color inválido cae en el de la plataforma", safeHex("azul") === FALLBACK_ACCENT && safeHex("#ABCDEF") === "#abcdef" && safeHex(null) === FALLBACK_ACCENT);
+  const txt = signatureText(agency, "https://recorrr.example");
+  check("firma: la versión de texto lleva lo mismo", /^--\nInmobiliaria SS\nAv\. Siempre Viva 742, Ezeiza, Buenos Aires\nTel: 011 4444-5555 · WhatsApp: \+54 9 11 3779-6683 · Email: contacto@ss\.com · Web: www\.ss\.com\.ar/.test(txt) && txt.includes("Instagram: https://www.instagram.com/ss_inmo") && txt.endsWith("Más propiedades: https://recorrr.example/inmobiliarias/inmobiliaria-ss"), txt);
+
+  const footer = "--\nEsta respuesta fue preparada por un asistente automático de Inmobiliaria SS. Si necesitás hablar con una persona, respondé este mail.";
+  const body = `Hola Santi,\n\nSí, la casa sigue disponible: https://recorrr.example/propiedades/casa-1.\n\nEquipo de Inmobiliaria SS\n\n${footer}`;
+  const out = buildOutgoing(body, agency, "https://recorrr.example", { banner: true });
+  check("mail: con firma sale texto y HTML", !!out.html && out.text.includes("Inmobiliaria SS") && out.text.startsWith("Hola Santi,"), out.text);
+  check("mail: el aviso de respuesta automática queda DEBAJO de la firma (texto y HTML)", out.text.endsWith(footer) && out.text.indexOf("Av. Siempre Viva") < out.text.indexOf("preparada por un asistente") && out.html!.indexOf("Av. Siempre Viva") < out.html!.indexOf("preparada por un asistente"));
+  check("mail: los enlaces del cuerpo son clicables y sin el punto final", out.html!.includes('<a href="https://recorrr.example/propiedades/casa-1" style="color:inherit"') && out.html!.includes("</a>."));
+  check("mail: sin firma (desactivada) sale como antes: sólo texto", buildOutgoing(body, agency, null, { banner: false }).html === null && buildOutgoing(body, agency, null, { banner: false }).text === body);
+  check("mail: el texto del cliente se escapa en el HTML", textToHtml("<b>hola</b> & \"chau\"").includes("&lt;b&gt;hola&lt;/b&gt; &amp; &quot;chau&quot;") && !textToHtml("<img src=x onerror=alert(1)>").includes("<img"));
+  check("mail: sin pie automático (confirmada por una persona) no se inventa uno", !buildOutgoing("Hola\n\nChau", agency, null, { banner: true }).text.includes("asistente"));
 }
 
 hosts().then(() => {

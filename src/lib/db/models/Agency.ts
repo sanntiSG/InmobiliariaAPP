@@ -14,6 +14,10 @@ const agencySchema = new Schema(
       whatsapp: { type: String },
       email: { type: String },
       website: { type: String },
+      /** Redes sociales: siempre la dirección completa y canónica (ver `lib/validation/social.ts`). */
+      instagram: { type: String, maxlength: 200 },
+      facebook: { type: String, maxlength: 200 },
+      tiktok: { type: String, maxlength: 200 },
     },
 
     address: {

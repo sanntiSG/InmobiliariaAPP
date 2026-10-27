@@ -14,6 +14,8 @@ export type MailSettingsView = {
   greeting: string;
   closing: string;
   disclose: boolean;
+  /** Firma corporativa en HTML debajo de cada respuesta. */
+  banner: boolean;
   maxProperties: number;
   autoCategories: string[];
   autoPerDay: number;
@@ -29,6 +31,7 @@ export const DEFAULT_SETTINGS: MailSettingsView = {
   greeting: "",
   closing: "",
   disclose: true,
+  banner: true,
   maxProperties: 3,
   autoCategories: ["availability", "price", "features", "general"],
   autoPerDay: MAIL_LIMITS.autoPerDayDefault,
@@ -58,6 +61,7 @@ export const settingsPatchSchema = z
     greeting: line(160),
     closing: line(160),
     disclose: z.boolean(),
+    banner: z.boolean(),
     maxProperties: z.number().int().min(MAIL_LIMITS.maxPropertiesMin).max(MAIL_LIMITS.maxPropertiesMax),
     autoCategories: z.array(z.enum(INQUIRY_CATEGORIES as unknown as [string, ...string[]])).max(5),
     autoPerDay: z.number().int().min(1).max(MAIL_LIMITS.autoPerDayMax),
@@ -81,6 +85,7 @@ export async function loadSettings(agencyId: string): Promise<MailSettingsView> 
     greeting: doc.greeting ?? "",
     closing: doc.closing ?? "",
     disclose: doc.disclose ?? true,
+    banner: doc.banner ?? true,
     maxProperties: doc.maxProperties ?? DEFAULT_SETTINGS.maxProperties,
     autoCategories: (doc.autoCategories ?? DEFAULT_SETTINGS.autoCategories).slice(),
     autoPerDay: doc.autoPerDay ?? DEFAULT_SETTINGS.autoPerDay,
