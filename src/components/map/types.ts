@@ -5,8 +5,11 @@
  */
 export {
   DEFAULT_FILTERS,
-  PRICE_BOUNDS,
+  activeChips,
+  parseFilters,
+  RECENT_DAYS,
   countActiveFilters,
   filtersToSearchParams,
+  type FilterChip,
   type PropertyFiltersState as MapFiltersState,
 } from "@/lib/filters/state";

@@ -1,4 +1,5 @@
 import { Types } from "mongoose";
+import { RECENT_DAYS } from "@/lib/filters/state";
 
 type BaseFilters = {
   q?: string;
@@ -10,6 +11,17 @@ type BaseFilters = {
   amenities?: string[];
   tour3d?: boolean;
   agencyId?: string;
+  currency?: string;
+  minBedrooms?: number;
+  minBathrooms?: number;
+  minGarages?: number;
+  areaMin?: number;
+  areaMax?: number;
+  city?: string;
+  neighborhood?: string;
+  ambient?: boolean;
+  videos?: boolean;
+  recent?: boolean;
 };
 
 /** Filtro Mongo compartido entre /api/map/properties y /api/properties. */
@@ -30,6 +42,23 @@ export function buildPropertyQuery(filters: BaseFilters): Record<string, unknown
   if (filters.agencyId && Types.ObjectId.isValid(filters.agencyId)) {
     query.agencyId = new Types.ObjectId(filters.agencyId);
   }
+  if (filters.currency) query["price.currency"] = filters.currency;
+  if (filters.minBedrooms) query["features.bedrooms"] = { $gte: filters.minBedrooms };
+  if (filters.minBathrooms) query["features.bathrooms"] = { $gte: filters.minBathrooms };
+  if (filters.minGarages) query["features.garages"] = { $gte: filters.minGarages };
+  if (filters.areaMin != null || filters.areaMax != null) {
+    // La superficie que se muestra es la cubierta si hay; si no, la total: el filtro mira la misma.
+    const range = {
+      ...(filters.areaMin != null ? { $gte: filters.areaMin } : {}),
+      ...(filters.areaMax != null ? { $lte: filters.areaMax } : {}),
+    };
+    query.$or = [{ "features.coveredArea": { ...range, $gt: 0 } }, { "features.coveredArea": { $in: [null, 0] }, "features.totalArea": range }];
+  }
+  if (filters.city) query["address.city"] = filters.city;
+  if (filters.neighborhood) query["address.neighborhood"] = filters.neighborhood;
+  if (filters.ambient) query["media.hasAmbientCover"] = true;
+  if (filters.videos) query["media.videos.0"] = { $exists: true };
+  if (filters.recent) query.publishedAt = { $gte: new Date(Date.now() - RECENT_DAYS * 86_400_000) };
   if (filters.q) query.$text = { $search: filters.q };
 
   return query;

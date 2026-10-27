@@ -108,7 +108,7 @@ export function ResultsPanel({
         className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center pb-[calc(var(--safe-bottom)+16px)] md:hidden"
       >
         <Button onClick={() => setMobileOpen(true)} className="pointer-events-auto shadow-float">
-          {loading ? "Buscando…" : `Ver ${totalCount} propiedades`}
+          {loading ? "Buscando…" : <>Ver <span className="font-mono">{totalCount}</span> {totalCount === 1 ? "propiedad" : "propiedades"}</>}
         </Button>
       </div>
       <Sheet open={mobileOpen} onClose={() => setMobileOpen(false)} title="Propiedades" side="bottom">
@@ -151,7 +151,7 @@ function DesktopPanel({ loading, totalCount, list }: { loading: boolean; totalCo
             className="flex h-12 items-center gap-2 rounded-pill bg-surface px-4 shadow-float transition-[transform,box-shadow] duration-150 [transition-timing-function:var(--ease-out)] hover:shadow-none active:scale-[0.97]"
           >
             <span className="text-sm font-medium text-text">
-              {loading ? "Buscando…" : `${totalCount} propiedades`}
+              {loading ? "Buscando…" : <><span className="font-mono">{totalCount}</span> {totalCount === 1 ? "propiedad" : "propiedades"}</>}
             </span>
             <ChevronRight className="h-4 w-4" aria-hidden />
           </button>
@@ -159,7 +159,7 @@ function DesktopPanel({ loading, totalCount, list }: { loading: boolean; totalCo
           <div className="flex h-full w-[360px] flex-col overflow-hidden rounded-card bg-surface shadow-float">
             <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
               <span className="text-sm font-medium text-text">
-                {loading ? "Buscando…" : `${totalCount} propiedades`}
+                {loading ? "Buscando…" : <><span className="font-mono">{totalCount}</span> {totalCount === 1 ? "propiedad" : "propiedades"}</>}
               </span>
               <IconButton variant="ghost" size={30} aria-label="Colapsar panel" onClick={() => setCollapsed(true)}>
                 <ChevronLeft className="h-4 w-4" aria-hidden />

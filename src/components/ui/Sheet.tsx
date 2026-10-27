@@ -25,6 +25,8 @@ export type SheetProps = {
    * (en vez de una tira a todo lo ancho de la pantalla). Para contenido corto, como compartir.
    */
   centered?: boolean;
+  /** Fijo al pie, fuera de la zona que se desplaza (por ejemplo "Limpiar" y "Ver resultados" de los filtros). */
+  footer?: ReactNode;
 };
 
 const EXIT_MS = 200;
@@ -33,7 +35,7 @@ const EXIT_MS = 200;
  * Drawer accesible: se desmonta EXIT_MS después de cerrar para poder animar
  * la salida (más rápida que la entrada — ver .impeccable.md / emil-design-eng).
  */
-export function Sheet({ open, onClose, children, title, side = "bottom", size = "md", layer = "page", centered = false }: SheetProps) {
+export function Sheet({ open, onClose, children, title, side = "bottom", size = "md", layer = "page", centered = false, footer }: SheetProps) {
   const [shown, setShown] = useState(false);
   const [lingering, setLingering] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -127,7 +129,8 @@ export function Sheet({ open, onClose, children, title, side = "bottom", size = 
             </IconButton>
           </div>
         )}
-        <div className="overflow-y-auto px-5 pb-6">{children}</div>
+        <div className={cn("min-h-0 overflow-y-auto px-5", side === "right" && "flex-1", footer ? "pb-4" : "pb-6")}>{children}</div>
+        {footer && <div className="shrink-0 border-t border-border bg-surface px-5 pb-3 pt-3">{footer}</div>}
       </div>
     </div>,
     document.body

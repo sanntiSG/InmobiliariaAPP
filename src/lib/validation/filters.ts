@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { OPERATIONS, PROPERTY_TYPES, AMENITIES } from "@/config/filters";
+import { OPERATIONS, PROPERTY_TYPES, AMENITIES, CURRENCIES } from "@/config/filters";
 
 const typeListTransform = (v: string | undefined) =>
   v
@@ -8,6 +8,12 @@ const typeListTransform = (v: string | undefined) =>
 
 const amenityListTransform = (v: string | undefined) =>
   v ? v.split(",").filter((a): a is (typeof AMENITIES)[number] => (AMENITIES as readonly string[]).includes(a)) : undefined;
+
+/** "true" / "false" de la dirección como booleano (ausente = sin filtrar). */
+const triState = z
+  .enum(["true", "false"])
+  .optional()
+  .transform((v) => (v === undefined ? undefined : v === "true"));
 
 /** Filtros de búsqueda compartidos entre el mapa y el listado. */
 const baseFiltersShape = {
@@ -23,6 +29,19 @@ const baseFiltersShape = {
     .optional()
     .transform((v) => (v === undefined ? undefined : v === "true")),
   agencyId: z.string().length(24).optional(),
+  /** Moneda del rango de precio (sin moneda el precio se compara tal cual, como antes). */
+  currency: z.enum(CURRENCIES).optional(),
+  minBedrooms: z.coerce.number().int().nonnegative().max(50).optional(),
+  minBathrooms: z.coerce.number().int().nonnegative().max(50).optional(),
+  minGarages: z.coerce.number().int().nonnegative().max(50).optional(),
+  areaMin: z.coerce.number().nonnegative().max(1_000_000).optional(),
+  areaMax: z.coerce.number().positive().max(1_000_000).optional(),
+  /** Ubicación exacta (los valores salen de /api/properties/facets). */
+  city: z.string().trim().min(1).max(80).optional(),
+  neighborhood: z.string().trim().min(1).max(80).optional(),
+  ambient: triState,
+  videos: triState,
+  recent: triState,
 };
 
 /** Query params aceptados por GET /api/map/properties. */

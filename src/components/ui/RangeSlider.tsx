@@ -9,6 +9,9 @@ export type RangeSliderProps = {
   value: [number, number];
   onChange: (value: [number, number]) => void;
   formatValue?: (n: number) => string;
+  /** Qué es cada extremo para un lector de pantalla (por defecto, precio). */
+  ariaLabels?: [string, string];
+  disabled?: boolean;
 };
 
 const thumbClasses = cn(
@@ -22,14 +25,14 @@ const thumbClasses = cn(
 );
 
 /** Slider de rango doble (ej: precio mín/máx) — dos <input type=range> superpuestos. */
-export function RangeSlider({ min, max, step = 1, value, onChange, formatValue }: RangeSliderProps) {
+export function RangeSlider({ min, max, step = 1, value, onChange, formatValue, ariaLabels = ["Precio mínimo", "Precio máximo"], disabled = false }: RangeSliderProps) {
   const [lo, hi] = value;
   const pct = (n: number) => ((n - min) / (max - min)) * 100;
   const fmt = formatValue ?? ((n: number) => String(n));
 
   return (
-    <div className="w-full">
-      <div className="mb-3 flex justify-between text-sm font-semibold tabular-nums">
+    <div className={cn("w-full", disabled && "pointer-events-none opacity-50")} aria-disabled={disabled || undefined}>
+      <div className="mb-3 flex justify-between font-mono text-sm font-medium tabular-nums">
         <span>{fmt(lo)}</span>
         <span>{fmt(hi)}</span>
       </div>
@@ -41,7 +44,8 @@ export function RangeSlider({ min, max, step = 1, value, onChange, formatValue }
         />
         <input
           type="range"
-          aria-label="Precio mínimo"
+          aria-label={ariaLabels[0]}
+          disabled={disabled}
           min={min}
           max={max}
           step={step}
@@ -51,7 +55,8 @@ export function RangeSlider({ min, max, step = 1, value, onChange, formatValue }
         />
         <input
           type="range"
-          aria-label="Precio máximo"
+          aria-label={ariaLabels[1]}
+          disabled={disabled}
           min={min}
           max={max}
           step={step}

@@ -20,7 +20,8 @@
     "reconcile-property-stats": "tsx scripts/reconcile-property-stats.ts",
     "fix-stale-agency-requests": "tsx scripts/fix-stale-agency-requests.ts",
     "postinstall": "node scripts/copy-maplibre-worker.mjs",
-    "mail:check": "tsx scripts/mail-check.ts"
+    "mail:check": "tsx scripts/mail-check.ts",
+    "filters:check": "tsx scripts/filters-check.ts"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",

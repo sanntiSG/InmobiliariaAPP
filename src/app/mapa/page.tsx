@@ -7,6 +7,7 @@ import { auth } from "@/auth";
 import { getFreshAccount } from "@/lib/auth/fresh-account";
 import { resolvePanelLink } from "@/lib/auth/panel-link";
 import MapaClient, { type MapAgencyFilter } from "@/components/map/MapaClient";
+import { parseFilters } from "@/lib/filters/state";
 
 export const metadata = { title: "Mapa" };
 
@@ -20,7 +21,8 @@ export const viewport: Viewport = { viewportFit: "cover" };
  * propiedades para encuadrar el mapa ahí.
  */
 export default async function MapaPage({ searchParams }: PageProps<"/mapa">) {
-  const raw = (await searchParams).agency;
+  const sp = await searchParams;
+  const raw = sp.agency;
   const agencyId = Array.isArray(raw) ? raw[0] : raw;
 
   let agency: MapAgencyFilter | null = null;
@@ -57,5 +59,6 @@ export default async function MapaPage({ searchParams }: PageProps<"/mapa">) {
   const session = await auth().catch(() => null);
   const account = session?.user?.id ? await getFreshAccount(session.user.id) : null;
 
-  return <MapaClient agency={agency} panelLink={resolvePanelLink(account)} />;
+  // El resto de los filtros viene en la dirección (`?type=casa&operation=venta…`).
+  return <MapaClient agency={agency} panelLink={resolvePanelLink(account)} initialFilters={parseFilters(sp)} />;
 }

@@ -80,8 +80,18 @@ function writeInitialCache(features: PropertyFeature[]) {
 /** Inmobiliaria por la que se filtra el mapa (viene de "Ver en mapa" en su perfil). */
 export type MapAgencyFilter = { id: string; name: string; bbox: BBox | null };
 
-export default function MapaClient({ agency, panelLink = null }: { agency: MapAgencyFilter | null; panelLink?: PanelLink | null }) {
-  const [filters, setFilters] = useState<MapFiltersState>({ ...DEFAULT_FILTERS, agencyId: agency?.id ?? null });
+export default function MapaClient({
+  agency,
+  panelLink = null,
+  initialFilters = DEFAULT_FILTERS,
+}: {
+  agency: MapAgencyFilter | null;
+  panelLink?: PanelLink | null;
+  /** Filtros que vienen en la dirección (`/mapa?type=casa&operation=venta`): así el mapa abre ya filtrado y se puede compartir. */
+  initialFilters?: MapFiltersState;
+}) {
+  // La inmobiliaria sólo vale si el servidor la validó (`agency`); el resto de los filtros se toma tal cual de la dirección.
+  const [filters, setFilters] = useState<MapFiltersState>({ ...initialFilters, agencyId: agency?.id ?? null });
   // Arranca con el bbox por defecto (AMBA) en vez de null: así el primer
   // fetch de propiedades sale en paralelo con la descarga del bundle del
   // mapa (maplibre-gl es pesado) en vez de esperar a que el mapa termine
@@ -127,10 +137,23 @@ export default function MapaClient({ agency, panelLink = null }: { agency: MapAg
     );
   }, [agency, mapInstance]);
 
-  const clearAgency = useCallback(() => {
-    setFilters((f) => ({ ...f, agencyId: null }));
-    window.history.replaceState(null, "", "/mapa");
-  }, []);
+  // Quitar la inmobiliaria deja el resto de los filtros; la dirección se corrige sola (ver el efecto de abajo).
+  const clearAgency = useCallback(() => setFilters((f) => ({ ...f, agencyId: null })), []);
+
+  // La dirección acompaña a los filtros (sin recargar): se puede copiar, compartir o volver a ella, y "Lista" lleva los mismos.
+  useEffect(() => {
+    const params = filtersToSearchParams({ ...filters, agencyId: null });
+    if (agency && filters.agencyId) params.set("agency", filters.agencyId);
+    const qs = params.toString();
+    const next = `${window.location.pathname}${qs ? `?${qs}` : ""}`;
+    if (next !== `${window.location.pathname}${window.location.search}`) window.history.replaceState(window.history.state, "", next);
+  }, [filters, agency]);
+
+  // El listado con los mismos filtros (botón "Lista").
+  const listHref = useMemo(() => {
+    const qs = filtersToSearchParams(filters).toString();
+    return `/propiedades${qs ? `?${qs}` : ""}`;
+  }, [filters]);
 
   const hasAgencyFilter = !!agency;
   const abortRef = useRef<AbortController | null>(null);
@@ -251,6 +274,7 @@ export default function MapaClient({ agency, panelLink = null }: { agency: MapAg
               value={filters}
               onChange={setFilters}
               resultCount={properties.length}
+              listHref={listHref}
               onLocationSelect={(result) =>
                 mapInstance?.flyTo({ center: [result.lng, result.lat], zoom: 15, duration: 800 })
               }

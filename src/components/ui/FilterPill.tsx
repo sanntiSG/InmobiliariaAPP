@@ -7,6 +7,18 @@ export type FilterPillProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   count?: number;
 };
 
+/** Las clases de una pill de filtro: las usa el botón y también un enlace que tiene que verse igual (ej: "Lista" en el mapa). */
+export function filterPillClassName(active = false, extra?: string): string {
+  return cn(
+    "relative inline-flex items-center gap-1.5 whitespace-nowrap rounded-pill border px-4 h-10 text-sm font-medium shrink-0",
+    "transition-[transform,background-color,color,border-color] duration-150 [transition-timing-function:var(--ease-out)]",
+    "active:scale-[0.97]",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
+    active ? "bg-accent-soft border-accent/30 text-accent" : "bg-surface border-border-hi text-text hover:bg-surface-2",
+    extra
+  );
+}
+
 /** Pill de filtro horizontal — ver referencia visual (fila de filtros). */
 export const FilterPill = forwardRef<HTMLButtonElement, FilterPillProps>(
   ({ className, active = false, count, children, ...props }, ref) => {
@@ -14,16 +26,7 @@ export const FilterPill = forwardRef<HTMLButtonElement, FilterPillProps>(
       <button
         ref={ref}
         aria-pressed={active}
-        className={cn(
-          "relative inline-flex items-center gap-1.5 whitespace-nowrap rounded-pill border px-4 h-10 text-sm font-medium shrink-0",
-          "transition-[transform,background-color,color,border-color] duration-150 [transition-timing-function:var(--ease-out)]",
-          "active:scale-[0.97]",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
-          active
-            ? "bg-accent-soft border-accent/30 text-accent"
-            : "bg-surface border-border-hi text-text hover:bg-surface-2",
-          className
-        )}
+        className={filterPillClassName(active, className)}
         {...props}
       >
         {children}
