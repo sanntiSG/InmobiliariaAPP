@@ -2,12 +2,13 @@ import { cache, type CSSProperties } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { ArrowLeft, ArrowRight, Star } from "lucide-react";
+import { ArrowLeft, ArrowRight, Star, Waves } from "lucide-react";
 import { connectDB } from "@/lib/db/connect";
 import { Property } from "@/lib/db/models/Property";
 import { Like } from "@/lib/db/models/Like";
 import { Favorite } from "@/lib/db/models/Favorite";
 import { Rating } from "@/lib/db/models/Rating";
+import { AvailabilityWatch } from "@/lib/db/models/AvailabilityWatch";
 import { Comment } from "@/lib/db/models/Comment";
 import { toPropertyDetail } from "@/lib/db/property-detail-mapper";
 import { auth } from "@/auth";
@@ -15,6 +16,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Card } from "@/components/ui/Card";
 import { Reveal } from "@/components/ui/Reveal";
 import { PriceTag } from "@/components/property/PriceTag";
+import { RentalAvailability } from "@/components/property/RentalAvailability";
 import { PropertyMedia } from "@/components/property/PropertyMedia";
 import { PropertyFeaturesGrid } from "@/components/property/PropertyFeaturesGrid";
 import { AmenitiesList } from "@/components/property/AmenitiesList";
@@ -39,6 +41,7 @@ import {
 } from "@/config/filters";
 import { formatCompactNumber, formatRelativeTime } from "@/lib/utils/format";
 import { brand } from "@/config/brand";
+import { beachDistanceLabel } from "@/config/pricing";
 import { getSiteOrigin } from "@/lib/site-url";
 
 /**
@@ -99,7 +102,7 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
   // /api/track), que además deduplica y descarta bots.
   const trackingEnabled = isPublished && !canPreview;
 
-  const [likeDoc, favoriteDoc, ratingDoc, commentDocs, commentsTotal] = await connectDB().then(() =>
+  const [likeDoc, favoriteDoc, ratingDoc, commentDocs, commentsTotal, watchDoc] = await connectDB().then(() =>
     Promise.all([
       userId ? Like.exists({ userId, propertyId: property.id }) : null,
       userId ? Favorite.exists({ userId, propertyId: property.id }) : null,
@@ -110,6 +113,7 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
         .limit(20)
         .lean(),
       Comment.countDocuments({ propertyId: property.id, deletedAt: null }),
+      userId && property.availability ? AvailabilityWatch.exists({ userId, propertyId: property.id }) : null,
     ])
   );
 
@@ -178,6 +182,11 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
                     {property.title}
                   </h1>
                   {addressLine && <p className="mt-2 text-text-muted">{addressLine}</p>}
+                  {property.features.beachDistance != null && (
+                    <p className="mt-1 inline-flex items-center gap-1.5 text-sm text-text-muted">
+                      <Waves className="h-4 w-4 shrink-0" aria-hidden /> {beachDistanceLabel(property.features.beachDistance)}
+                    </p>
+                  )}
                   {property.agency && (
                     <Link
                       href={`/inmobiliarias/${property.agency.slug}`}
@@ -300,6 +309,19 @@ export default async function PropertyDetailPage({ params }: PageProps<"/propied
                     + expensas {property.price.currency === "USD" ? "US$" : "$"}
                     {new Intl.NumberFormat("es-AR").format(property.price.expenses)}
                   </p>
+                )}
+                {property.availability && (
+                  <div className="mt-4 border-t border-border pt-4">
+                    <RentalAvailability
+                      status={property.availability.status}
+                      busy={property.availability.busy}
+                      propertyId={property.id}
+                      isAuthenticated={!!userId}
+                      initialWatching={!!watchDoc}
+                      returnTo={`/propiedades/${property.slug}`}
+                      canWatch={isPublished}
+                    />
+                  </div>
                 )}
               </Card>
             </Reveal>

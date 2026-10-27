@@ -3,7 +3,7 @@
  * etiquetas que se pueden quitar, la validación de los parámetros y el filtro de Mongo que se arma. Correr con
  * `npm run filters:check`: sale con código 1 si alguna falla.
  */
-import { DEFAULT_FILTERS, RECENT_DAYS, activeChips, countActiveFilters, filtersEqual, filtersToSearchParams, parseFilters, type PropertyFiltersState } from "../src/lib/filters/state";
+import { DEFAULT_FILTERS, RECENT_DAYS, activeChips, countActiveFilters, filtersEqual, filtersToSearchParams, parseFilters, withOperation, type PropertyFiltersState } from "../src/lib/filters/state";
 import { buildPropertyQuery } from "../src/lib/db/property-query";
 import { listFiltersSchema, mapFiltersSchema } from "../src/lib/validation/filters";
 import { areaBounds, niceCeil, niceStep, priceBounds } from "../src/lib/filters/bounds";
@@ -38,6 +38,9 @@ const full: PropertyFiltersState = {
   ambientOnly: true,
   videoOnly: true,
   recentOnly: true,
+  beachMax: 300,
+  from: "2030-01-05",
+  to: "2030-01-12",
   agencyId: "a".repeat(24),
 };
 
@@ -61,7 +64,7 @@ const full: PropertyFiltersState = {
   check("tipos y comodidades: sólo los que existen, sin repetir", junk.types.join() === "casa" && junk.amenities.join() === "pileta", junk);
   check("mínimos fuera de rango o en cero se ignoran", junk.minRooms === null && junk.minBedrooms === null, junk);
   check("las marcas sólo valen con 'true'", !junk.tour3dOnly && !junk.ambientOnly);
-  const inverted = parseFilters(new URLSearchParams("priceMin=500&priceMax=100&areaMin=90&areaMax=30"));
+  const inverted = parseFilters(new URLSearchParams("operation=venta&priceMin=500&priceMax=100&areaMin=90&areaMax=30"));
   check("un máximo menor que el mínimo se descarta", inverted.priceMin === 500 && inverted.priceMax === null && inverted.areaMin === 90 && inverted.areaMax === null, inverted);
   check("la búsqueda de texto se acota", parseFilters(new URLSearchParams(`q=${"x".repeat(500)}`)).q.length === 100);
   check("un texto de ubicación enorme se acota", (parseFilters(new URLSearchParams(`city=${"y".repeat(500)}`)).city ?? "").length === 80);
@@ -71,18 +74,20 @@ const full: PropertyFiltersState = {
 {
   check("contar: sin filtros 0", countActiveFilters(DEFAULT_FILTERS) === 0);
   check("contar: la búsqueda de texto y la inmobiliaria no suman al botón", countActiveFilters({ ...DEFAULT_FILTERS, q: "tigre", agencyId: "a".repeat(24) }) === 0);
-  // operación 1 + tipos 1 + precio 1 + ubicación 1 + ambientes 1 + dormitorios 1 + baños 1 + cocheras 1 + superficie 1 + 2 comodidades + 4 extras
-  check("contar: cada grupo suma 1 y cada comodidad suma 1", countActiveFilters(full) === 15, countActiveFilters(full));
+  // operación 1 + tipos 1 + precio 1 + ubicación 1 + ambientes 1 + dormitorios 1 + baños 1 + cocheras 1 + superficie 1 + 2 comodidades + 4 extras + playa 1 + fechas 1
+  check("contar: cada grupo suma 1 y cada comodidad suma 1", countActiveFilters(full) === 17, countActiveFilters(full));
   check("contar: la moneda sola no es un filtro", countActiveFilters({ ...DEFAULT_FILTERS, currency: "USD" }) === 0);
 
   const chips = activeChips(full);
-  // 15 filtros del botón + la búsqueda de texto (que tiene etiqueta para poder quitarla) + 1 (tipos y comodidades van por separado)
-  check("etiquetas: una por filtro (tipos y comodidades por separado) y una para el texto", chips.length === 17, chips.map((c) => c.id));
+  // 17 filtros del botón + la búsqueda de texto (que tiene etiqueta para poder quitarla) + 1 (tipos y comodidades van por separado)
+  check("etiquetas: una por filtro (tipos y comodidades por separado) y una para el texto", chips.length === 19, chips.map((c) => c.id));
   check("etiquetas: el texto de búsqueda tiene la suya", chips.some((c) => c.id === "q" && c.label === "Texto: palermo"), chips.map((c) => c.label));
   check("etiquetas: un texto largo se acorta", activeChips({ ...DEFAULT_FILTERS, q: "x".repeat(60) })[0]!.label.length <= 31);
   check("etiquetas: texto claro", chips.some((c) => c.label === "Alquiler") && chips.some((c) => c.label === "PH") && chips.some((c) => c.label === "Palermo, CABA") && chips.some((c) => c.label === "2+ dormitorios") && chips.some((c) => c.label === "60 – 200 m²"), chips.map((c) => c.label));
-  check("etiquetas: el precio lleva la moneda", chips.find((c) => c.id === "price")?.label === "$ 150k – 900k", chips.find((c) => c.id === "price")?.label);
-  check("etiquetas: precio con un solo extremo", activeChips({ ...DEFAULT_FILTERS, currency: "USD", priceMax: 120000 })[0]?.label === "Hasta US$ 120k" && activeChips({ ...DEFAULT_FILTERS, currency: "USD", priceMin: 2_500_000 })[0]?.label === "Desde US$ 2.5M");
+  check("etiquetas: el precio lleva la moneda y su unidad (por mes en un alquiler)", chips.find((c) => c.id === "price")?.label === "$ 150k – 900k por mes", chips.find((c) => c.id === "price")?.label);
+  check("etiquetas: playa y fechas libres", chips.some((c) => c.id === "beach" && c.label === "Hasta 300 m de la playa") && chips.some((c) => c.id === "dates" && /^Libre del 5 de enero de 2030 al 12 de enero de 2030$/.test(c.label)), chips.map((c) => c.label));
+  check("etiquetas: precio con un solo extremo", activeChips({ ...DEFAULT_FILTERS, operation: "venta", currency: "USD", priceMax: 120000 }).find((c) => c.id === "price")?.label === "Hasta US$ 120k" && activeChips({ ...DEFAULT_FILTERS, operation: "venta", currency: "USD", priceMin: 2_500_000 }).find((c) => c.id === "price")?.label === "Desde US$ 2.5M");
+  check("etiquetas: el temporal dice por noche", activeChips({ ...DEFAULT_FILTERS, operation: "alquiler_temporal", currency: "ARS", priceMax: 90000 }).find((c) => c.id === "price")?.label === "Hasta $ 90k por noche");
   const cleared = chips.reduce((state, c) => c.clear(state), full);
   check("quitar todas las etiquetas deja sólo la inmobiliaria (que tiene la suya aparte)", JSON.stringify(cleared) === JSON.stringify({ ...DEFAULT_FILTERS, agencyId: full.agencyId }), cleared);
   check("quitar el precio quita también la moneda", activeChips(full).find((c) => c.id === "price")!.clear(full).currency === null);
@@ -130,7 +135,7 @@ const full: PropertyFiltersState = {
   check("una inmobiliaria inválida se ignora", !("agencyId" in buildPropertyQuery({ agencyId: "no-es-un-id" })));
   check("sólo mínimo de superficie", JSON.stringify((buildPropertyQuery({ areaMin: 50 }).$or as { [k: string]: unknown }[])[1]!["features.totalArea"]) === JSON.stringify({ $gte: 50 }));
   check("la moneda sola no restringe nada", JSON.stringify(buildPropertyQuery({ currency: "USD" })) === JSON.stringify({ status: "published" }));
-  check("la moneda acota junto con el precio", buildPropertyQuery({ currency: "USD", priceMax: 100 })["price.currency"] === "USD" && buildPropertyQuery({ currency: "USD", priceMin: 1 })["price.currency"] === "USD");
+  check("la moneda acota junto con el precio (y una operación)", buildPropertyQuery({ operation: "venta", currency: "USD", priceMax: 100 })["price.currency"] === "USD" && buildPropertyQuery({ operation: "venta", currency: "USD", priceMin: 1 })["price.currency"] === "USD");
 }
 
 // ── Filtros acumulativos y reversibles (el error: filtrar, quitar el filtro y seguir viendo cero) ──────
@@ -166,6 +171,36 @@ const full: PropertyFiltersState = {
   check("8. ninguna etiqueta deja un filtro escondido al quitarla", hidden.length === 0, hidden.map((c) => c.id));
   // Lo mismo para los controles de la hoja que fijan la moneda antes de elegir un precio.
   check("9. la moneda elegida sin precio no cambia los resultados", queryFor({ ...DEFAULT_FILTERS, currency: "USD" }) === base && queryFor({ ...withOp, currency: "USD" }) === queryFor(withOp));
+}
+
+// ── El precio pertenece a una operación; alquiler temporal por noche; playa y fechas libres ──────────
+{
+  const keys = (q: Record<string, unknown>) => Object.keys(q).sort().join(",");
+  const params = (x: PropertyFiltersState) => filtersToSearchParams(x);
+  check("precio: sin operación no hay rango (ni en la dirección ni al leerla)", !params({ ...DEFAULT_FILTERS, currency: "USD", priceMax: 100 }).has("priceMax") && parseFilters(new URLSearchParams("priceMax=100000&priceMin=1&currency=USD")).priceMax === null);
+  check("precio: con operación sí", params({ ...DEFAULT_FILTERS, operation: "venta", currency: "USD", priceMax: 100 }).get("priceMax") === "100" && parseFilters(new URLSearchParams("operation=venta&priceMax=100000&currency=USD")).priceMax === 100000);
+  const base = { ...DEFAULT_FILTERS, operation: "venta" as const, currency: "USD" as const, priceMin: 50_000, priceMax: 100_000, from: "2030-01-05", to: "2030-01-12" };
+  const sold = withOperation(base, "alquiler");
+  check("operación: cambiarla descarta el rango de precio y su moneda (no se arrastra un monto de venta a un alquiler)", sold.priceMin === null && sold.priceMax === null && sold.currency === null && sold.operation === "alquiler");
+  check("operación: pasar a venta descarta las fechas libres (una venta no se alquila)", withOperation({ ...base, operation: "alquiler" }, "venta").from === null && withOperation({ ...base, operation: "alquiler" }, "alquiler_temporal").from === "2030-01-05");
+  check("operación: la misma no cambia nada", withOperation(base, "venta") === base);
+  check("operación: quitar su etiqueta quita también el precio", (() => {
+    const cleared = activeChips({ ...base, operation: "alquiler_temporal" }).find((c) => c.id === "operation")!.clear({ ...base, operation: "alquiler_temporal" });
+    return cleared.operation === "todas" && cleared.priceMax === null && cleared.currency === null;
+  })());
+
+  check("fechas: valen juntas y bien ordenadas", parseFilters(new URLSearchParams("operation=alquiler&from=2030-01-05&to=2030-01-12")).from === "2030-01-05" && parseFilters(new URLSearchParams("from=2030-01-12&to=2030-01-05")).from === null && parseFilters(new URLSearchParams("from=2030-01-05")).from === null && parseFilters(new URLSearchParams("from=2030-02-31&to=2030-03-01")).from === null);
+  check("fechas: con una venta se descartan; sin operación valen (sólo traen alquileres)", parseFilters(new URLSearchParams("operation=venta&from=2030-01-05&to=2030-01-12")).from === null && parseFilters(new URLSearchParams("from=2030-01-05&to=2030-01-12")).from === "2030-01-05");
+  check("playa: un número de metros", parseFilters(new URLSearchParams("beach=300")).beachMax === 300 && parseFilters(new URLSearchParams("beach=abc")).beachMax === null && parseFilters(new URLSearchParams("beach=-4")).beachMax === null && parseFilters(new URLSearchParams("beach=0")).beachMax === 0);
+
+  const qs = (s: Record<string, string>) => buildPropertyQuery(listFiltersSchema.parse(s)) as Record<string, unknown>;
+  check("consulta: el temporal compara el equivalente por noche; el alquiler de siempre y la venta, el monto", "price.perNight" in qs({ operation: "alquiler_temporal", priceMax: "90000" }) && !("price.amount" in qs({ operation: "alquiler_temporal", priceMax: "90000" })) && "price.amount" in qs({ operation: "alquiler", priceMax: "900000" }) && "price.amount" in qs({ operation: "venta", priceMax: "100" }));
+  check("consulta: sin operación el precio no filtra (aunque llegue en la dirección)", keys(qs({ priceMax: "100", currency: "USD" })) === "status");
+  check("consulta: hasta tantos metros de la playa", JSON.stringify(qs({ beach: "300" })["features.beachDistance"]) === JSON.stringify({ $lte: 300 }));
+  const free = qs({ operation: "alquiler_temporal", from: "2030-01-05", to: "2030-01-12" });
+  check("consulta: libre en mis fechas excluye lo no disponible y lo que se pisa con un período ocupado", JSON.stringify(free["availability.state"]) === JSON.stringify({ $ne: "unavailable" }) && JSON.stringify(free["availability.blocked"]) === JSON.stringify({ $not: { $elemMatch: { from: { $lte: "2030-01-12" }, to: { $gte: "2030-01-05" } } } }), free);
+  check("consulta: fechas sin operación sólo traen alquileres; con una venta se ignoran; un rango roto se ignora", JSON.stringify(qs({ from: "2030-01-05", to: "2030-01-12" }).operation) === JSON.stringify({ $in: ["alquiler", "alquiler_temporal"] }) && !("availability.blocked" in qs({ operation: "venta", from: "2030-01-05", to: "2030-01-12" })) && !("availability.blocked" in qs({ from: "2030-01-12", to: "2030-01-05" })));
+  check("consulta: las fechas no pisan la superficie ni el texto", Array.isArray(qs({ from: "2030-01-05", to: "2030-01-12", areaMin: "50" }).$or));
 }
 
 // ── Límites de los controles deslizantes ────────────────────────────────────

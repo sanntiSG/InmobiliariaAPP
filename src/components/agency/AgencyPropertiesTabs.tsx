@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils/cn";
 const PLURALS: Record<PropertyType, string> = {
   casa: "Casas",
   departamento: "Departamentos",
+  duplex: "Dúplex",
   ph: "PH",
   terreno: "Terrenos",
   local: "Locales",

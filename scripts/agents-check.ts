@@ -327,7 +327,8 @@ check("recommend sí lo gasta", !isFreeIntent("explorer.recommend"));
   const suffix = (operation: string, period?: string) => buildPostData({ type: "casa", operation, price: { amount: 100, currency: "ARS", period } }, agency, "data:x", null).priceSuffix;
   check("sufijo: alquiler → /mes", suffix("alquiler", "mensual") === "/mes" && suffix("alquiler", "total") === "/mes");
   check("sufijo: venta → nada", suffix("venta", "total") === "");
-  check("sufijo: alquiler temporal por estadía → nada; mensual → /mes", suffix("alquiler_temporal", "total") === "" && suffix("alquiler_temporal", "mensual") === "/mes");
+  check("sufijo: alquiler temporal → el de su período (noche, día, semana, quincena, mes)", suffix("alquiler_temporal", "noche") === "/noche" && suffix("alquiler_temporal", "dia") === "/día" && suffix("alquiler_temporal", "semana") === "/semana" && suffix("alquiler_temporal", "quincena") === "/quincena" && suffix("alquiler_temporal", "mensual") === "/mes");
+  check("sufijo: un período que no vale para la operación cae en el de siempre", suffix("alquiler_temporal", "total") === "/noche" && suffix("venta", "mensual") === "" && suffix("alquiler", "noche") === "/mes");
 }
 
 // ── Lenguaje simple y "qué hacer hoy" del panel ─────────────────────────────

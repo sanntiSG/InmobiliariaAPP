@@ -12,6 +12,7 @@ import {
   type PropertyType,
 } from "@/config/filters";
 import { CURRENCY_SYMBOLS } from "@/config/site";
+import { checkRange, formatDay } from "@/lib/availability";
 
 /**
  * Estado de filtros compartido entre /mapa y /propiedades. Cada campo sin elegir vale `null`, `[]`, `false` o "todas": así
@@ -41,6 +42,11 @@ export type PropertyFiltersState = {
   videoOnly: boolean;
   /** Publicadas en los últimos días (ver `RECENT_DAYS`). */
   recentOnly: boolean;
+  /** Hasta cuántos metros de la playa (sólo cuentan las que informan la distancia). */
+  beachMax: number | null;
+  /** "Libre en mis fechas": del `from` al `to` (días `YYYY-MM-DD`, ambos o ninguno). Sólo alquileres. */
+  from: string | null;
+  to: string | null;
   /** Sólo propiedades de esta inmobiliaria (id). Viene del botón "Ver en mapa" de su perfil. */
   agencyId: string | null;
 };
@@ -68,6 +74,9 @@ export const DEFAULT_FILTERS: PropertyFiltersState = {
   ambientOnly: false,
   videoOnly: false,
   recentOnly: false,
+  beachMax: null,
+  from: null,
+  to: null,
   agencyId: null,
 };
 
@@ -91,8 +100,20 @@ export function countActiveFilters(f: PropertyFiltersState): number {
     (f.tour3dOnly ? 1 : 0) +
     (f.ambientOnly ? 1 : 0) +
     (f.videoOnly ? 1 : 0) +
-    (f.recentOnly ? 1 : 0)
+    (f.recentOnly ? 1 : 0) +
+    (f.beachMax != null ? 1 : 0) +
+    (f.from && f.to ? 1 : 0)
   );
+}
+
+/**
+ * Cambia la operación y limpia lo que sólo tiene sentido con la anterior. Un precio en dólares de una venta, uno por mes de un
+ * alquiler y uno por noche de un temporal no se parecen en nada: el rango de precio (y su moneda) pertenece a UNA operación,
+ * así que al cambiarla se descarta. Y las fechas libres sólo valen para alquileres: una venta no se alquila.
+ */
+export function withOperation(f: PropertyFiltersState, operation: PropertyFiltersState["operation"]): PropertyFiltersState {
+  if (operation === f.operation) return f;
+  return { ...f, operation, currency: null, priceMin: null, priceMax: null, ...(operation === "venta" ? { from: null, to: null } : {}) };
 }
 
 /** Construye los query params compartidos (sin bbox/page) a partir del estado de filtros. Es también la dirección que se comparte. */
@@ -102,9 +123,11 @@ export function filtersToSearchParams(filters: PropertyFiltersState): URLSearchP
   if (filters.operation !== "todas") p.set("operation", filters.operation);
   if (filters.types.length > 0) p.set("type", filters.types.join(","));
   // La moneda sólo tiene sentido acompañando a un rango de precio: sola no restringe nada (y no debe quedar viajando oculta).
-  if (filters.currency && (filters.priceMin != null || filters.priceMax != null)) p.set("currency", filters.currency);
-  if (filters.priceMin != null) p.set("priceMin", String(filters.priceMin));
-  if (filters.priceMax != null) p.set("priceMax", String(filters.priceMax));
+  // El precio sólo viaja con una operación elegida (un monto por noche no se compara con uno de venta): sin ella no hay rango.
+  const priced = filters.operation !== "todas";
+  if (priced && filters.currency && (filters.priceMin != null || filters.priceMax != null)) p.set("currency", filters.currency);
+  if (priced && filters.priceMin != null) p.set("priceMin", String(filters.priceMin));
+  if (priced && filters.priceMax != null) p.set("priceMax", String(filters.priceMax));
   if (filters.minRooms) p.set("minRooms", String(filters.minRooms));
   if (filters.minBedrooms) p.set("minBedrooms", String(filters.minBedrooms));
   if (filters.minBathrooms) p.set("minBathrooms", String(filters.minBathrooms));
@@ -118,6 +141,11 @@ export function filtersToSearchParams(filters: PropertyFiltersState): URLSearchP
   if (filters.ambientOnly) p.set("ambient", "true");
   if (filters.videoOnly) p.set("videos", "true");
   if (filters.recentOnly) p.set("recent", "true");
+  if (filters.beachMax != null) p.set("beach", String(filters.beachMax));
+  if (filters.from && filters.to) {
+    p.set("from", filters.from);
+    p.set("to", filters.to);
+  }
   if (filters.agencyId) p.set("agencyId", filters.agencyId);
   return p;
 }
@@ -162,13 +190,20 @@ export function parseFilters(source: ParamSource): PropertyFiltersState {
   const areaMin = num("areaMin", 0, 1e6);
   const areaMax = num("areaMax", 0, 1e6);
   const agency = get("agencyId") ?? get("agency");
+  const operation = (OPERATIONS as readonly string[]).includes(op ?? "") ? (op as Operation) : "todas";
+  // Las fechas valen juntas, bien ordenadas, y sólo para alquileres.
+  const fromRaw = get("from")?.trim() ?? "";
+  const toRaw = get("to")?.trim() ?? "";
+  const datesOk = operation !== "venta" && !!fromRaw && !!toRaw && checkRange({ from: fromRaw, to: toRaw }) === null;
+  // Sin una operación elegida no hay rango de precio (ver `withOperation`).
+  const priced = operation !== "todas";
   return {
     q: (get("q") ?? "").trim().slice(0, 100),
-    operation: (OPERATIONS as readonly string[]).includes(op ?? "") ? (op as Operation) : "todas",
+    operation,
     types: list("type", PROPERTY_TYPES),
-    currency: (CURRENCIES as readonly string[]).includes(currency ?? "") ? (currency as Currency) : null,
-    priceMin,
-    priceMax: priceMax != null && priceMin != null && priceMax < priceMin ? null : priceMax,
+    currency: priced && (CURRENCIES as readonly string[]).includes(currency ?? "") ? (currency as Currency) : null,
+    priceMin: priced ? priceMin : null,
+    priceMax: priced && !(priceMax != null && priceMin != null && priceMax < priceMin) ? priceMax : null,
     minRooms: int("minRooms", 1, 20),
     minBedrooms: int("minBedrooms", 1, 20),
     minBathrooms: int("minBathrooms", 1, 20),
@@ -182,6 +217,9 @@ export function parseFilters(source: ParamSource): PropertyFiltersState {
     ambientOnly: flag("ambient"),
     videoOnly: flag("videos"),
     recentOnly: flag("recent"),
+    beachMax: int("beach", 0, 20_000),
+    from: datesOk ? fromRaw : null,
+    to: datesOk ? toRaw : null,
     agencyId: agency && /^[a-f0-9]{24}$/i.test(agency) ? agency : null,
   };
 }
@@ -193,9 +231,10 @@ export type FilterChip = { id: string; label: string; clear: (f: PropertyFilters
 function priceChip(f: PropertyFiltersState): string {
   const symbol = f.currency ? (CURRENCY_SYMBOLS[f.currency] ?? f.currency) : "";
   const short = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M` : n >= 1_000 ? `${Math.round(n / 1000)}k` : String(n));
-  if (f.priceMin != null && f.priceMax != null) return `${symbol} ${short(f.priceMin)} – ${short(f.priceMax)}`.trim();
-  if (f.priceMin != null) return `Desde ${symbol} ${short(f.priceMin)}`.replace("  ", " ");
-  return `Hasta ${symbol} ${short(f.priceMax ?? 0)}`.replace("  ", " ");
+  const unit = f.operation === "alquiler_temporal" ? " por noche" : f.operation === "alquiler" ? " por mes" : "";
+  if (f.priceMin != null && f.priceMax != null) return `${symbol} ${short(f.priceMin)} – ${short(f.priceMax)}${unit}`.trim();
+  if (f.priceMin != null) return `Desde ${symbol} ${short(f.priceMin)}${unit}`.replace("  ", " ");
+  return `Hasta ${symbol} ${short(f.priceMax ?? 0)}${unit}`.replace("  ", " ");
 }
 
 /** Los filtros activos como etiquetas removibles, en el mismo orden en que aparecen en la hoja de filtros. */
@@ -203,7 +242,8 @@ export function activeChips(f: PropertyFiltersState): FilterChip[] {
   const chips: FilterChip[] = [];
   const text = f.q.trim();
   if (text) chips.push({ id: "q", label: `Texto: ${text.length > 24 ? `${text.slice(0, 23)}…` : text}`, clear: (s) => ({ ...s, q: "" }) });
-  if (f.operation !== "todas") chips.push({ id: "operation", label: OPERATION_LABELS[f.operation], clear: (s) => ({ ...s, operation: "todas" }) });
+  // Quitar la operación quita también el rango de precio: el precio pertenece a UNA operación (ver `withOperation`).
+  if (f.operation !== "todas") chips.push({ id: "operation", label: OPERATION_LABELS[f.operation], clear: (s) => withOperation(s, "todas") });
   for (const t of f.types) chips.push({ id: `type:${t}`, label: PROPERTY_TYPE_LABELS[t], clear: (s) => ({ ...s, types: s.types.filter((x) => x !== t) }) });
   if (f.neighborhood || f.city) {
     chips.push({ id: "place", label: [f.neighborhood, f.city].filter(Boolean).join(", "), clear: (s) => ({ ...s, city: null, neighborhood: null }) });
@@ -225,6 +265,8 @@ export function activeChips(f: PropertyFiltersState): FilterChip[] {
   if (f.ambientOnly) chips.push({ id: "ambient", label: "Con portada viva", clear: (s) => ({ ...s, ambientOnly: false }) });
   if (f.videoOnly) chips.push({ id: "video", label: "Con video", clear: (s) => ({ ...s, videoOnly: false }) });
   if (f.recentOnly) chips.push({ id: "recent", label: "Publicadas hace poco", clear: (s) => ({ ...s, recentOnly: false }) });
+  if (f.beachMax != null) chips.push({ id: "beach", label: f.beachMax === 0 ? "Frente al mar" : `Hasta ${f.beachMax >= 1000 ? `${f.beachMax / 1000} km` : `${f.beachMax} m`} de la playa`, clear: (s) => ({ ...s, beachMax: null }) });
+  if (f.from && f.to) chips.push({ id: "dates", label: f.from === f.to ? `Libre el ${formatDay(f.from)}` : `Libre del ${formatDay(f.from)} al ${formatDay(f.to)}`, clear: (s) => ({ ...s, from: null, to: null }) });
   return chips;
 }
 

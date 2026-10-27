@@ -7,6 +7,7 @@ import {
   addTotals,
   type Totals,
 } from "@/lib/intelligence/metrics";
+import { periodSuffix } from "@/config/pricing";
 import { n0, money, plural } from "../../compose/format";
 import { typeLabel } from "../../compose/vocab";
 import type { PropertyRow } from "../../data/portfolio";
@@ -109,7 +110,7 @@ export function metricChips(t: Totals): string[] {
 }
 
 export function priceText(r: PropertyRow): string {
-  return `${money(r.price, r.currency)}${r.period === "mensual" ? "/mes" : ""}`;
+  return `${money(r.price, r.currency)}${periodSuffix(r.operation, r.period)}`;
 }
 
 export function propRef(

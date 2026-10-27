@@ -17,6 +17,10 @@ import { diffProperty, snapshotProperty } from "@/lib/activity/diff";
 import { logActivity, touchAgencyData } from "@/lib/activity/log";
 import { AmbientSelectionError, markAmbientAttached, resolveAmbient, type StoredAmbient } from "@/lib/ambient/attach";
 import { releaseCover } from "@/lib/ambient/server";
+import { AvailabilityWatch } from "@/lib/db/models/AvailabilityWatch";
+import { effectivePeriod } from "@/config/pricing";
+import { notifyPropertyAvailable } from "@/lib/notifications/availability";
+import { normalizeRentalFields } from "@/lib/properties/normalize";
 
 const updateSchema = propertyInputSchema.omit({ agencyId: true }).extend({
   // Solo tiene efecto para un admin (reasignar la propiedad a otra
@@ -58,11 +62,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       property.agencyId = new Types.ObjectId(requestedAgencyId);
     }
 
+    // Período del precio válido para la operación, equivalente por noche y disponibilidad (sólo alquileres): lo decide el servidor.
+    const norm = normalizeRentalFields(data);
     const previousAmount = property.price?.amount;
     const sameCurrency = data.price.currency === property.price?.currency;
+    // Pasar de "por noche" a "por semana" (o de mes a noche) cambia el monto sin ser una rebaja: sólo se compara dentro del mismo período.
+    const samePeriod = norm.price.period === effectivePeriod(property.operation, property.price?.period);
     const priceChanged = data.price.amount !== property.price?.amount || !sameCurrency;
-    // Sólo cuenta como baja si la moneda no cambió: pasar de ARS a USD no es una rebaja.
-    const priceDropped = priceChanged && sameCurrency && previousAmount != null && data.price.amount < previousAmount;
+    // Sólo cuenta como baja si la moneda y el período no cambiaron: pasar de ARS a USD no es una rebaja.
+    const priceDropped = priceChanged && sameCurrency && samePeriod && previousAmount != null && data.price.amount < previousAmount;
+    // Un alquiler que no estaba disponible y ahora sí (la inmobiliaria lo liberó): se avisa a quien lo esperaba.
+    const wasUnavailable = property.availability?.current === "unavailable";
 
     // Portada viva: el navegador sólo manda cuál; el resto sale de la portada que el servidor ya verificó.
     const previousCoverId = property.media?.ambient?.coverId ?? undefined;
@@ -77,6 +87,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     property.set({
       ...data,
+      status: norm.status,
+      price: norm.price,
+      availability: norm.availability,
       media: { ...mediaRest, ...(ambient ? { ambient } : {}), hasAmbientCover: !!ambient },
       location: { type: "Point", coordinates: data.location },
     });
@@ -86,7 +99,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       property.priceHistory?.push({ amount: data.price.amount, currency: data.price.currency, changedAt: new Date() });
     }
     // Primera vez que se publica (alta como borrador y publicación recién ahora, por ejemplo).
-    const firstPublish = data.status === "published" && !property.publishedAt;
+    const firstPublish = norm.status === "published" && !property.publishedAt;
     if (firstPublish) {
       property.publishedAt = new Date();
     }
@@ -101,6 +114,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
     if (firstPublish) {
       after(() => notifyNewPublication(property));
+    }
+    if (wasUnavailable && norm.availability.current === "available" && property.status === "published") {
+      after(() => notifyPropertyAvailable(property));
     }
 
     // Bitácora para el asesor + caché de inteligencia al día (de la agencia nueva y, si el
@@ -134,8 +150,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 async function notifyPriceDrop(property: InstanceType<typeof Property>) {
   try {
     await connectDB();
-    const favorites = await Favorite.find({ propertyId: property._id }).select("userId").lean();
-    const userIds = favorites.map((f) => String(f.userId));
+    const [favorites, watchers] = await Promise.all([
+      Favorite.find({ propertyId: property._id }).select("userId").lean(),
+      AvailabilityWatch.find({ propertyId: property._id }).select("userId").lean(),
+    ]);
+    const userIds = [...new Set([...favorites, ...watchers].map((f) => String(f.userId)))];
     await createNotificationForMany(userIds, {
       type: "price_drop",
       title: "Bajó el precio de una propiedad que guardaste",
@@ -174,6 +193,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
       Favorite.deleteMany({ propertyId: id }),
       Rating.deleteMany({ propertyId: id }),
       Comment.deleteMany({ propertyId: id }),
+      AvailabilityWatch.deleteMany({ propertyId: id }),
       // Sus métricas diarias ya no tienen a quién pertenecer (los clientes potenciales se conservan).
       PropertyDailyStat.deleteMany({ propertyId: id }),
     ]);

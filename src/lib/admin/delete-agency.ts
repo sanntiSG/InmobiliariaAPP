@@ -7,6 +7,7 @@ import { AgencyFollow } from "@/lib/db/models/AgencyFollow";
 import { AgencyRequest } from "@/lib/db/models/AgencyRequest";
 import { AllowedEmail } from "@/lib/db/models/AllowedEmail";
 import { Comment } from "@/lib/db/models/Comment";
+import { AvailabilityWatch } from "@/lib/db/models/AvailabilityWatch";
 import { Favorite } from "@/lib/db/models/Favorite";
 import { Interaction } from "@/lib/db/models/Interaction";
 import { Lead } from "@/lib/db/models/Lead";
@@ -74,6 +75,7 @@ export async function deleteAgencyCascade(agencyId: string): Promise<DeleteAgenc
     await Promise.all([
       Like.deleteMany({ propertyId: { $in: propertyIds } }),
       Favorite.deleteMany({ propertyId: { $in: propertyIds } }),
+      AvailabilityWatch.deleteMany({ propertyId: { $in: propertyIds } }),
       Rating.deleteMany({ propertyId: { $in: propertyIds } }),
       Comment.deleteMany({ propertyId: { $in: propertyIds } }),
       PropertyDailyStat.deleteMany({ propertyId: { $in: propertyIds } }),

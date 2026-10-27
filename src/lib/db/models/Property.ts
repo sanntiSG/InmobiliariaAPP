@@ -7,6 +7,8 @@ import {
   AMENITIES,
   CURRENCIES,
 } from "@/config/filters";
+import { PRICE_PERIODS } from "@/config/pricing";
+import { AVAILABILITY_STATES } from "@/lib/availability";
 
 const priceHistoryEntrySchema = new Schema(
   {
@@ -109,7 +111,13 @@ const propertySchema = new Schema(
       amount: { type: Number, required: true },
       currency: { type: String, enum: CURRENCIES, default: "USD" },
       expenses: { type: Number, default: 0 },
-      period: { type: String, enum: ["total", "mensual"], default: "total" },
+      /** A qué período corresponde el monto (ver `config/pricing.ts`): venta = total, alquiler = mensual, temporal = noche/día/semana/quincena/mes. */
+      period: { type: String, enum: PRICE_PERIODS, default: "total" },
+      /**
+       * El monto llevado a una noche (sólo alquiler): permite filtrar y ordenar alquileres temporales cobrados por períodos
+       * distintos con una regla clara. Se recalcula en cada guardado (`config/pricing.ts`), nunca lo manda el cliente.
+       */
+      perNight: { type: Number },
     },
     /** Historial de cambios de precio — dispara la notificación "bajó de precio". */
     priceHistory: [priceHistoryEntrySchema],
@@ -136,6 +144,30 @@ const propertySchema = new Schema(
       age: { type: Number },
       floor: { type: Number },
       orientation: { type: String },
+      /** Distancia aproximada a la playa en metros (0 = frente al mar). Un número, no texto: sirve para filtrar. */
+      beachDistance: { type: Number, min: 0 },
+    },
+    /**
+     * Disponibilidad de un ALQUILER (tradicional o temporal), separada de si la publicación está activa: una propiedad alquilada
+     * sigue publicada y visible. Fechas `YYYY-MM-DD` (ver `lib/availability.ts`). No es un sistema de reservas.
+     */
+    availability: {
+      state: { type: String, enum: AVAILABILITY_STATES, default: "available" },
+      blocked: {
+        type: [
+          new Schema(
+            {
+              from: { type: String, required: true },
+              to: { type: String, required: true },
+              note: { type: String, maxlength: 80 },
+            },
+            { _id: false }
+          ),
+        ],
+        default: [],
+      },
+      /** Último estado calculado ("hoy"): sirve para avisar sólo cuando CAMBIA (ver `lib/availability-sweep.ts`). */
+      current: { type: String, enum: AVAILABILITY_STATES, default: "available" },
     },
     amenities: [{ type: String, enum: AMENITIES }],
 
@@ -188,6 +220,13 @@ const propertySchema = new Schema(
     },
 
     publishedAt: { type: Date },
+
+    /**
+     * Marca de un seed de demostración (por ejemplo "vacacional-v1") y su clave única dentro de él. Es lo que permite que un
+     * seed no cree duplicados y que su comando inverso borre SÓLO lo que él creó. Las propiedades reales no la tienen.
+     */
+    seedTag: { type: String, maxlength: 60 },
+    seedKey: { type: String, maxlength: 120 },
   },
   { timestamps: true }
 );
@@ -203,6 +242,11 @@ propertySchema.index({ agencyId: 1, status: 1 });
 // El listado ordena por precio con el mismo filtro de `status` siempre activo.
 propertySchema.index({ status: 1, "price.amount": 1 });
 propertySchema.index({ title: "text", description: "text", "address.neighborhood": "text" });
+// Un seed no puede crear dos veces la misma propiedad; sólo indexa las que tienen `seedKey`.
+propertySchema.index({ seedKey: 1 }, { unique: true, partialFilterExpression: { seedKey: { $type: "string" } } });
+propertySchema.index({ seedTag: 1 }, { partialFilterExpression: { seedTag: { $type: "string" } } });
+// Los alquileres se filtran por su equivalente por noche y por distancia a la playa.
+propertySchema.index({ status: 1, operation: 1, "price.perNight": 1 });
 
 export type PropertyDoc = InferSchemaType<typeof propertySchema>;
 

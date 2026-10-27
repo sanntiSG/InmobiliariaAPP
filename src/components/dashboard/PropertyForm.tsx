@@ -25,6 +25,8 @@ import {
   CURRENCIES,
   type Amenity,
 } from "@/config/filters";
+import { BEACH_DISTANCES, PERIODS_BY_OPERATION, PERIOD_LABELS, beachDistanceLabel, effectivePeriod, isRentalOperation, type PricePeriod } from "@/config/pricing";
+import { MAX_BLOCKED_RANGES, type AvailabilityState } from "@/lib/availability";
 import { MAP_DEFAULTS } from "@/config/site";
 import {
   MAX_SCENES,
@@ -62,7 +64,7 @@ export type PropertyFormValues = {
   priceAmount: string;
   currency: (typeof CURRENCIES)[number];
   expenses: string;
-  period: "total" | "mensual";
+  period: PricePeriod;
   street: string;
   number: string;
   neighborhood: string;
@@ -80,6 +82,11 @@ export type PropertyFormValues = {
   age: string;
   floor: string;
   orientation: string;
+  /** Metros a la playa ("" = no se informa, "0" = frente al mar). */
+  beachDistance: string;
+  /** Sólo alquileres: si hoy se puede alquilar, y los períodos que ya están ocupados (las notas son privadas). */
+  availabilityState: AvailabilityState;
+  blocked: BlockedRow[];
   amenities: Amenity[];
   /** Qué es la portada: la primera foto o la portada viva (ver `AmbientCoverField`). */
   coverMode: CoverMode;
@@ -93,6 +100,9 @@ export type PropertyFormValues = {
   /** Recorrido navegable entre las fotos 360° (hotspots). */
   virtualTour: VirtualTourConfig;
 };
+
+/** Un período ocupado del formulario de disponibilidad. */
+export type BlockedRow = { from: string; to: string; note: string };
 
 /** Una fila del formulario de recorridos — foto 360° equirectangular subida (imagen común, mismo endpoint que las fotos de la propiedad). */
 export type TourFormRow = {
@@ -133,6 +143,9 @@ export const emptyPropertyForm: PropertyFormValues = {
   age: "",
   floor: "",
   orientation: "",
+  beachDistance: "",
+  availabilityState: "available",
+  blocked: [],
   amenities: [],
   coverMode: "photo",
   ambient: null,
@@ -178,6 +191,12 @@ function toPayload(v: PropertyFormValues) {
       age: v.age ? Number(v.age) : undefined,
       floor: v.floor ? Number(v.floor) : undefined,
       orientation: v.orientation || undefined,
+      beachDistance: v.beachDistance !== "" ? Number(v.beachDistance) : undefined,
+    },
+    // El servidor ignora la disponibilidad en una venta; en un alquiler descarta los períodos incompletos.
+    availability: {
+      state: v.availabilityState,
+      blocked: v.blocked.filter((b) => b.from && b.to).map((b) => ({ from: b.from, to: b.to, note: b.note.trim() || undefined })),
     },
     amenities: v.amenities,
     media: {
@@ -269,6 +288,24 @@ export function PropertyForm({
     setValues((v) => ({ ...v, [key]: value }));
   }
 
+  const rental = isRentalOperation(values.operation);
+  const periodOptions = PERIODS_BY_OPERATION[values.operation];
+  // La publicación (borrador / publicada / archivada) y la disponibilidad son cosas distintas: en un alquiler no hay "alquilada" ni "reservada" acá.
+  const statusOptions = rental ? PROPERTY_STATUSES.filter((s) => s === "draft" || s === "published" || s === "archived") : PROPERTY_STATUSES.filter((s) => s !== "rented");
+
+  /** Al cambiar de operación, el período pasa a uno que valga para ella (venta = total, alquiler = mes, temporal = noche). */
+  function changeOperation(operation: PropertyFormValues["operation"]) {
+    setValues((v) => {
+      const isRental = isRentalOperation(operation);
+      const status = isRental && (v.status === "rented" || v.status === "reserved" || v.status === "sold") ? "published" : v.status;
+      return { ...v, operation, status, period: effectivePeriod(operation, v.period) };
+    });
+  }
+
+  function updateBlocked(i: number, patch: Partial<BlockedRow>) {
+    setValues((v) => ({ ...v, blocked: v.blocked.map((b, idx) => (idx === i ? { ...b, ...patch } : b)) }));
+  }
+
   function toggleAmenity(a: Amenity) {
     setValues((v) => ({
       ...v,
@@ -316,6 +353,17 @@ export function PropertyForm({
     if (values.coverMode === "ambient" && !values.ambient) {
       setError("Subí la carpeta de la portada viva o elegí «Foto tradicional» en la sección Portada.");
       document.getElementById("portada")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    // Un período ocupado a medias (una sola fecha) se avisa en vez de descartarse en silencio.
+    if (rental && values.blocked.some((b) => (b.from && !b.to) || (!b.from && b.to))) {
+      setError("Completá las dos fechas de cada período ocupado, o quitalo.");
+      document.getElementById("disponibilidad")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    if (rental && values.blocked.some((b) => b.from && b.to && b.from > b.to)) {
+      setError("En un período ocupado, la fecha de fin no puede ser anterior a la de inicio.");
+      document.getElementById("disponibilidad")?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
     setSaving(true);
@@ -368,7 +416,7 @@ export function PropertyForm({
           />
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <SelectField label="Operación" value={values.operation} onChange={(e) => set("operation", e.target.value as PropertyFormValues["operation"])}>
+          <SelectField label="Operación" value={values.operation} onChange={(e) => changeOperation(e.target.value as PropertyFormValues["operation"])}>
             {OPERATIONS.map((o) => (
               <option key={o} value={o}>
                 {OPERATION_LABELS[o]}
@@ -383,7 +431,7 @@ export function PropertyForm({
             ))}
           </SelectField>
           <SelectField label="Estado" value={values.status} onChange={(e) => set("status", e.target.value as PropertyFormValues["status"])}>
-            {PROPERTY_STATUSES.map((s) => (
+            {statusOptions.map((s) => (
               <option key={s} value={s}>
                 {PROPERTY_STATUS_LABELS[s]}
               </option>
@@ -393,6 +441,7 @@ export function PropertyForm({
         <p className="text-xs text-text-muted">
           Sólo las propiedades en estado &quot;Publicada&quot; se ven en el sitio, el mapa y las
           recomendaciones. El resto de los estados quedan guardados pero no son públicos.
+          {rental && " En los alquileres, si está alquilada o no se indica en «Disponibilidad»: sigue publicada y se ve en rojo."}
         </p>
       </section>
 
@@ -408,11 +457,19 @@ export function PropertyForm({
             ))}
           </SelectField>
           <FormField label="Expensas" type="number" min={0} value={values.expenses} onChange={(e) => set("expenses", e.target.value)} />
-          <SelectField label="Período" value={values.period} onChange={(e) => set("period", e.target.value as PropertyFormValues["period"])}>
-            <option value="total">Total</option>
-            <option value="mensual">Mensual</option>
+          <SelectField label="El monto es" value={values.period} onChange={(e) => set("period", e.target.value as PropertyFormValues["period"])} disabled={periodOptions.length === 1}>
+            {periodOptions.map((p) => (
+              <option key={p} value={p}>
+                {PERIOD_LABELS[p]}
+              </option>
+            ))}
           </SelectField>
         </div>
+        {values.operation === "alquiler_temporal" && (
+          <p className="text-xs text-text-muted">
+            El precio se muestra con su período (por ejemplo «US$ 80 /noche»). Para buscar y comparar, los filtros llevan todo a una noche: una semana se divide por 7, una quincena por 15 y un mes por 30.
+          </p>
+        )}
       </section>
 
       <section className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
@@ -443,8 +500,60 @@ export function PropertyForm({
           <FormField label="Antigüedad (años)" type="number" min={0} value={values.age} onChange={(e) => set("age", e.target.value)} />
           <FormField label="Piso" type="number" value={values.floor} onChange={(e) => set("floor", e.target.value)} />
         </div>
-        <FormField label="Orientación" value={values.orientation} onChange={(e) => set("orientation", e.target.value)} placeholder="Norte, Sur..." />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <FormField label="Orientación" value={values.orientation} onChange={(e) => set("orientation", e.target.value)} placeholder="Norte, Sur..." />
+          <SelectField label="Distancia a la playa" value={values.beachDistance} onChange={(e) => set("beachDistance", e.target.value)}>
+            <option value="">No informar</option>
+            {BEACH_DISTANCES.map((m) => (
+              <option key={m} value={String(m)}>
+                {beachDistanceLabel(m)}
+              </option>
+            ))}
+          </SelectField>
+        </div>
       </section>
+
+      {rental && (
+        <section id="disponibilidad" aria-labelledby="disponibilidad-title" className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
+          <div>
+            <h2 id="disponibilidad-title" className="font-display text-lg font-semibold text-text">
+              Disponibilidad
+            </h2>
+            <p className="mt-1 text-sm text-text-muted">
+              Indicá si hoy se puede alquilar y, si querés, en qué fechas está ocupada. Una propiedad alquilada sigue publicada: se ve en rojo en el mapa y en la ficha. No es un sistema de reservas.
+            </p>
+          </div>
+          <div role="radiogroup" aria-label="Disponibilidad de hoy" className="flex flex-wrap gap-2">
+            <FilterPill type="button" role="radio" aria-checked={values.availabilityState === "available"} active={values.availabilityState === "available"} onClick={() => set("availabilityState", "available")}>
+              Disponible
+            </FilterPill>
+            <FilterPill type="button" role="radio" aria-checked={values.availabilityState === "unavailable"} active={values.availabilityState === "unavailable"} onClick={() => set("availabilityState", "unavailable")}>
+              Alquilada / no disponible
+            </FilterPill>
+          </div>
+          {values.availabilityState === "unavailable" && (
+            <p className="text-xs text-text-muted">Mientras esté así se ve como no disponible, sin importar las fechas de abajo. Cuando la pases a «Disponible», se avisa a quienes pidieron que les avisen.</p>
+          )}
+          <div className="flex flex-col gap-3">
+            <h3 className="text-sm font-semibold text-text">
+              Períodos ocupados <span className="font-normal text-text-muted">(opcional, hasta {MAX_BLOCKED_RANGES})</span>
+            </h3>
+            {values.blocked.map((b, i) => (
+              <div key={i} className="grid grid-cols-1 gap-3 rounded-media border border-border p-3 sm:grid-cols-[1fr_1fr_1.4fr_auto] sm:items-end">
+                <FormField label="Desde" type="date" value={b.from} onChange={(e) => updateBlocked(i, { from: e.target.value })} />
+                <FormField label="Hasta" type="date" min={b.from || undefined} value={b.to} onChange={(e) => updateBlocked(i, { to: e.target.value })} />
+                <FormField label="Nota (sólo la ves vos)" maxLength={80} placeholder="Ej: reservada por Pérez" value={b.note} onChange={(e) => updateBlocked(i, { note: e.target.value })} />
+                <IconButton aria-label="Quitar período ocupado" onClick={() => setValues((v) => ({ ...v, blocked: v.blocked.filter((_, idx) => idx !== i) }))} className="sm:mb-1">
+                  <X className="h-3.5 w-3.5" aria-hidden />
+                </IconButton>
+              </div>
+            ))}
+            <Button type="button" variant="secondary" onClick={() => setValues((v) => ({ ...v, blocked: [...v.blocked, { from: "", to: "", note: "" }] }))} disabled={values.blocked.length >= MAX_BLOCKED_RANGES}>
+              <Plus className="h-4 w-4" aria-hidden /> Agregar período ocupado
+            </Button>
+          </div>
+        </section>
+      )}
 
       <section className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
         <h2 className="font-display text-lg font-semibold text-text">Comodidades</h2>

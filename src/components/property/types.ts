@@ -1,5 +1,7 @@
 import type { TourScene, VirtualTourConfig } from "@/components/tour/tour-types";
 import type { AmbientManifest } from "@/vendor/ambient";
+import type { PricePeriod } from "@/config/pricing";
+import type { BlockedRange, RentalStatus } from "@/lib/availability";
 
 /** Portada viva de una propiedad, lista para el reproductor de la ficha (el póster es la imagen de tarjetas). */
 export type PropertyAmbient = {
@@ -21,7 +23,7 @@ export type PropertyCardData = {
   title: string;
   price: number;
   currency: string;
-  period: "total" | "mensual";
+  period: PricePeriod;
   operation: string;
   type: string;
   neighborhood?: string;
@@ -31,6 +33,10 @@ export type PropertyCardData = {
   bathrooms?: number;
   area?: number;
   tour3d: boolean;
+  /** Sólo en alquileres: si está disponible hoy (verde) o no (rojo) y desde/hasta cuándo. En una venta es `null`. */
+  rental?: RentalStatus | null;
+  /** Metros a la playa (0 = frente al mar), si la inmobiliaria lo informó. */
+  beachDistance?: number;
   /** Tiene portada viva: `image` ya es su póster y las tarjetas muestran una insignia. */
   ambient?: boolean;
   isNew: boolean;
@@ -61,7 +67,7 @@ export type PropertyDetail = {
   type: string;
   status: string;
 
-  price: { amount: number; currency: string; expenses: number; period: "total" | "mensual" };
+  price: { amount: number; currency: string; expenses: number; period: PricePeriod };
 
   address: {
     street?: string;
@@ -85,8 +91,14 @@ export type PropertyDetail = {
     age?: number;
     floor?: number;
     orientation?: string;
+    /** Metros a la playa (0 = frente al mar). */
+    beachDistance?: number;
   };
   amenities: string[];
+  /**
+   * Sólo en alquileres: el estado de hoy y los períodos ocupados que quedan por delante (sin notas internas). `null` en una venta.
+   */
+  availability: { status: RentalStatus; busy: Pick<BlockedRange, "from" | "to">[] } | null;
 
   images: { url: string; alt: string }[];
   videos: { videoId: string; title?: string; orientation: "vertical" | "horizontal" }[];

@@ -4,6 +4,7 @@ import { AgencyFollow } from "@/lib/db/models/AgencyFollow";
 import { AgencyRequest } from "@/lib/db/models/AgencyRequest";
 import { AllowedEmail } from "@/lib/db/models/AllowedEmail";
 import { Comment } from "@/lib/db/models/Comment";
+import { AvailabilityWatch } from "@/lib/db/models/AvailabilityWatch";
 import { Favorite } from "@/lib/db/models/Favorite";
 import { Interaction } from "@/lib/db/models/Interaction";
 import { Lead } from "@/lib/db/models/Lead";
@@ -94,6 +95,7 @@ export async function purgeUsers(userIds: string[]): Promise<PurgeSummary> {
   // — Borrar la actividad —
   await Promise.all([
     Favorite.deleteMany({ userId: { $in: ids } }),
+    AvailabilityWatch.deleteMany({ userId: { $in: ids } }),
     Like.deleteMany({ userId: { $in: ids } }),
     Comment.deleteMany({ userId: { $in: ids } }),
     Rating.deleteMany({ userId: { $in: ids } }),

@@ -9,6 +9,7 @@ import type { PropertyCardData } from "@/components/property/types";
 import { Property } from "@/lib/db/models/Property";
 import { getRecommendations } from "@/lib/recommendations/engine";
 import { phrase } from "@/lib/agents/knowledge/phrasing";
+import { periodSuffix } from "@/config/pricing";
 import { change, clip, count, daysAgo, list, money, n0, pct, plural, quote } from "../../compose/format";
 import { dedupeSuggestions, sug } from "../../compose/suggest";
 import { describeSearch, filterCount, operationText, typeLabel } from "../../compose/vocab";
@@ -353,7 +354,7 @@ export const compare: Handler = async (env) => {
   const cheapestPpm = sameCurrency ? best(ppm, "min") : -1;
   const biggest = best(cards.map((c) => c.area ?? null), "max");
   const rows: Record<string, string | { text: string; tone?: "good" | "bad" | "neutral" }>[] = [
-    Object.fromEntries([["f", "Precio"], ...cards.map((c, i) => [`p${i}`, cell(`${money(c.price, c.currency)}${c.period === "mensual" ? "/mes" : ""}`, sameCurrency && best(cards.map((x) => x.price), "min") === i ? "good" : "neutral")])]),
+    Object.fromEntries([["f", "Precio"], ...cards.map((c, i) => [`p${i}`, cell(`${money(c.price, c.currency)}${periodSuffix(c.operation, c.period)}`, sameCurrency && best(cards.map((x) => x.price), "min") === i ? "good" : "neutral")])]),
     Object.fromEntries([["f", "Precio por m²"], ...cards.map((c, i) => [`p${i}`, cell(ppm[i] ? money(Math.round(ppm[i]!), c.currency) : "—", cheapestPpm === i ? "good" : "neutral")])]),
     Object.fromEntries([["f", "Superficie"], ...cards.map((c, i) => [`p${i}`, cell(c.area ? `${n0(c.area)} m²` : "—", biggest === i ? "good" : "neutral")])]),
     Object.fromEntries([["f", "Ambientes"], ...cards.map((c) => [`p${cards.indexOf(c)}`, cell(extra.get(c.id)?.features?.rooms != null ? String(extra.get(c.id)!.features!.rooms) : "—")])]),

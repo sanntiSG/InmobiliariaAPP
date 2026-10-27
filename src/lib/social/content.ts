@@ -1,5 +1,6 @@
 import { brand } from "@/config/brand";
 import { OPERATION_LABELS, PROPERTY_TYPE_LABELS, type Operation, type PropertyType } from "@/config/filters";
+import { periodSuffix } from "@/config/pricing";
 import { formatPrice } from "@/lib/utils/format";
 
 /** Datos ya listos para insertar en un template (nada de lógica adentro de los templates). */
@@ -88,8 +89,8 @@ export function buildPostData(
       .join(", "),
     operation: op === "venta" ? "En venta" : op === "alquiler" ? "En alquiler" : OPERATION_LABELS[op] ?? "",
     price: formatPrice(property.price?.amount ?? 0, property.price?.currency ?? "USD"),
-    // "/mes" sólo si se paga por mes (el alquiler temporal suele ser por estadía y el precio va sin sufijo).
-    priceSuffix: op === "alquiler" || property.price?.period === "mensual" ? "/mes" : "",
+    // El sufijo sigue al período del precio: "/mes", "/noche", "/semana"… (vacío en una venta).
+    priceSuffix: periodSuffix(op, property.price?.period),
     specs,
     agencyName: agency.name,
     agencyLogo,

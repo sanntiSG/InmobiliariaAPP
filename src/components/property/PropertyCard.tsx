@@ -2,14 +2,16 @@
 
 import { memo, useState, type CSSProperties } from "react";
 import Image from "next/image";
-import { Heart, Sparkles } from "lucide-react";
+import { Heart, Sparkles, Waves } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { IconButton } from "@/components/ui/IconButton";
 import { PriceTag } from "./PriceTag";
 import { PropertyFeatures } from "./PropertyFeatures";
 import { TourBadge } from "./TourBadge";
 import { AmbientBadge } from "./AmbientBadge";
+import { AvailabilityBadge } from "./AvailabilityBadge";
 import { OPERATION_LABELS } from "@/config/filters";
+import { beachDistanceLabel } from "@/config/pricing";
 import { cn } from "@/lib/utils/cn";
 import type { PropertyCardData } from "./types";
 
@@ -113,6 +115,8 @@ function PropertyCardImpl({
           {[property.neighborhood, property.city].filter(Boolean).join(", ")}
         </p>
         <PropertyFeatures bedrooms={property.bedrooms} bathrooms={property.bathrooms} area={property.area} />
+        {property.beachDistance != null && <p className="flex items-center gap-1.5 text-xs text-text-muted"><Waves className="h-3.5 w-3.5 shrink-0" aria-hidden />{beachDistanceLabel(property.beachDistance)}</p>}
+        {property.rental && <AvailabilityBadge rental={property.rental} />}
         {property.reason && (
           <p className="mt-1 flex items-start gap-1.5 border-t border-border pt-2.5 text-xs text-text-muted">
             <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" aria-hidden />

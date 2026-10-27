@@ -9,7 +9,9 @@ import { Sheet } from "@/components/ui/Sheet";
 import { AMENITIES, AMENITY_LABELS, CURRENCIES, OPERATIONS, OPERATION_LABELS, PROPERTY_TYPES, PROPERTY_TYPE_LABELS, type Amenity, type Currency } from "@/config/filters";
 import { areaBounds, priceBounds } from "@/lib/filters/bounds";
 import type { Facets } from "@/lib/filters/facets";
-import { DEFAULT_FILTERS, RECENT_DAYS, activeChips, type PropertyFiltersState } from "@/lib/filters/state";
+import { DEFAULT_FILTERS, RECENT_DAYS, activeChips, withOperation, type PropertyFiltersState } from "@/lib/filters/state";
+import { BEACH_FILTER_OPTIONS, NIGHTLY_RULE } from "@/config/pricing";
+import { checkRange, todayAr } from "@/lib/availability";
 import { useMediaQuery } from "@/lib/hooks/useMediaQuery";
 import { formatPriceCompact } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
@@ -93,6 +95,47 @@ const selectCls =
   "h-11 w-full rounded-media border border-border-hi bg-surface-sunken px-3.5 text-[15px] text-text outline-none transition-[border-color,box-shadow] duration-150 focus:border-accent/60 focus:ring-[3px] focus:ring-accent/15 disabled:opacity-50";
 
 /**
+ * "Libre en mis fechas": del día X al día Y. Sólo muestra alquileres que estén libres TODOS esos días (no marcados no disponibles y
+ * sin un período ocupado que se pise). No reserva nada. Mientras falta una de las dos fechas queda un borrador local: el filtro se
+ * aplica cuando están las dos y bien ordenadas.
+ */
+function FreeDatesSection({ from, to, onChange }: { from: string | null; to: string | null; onChange: (from: string | null, to: string | null) => void }) {
+  const [draft, setDraft] = useState({ from: from ?? "", to: to ?? "" });
+  // Si el filtro cambia desde afuera (quitar la etiqueta, "Limpiar filtros") el borrador lo acompaña.
+  const [seen, setSeen] = useState({ from, to });
+  if (seen.from !== from || seen.to !== to) {
+    setSeen({ from, to });
+    setDraft({ from: from ?? "", to: to ?? "" });
+  }
+  const today = todayAr();
+
+  function update(next: { from: string; to: string }) {
+    setDraft(next);
+    if (!next.from && !next.to) return onChange(null, null);
+    if (next.from && next.to && checkRange(next) === null) onChange(next.from, next.to);
+  }
+
+  const incomplete = (!!draft.from !== !!draft.to) || (!!draft.from && !!draft.to && checkRange(draft) !== null);
+  return (
+    <Section title="Libre en mis fechas" hint="Sólo alquileres">
+      <div className="grid grid-cols-2 gap-3">
+        <label className="flex flex-col gap-1 text-xs font-medium text-text-muted">
+          Desde
+          <input type="date" min={today} value={draft.from} onChange={(e) => update({ from: e.target.value, to: draft.to && e.target.value > draft.to ? "" : draft.to })} className={selectCls} />
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-text-muted">
+          Hasta
+          <input type="date" min={draft.from || today} value={draft.to} onChange={(e) => update({ from: draft.from, to: e.target.value })} className={selectCls} />
+        </label>
+      </div>
+      <p className={cn("text-xs", incomplete ? "text-warning" : "text-text-muted")}>
+        {incomplete ? "Elegí las dos fechas para aplicar el filtro." : "Se muestran los alquileres que están libres todos esos días. No se reserva nada."}
+      </p>
+    </Section>
+  );
+}
+
+/**
  * Todos los filtros en una sola hoja: desde abajo en el celular, desde la derecha en pantallas grandes (el mapa o el listado
  * siguen a la vista). Arriba, lo que ya está aplicado como etiquetas que se quitan de a una; abajo, siempre a la mano, limpiar y
  * ver los resultados. Los cambios se aplican en el momento. Las opciones de ubicación, comodidades y precio salen de lo que hay
@@ -163,11 +206,11 @@ export function FilterSheet({ open, onClose, value, onChange, resultCount }: Pro
 
         <Section title="Operación">
           <div className="flex flex-wrap gap-2">
-            <FilterPill className={pill} active={value.operation === "todas"} onClick={() => set({ operation: "todas" })}>
+            <FilterPill className={pill} active={value.operation === "todas"} onClick={() => onChange(withOperation(value, "todas"))}>
               Todas
             </FilterPill>
             {OPERATIONS.map((op) => (
-              <FilterPill key={op} className={pill} active={value.operation === op} onClick={() => set({ operation: op })}>
+              <FilterPill key={op} className={pill} active={value.operation === op} onClick={() => onChange(withOperation(value, op))}>
                 {OPERATION_LABELS[op]}
               </FilterPill>
             ))}
@@ -216,33 +259,60 @@ export function FilterSheet({ open, onClose, value, onChange, resultCount }: Pro
           </div>
         </Section>
 
-        <Section title="Precio" hint={value.currency ? undefined : "Elegí una moneda"}>
-          <div className="flex flex-wrap gap-2">
-            <FilterPill className={pill} active={value.currency === null} onClick={() => set({ currency: null, priceMin: null, priceMax: null })}>
-              Cualquiera
-            </FilterPill>
-            {CURRENCIES.map((c: Currency) => (
-              <FilterPill key={c} className={pill} active={value.currency === c} onClick={() => set({ currency: c, priceMin: null, priceMax: null })}>
-                {c === "USD" ? "Dólares (US$)" : "Pesos ($)"}
-              </FilterPill>
-            ))}
-          </div>
-          {value.currency &&
-            (price ? (
-              <RangeSlider
-                min={price.min}
-                max={price.max}
-                step={price.step}
-                value={priceValue}
-                ariaLabels={["Precio mínimo", "Precio máximo"]}
-                onChange={([lo, hi]) => set({ priceMin: lo <= price.min ? null : lo, priceMax: hi >= price.max ? null : hi })}
-                formatValue={(n) => (n >= price.max ? `${formatPriceCompact(n, value.currency!)}+` : formatPriceCompact(n, value.currency!))}
-              />
-            ) : (
-              <p className="text-sm text-text-muted">{facets ? `No hay propiedades publicadas en ${value.currency === "USD" ? "dólares" : "pesos"}${value.operation !== "todas" ? ` para ${OPERATION_LABELS[value.operation].toLowerCase()}` : ""}.` : "Cargando…"}</p>
-            ))}
-          {value.currency && value.operation === "todas" && price && <p className="text-xs text-text-muted">Incluye ventas y alquileres: para acotar mejor, elegí una operación.</p>}
+        <Section title={value.operation === "alquiler_temporal" ? "Presupuesto por noche" : "Precio"} hint={value.operation !== "todas" && !value.currency ? "Elegí una moneda" : undefined}>
+          {value.operation === "todas" ? (
+            // Un monto de venta, uno por mes y uno por noche no se pueden comparar: el precio se elige DENTRO de una operación.
+            <p className="rounded-media bg-surface-2 px-3.5 py-3 text-sm text-text-muted">Elegí una operación (venta, alquiler o alquiler temporal) para filtrar por precio: un monto de venta, uno por mes y uno por noche no se pueden comparar entre sí.</p>
+          ) : (
+            <>
+              <div className="flex flex-wrap gap-2">
+                <FilterPill className={pill} active={value.currency === null} onClick={() => set({ currency: null, priceMin: null, priceMax: null })}>
+                  Cualquiera
+                </FilterPill>
+                {CURRENCIES.map((c: Currency) => (
+                  <FilterPill key={c} className={pill} active={value.currency === c} onClick={() => set({ currency: c, priceMin: null, priceMax: null })}>
+                    {c === "USD" ? "Dólares (US$)" : "Pesos ($)"}
+                  </FilterPill>
+                ))}
+              </div>
+              {value.currency &&
+                (price ? (
+                  <RangeSlider
+                    min={price.min}
+                    max={price.max}
+                    step={price.step}
+                    value={priceValue}
+                    ariaLabels={[value.operation === "alquiler_temporal" ? "Precio mínimo por noche" : "Precio mínimo", value.operation === "alquiler_temporal" ? "Precio máximo por noche" : "Precio máximo"]}
+                    onChange={([lo, hi]) => set({ priceMin: lo <= price.min ? null : lo, priceMax: hi >= price.max ? null : hi })}
+                    formatValue={(n) => {
+                      const text = n >= price.max ? `${formatPriceCompact(n, value.currency!)}+` : formatPriceCompact(n, value.currency!);
+                      return value.operation === "alquiler_temporal" ? `${text}/noche` : value.operation === "alquiler" ? `${text}/mes` : text;
+                    }}
+                  />
+                ) : (
+                  <p className="text-sm text-text-muted">{facets ? `No hay propiedades publicadas en ${value.currency === "USD" ? "dólares" : "pesos"} para ${OPERATION_LABELS[value.operation].toLowerCase()}.` : "Cargando…"}</p>
+                ))}
+              {value.operation === "alquiler_temporal" && <p className="text-xs text-text-muted">{NIGHTLY_RULE}</p>}
+            </>
+          )}
         </Section>
+
+        {(value.beachMax != null || (facets?.beachCount ?? 0) > 0) && (
+          <Section title="Distancia a la playa" hint="Sólo las que lo informan">
+            <div className="flex flex-wrap gap-2">
+              <FilterPill className={pill} active={value.beachMax === null} onClick={() => set({ beachMax: null })}>
+                Cualquiera
+              </FilterPill>
+              {BEACH_FILTER_OPTIONS.map((m) => (
+                <FilterPill key={m} className={pill} active={value.beachMax === m} onClick={() => set({ beachMax: value.beachMax === m ? null : m })}>
+                  Hasta {m >= 1000 ? `${m / 1000} km` : `${m} m`}
+                </FilterPill>
+              ))}
+            </div>
+          </Section>
+        )}
+
+        {value.operation !== "venta" && <FreeDatesSection from={value.from} to={value.to} onChange={(from, to) => set({ from, to })} />}
 
         <Section title="Ambientes y espacios">
           <div className="flex flex-col gap-2.5">

@@ -4,6 +4,7 @@
  * las mismas piezas, así los tres hablan de la propiedad con las mismas palabras y las mismas cifras.
  */
 import { AMENITY_LABELS, OPERATION_LABELS, type Amenity, type Operation } from "@/config/filters";
+import { effectivePeriod, periodPhrase } from "@/config/pricing";
 import { clip, list, money, n0 } from "@/lib/advisor/compose/format";
 import { operationText, typeGender, typeLabel } from "@/lib/advisor/compose/vocab";
 import type { FactIcon } from "@/lib/advisor/types";
@@ -46,13 +47,11 @@ export function placeOf(p: Pick<PropertyFacts, "neighborhood" | "city">): string
   return p.city;
 }
 
-/** ¿Se paga por mes? Alquiler, o cualquier operación cargada con período mensual (el alquiler temporal suele ser por estadía). */
-export const isMonthly = (p: Pick<PropertyFacts, "operation" | "price">): boolean => p.operation === "alquiler" || p.price.period === "mensual";
-
-/** "US$175.000" en venta; "$850.000 por mes" en alquiler. */
+/** "US$175.000" en venta; "$850.000 por mes" en alquiler; "$80.000 por noche" en un alquiler temporal (según su período). */
 export function priceText(p: Pick<PropertyFacts, "operation" | "price">): string {
   const base = money(p.price.amount, p.price.currency);
-  return isMonthly(p) ? `${base} por mes` : base;
+  const phrase = periodPhrase(effectivePeriod(p.operation, p.price.period));
+  return phrase ? `${base} ${phrase}` : base;
 }
 
 /** Un documento de propiedad tal como sale de la base (con la inmobiliaria poblada o no), con lo que hace falta para contarla. */

@@ -16,6 +16,7 @@ export const OPERATION_LABELS: Record<Operation, string> = {
 export const PROPERTY_TYPES = [
   "casa",
   "departamento",
+  "duplex",
   "ph",
   "terreno",
   "local",
@@ -28,6 +29,7 @@ export type PropertyType = (typeof PROPERTY_TYPES)[number];
 export const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
   casa: "Casa",
   departamento: "Departamento",
+  duplex: "Dúplex",
   ph: "PH",
   terreno: "Terreno",
   local: "Local",

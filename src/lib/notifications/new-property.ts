@@ -12,7 +12,7 @@ type PublishedProperty = {
   title: string;
   operation: string;
   type: string;
-  price?: { amount: number; currency?: string | null } | null;
+  price?: { amount: number; currency?: string | null; period?: string | null } | null;
   features?: { rooms?: number | null } | null;
   address?: { neighborhood?: string | null } | null;
 };
@@ -36,7 +36,7 @@ export async function notifyNewPublication(property: PublishedProperty): Promise
       findInterestedUsers({
         operation: property.operation,
         type: property.type,
-        price: { amount: property.price?.amount ?? 0, currency: property.price?.currency ?? undefined },
+        price: { amount: property.price?.amount ?? 0, currency: property.price?.currency ?? undefined, period: property.price?.period ?? undefined },
         features: { rooms: property.features?.rooms ?? undefined },
         address: { neighborhood: property.address?.neighborhood ?? undefined },
       }),

@@ -23,6 +23,7 @@ export const NOTIFICATION_TYPES = [
   "mail_draft", // (inmobiliaria) el agente de correo dejó una respuesta para confirmar
   "mail_error", // (inmobiliaria) el buzón de correo necesita atención (contraseña, conexión)
   "mail_attention", // (inmobiliaria) un cliente necesita a una persona: duda sin resolver, respondió a un mail automático
+  "availability", // un alquiler que no estaba disponible volvió a estarlo (lo pidió, lo guardó o encaja con sus intereses)
 ] as const;
 
 const notificationSchema = new Schema(

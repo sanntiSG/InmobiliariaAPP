@@ -6,6 +6,8 @@ import {
   AMENITIES,
   CURRENCIES,
 } from "@/config/filters";
+import { PRICE_PERIODS } from "@/config/pricing";
+import { AVAILABILITY_STATES, MAX_BLOCKED_RANGES, RANGE_ERRORS, checkRange } from "@/lib/availability";
 import { VIDEO_ID_RE, youtubeThumbnail, youtubeWatchUrl } from "@/lib/media/youtube";
 import { AMBIENT_COVER_ID_RE, AMBIENT_MAX_STATES, AMBIENT_START_AUTO, AMBIENT_STATE_ID_RE } from "@/lib/ambient/constants";
 
@@ -81,6 +83,22 @@ const imageSchema = z.object({
   height: z.number().optional(),
 });
 
+/** Disponibilidad de un alquiler: estado manual + hasta 8 períodos ocupados con fechas válidas. */
+const availabilitySchema = z
+  .object({
+    state: z.enum(AVAILABILITY_STATES).default("available"),
+    blocked: z
+      .array(z.object({ from: z.string(), to: z.string(), note: z.string().trim().max(80).optional() }))
+      .max(MAX_BLOCKED_RANGES, `Hasta ${MAX_BLOCKED_RANGES} períodos ocupados.`)
+      .default([]),
+  })
+  .superRefine((v, ctx) => {
+    v.blocked.forEach((r, i) => {
+      const err = checkRange(r);
+      if (err) ctx.addIssue({ code: "custom", message: RANGE_ERRORS[err], path: ["blocked", i] });
+    });
+  });
+
 /**
  * Esquema completo para crear/editar una propiedad desde el dashboard de
  * la inmobiliaria (consumido por formularios y por el route handler).
@@ -98,7 +116,8 @@ export const propertyInputSchema = z.object({
     amount: z.number().positive(),
     currency: z.enum(CURRENCIES).default("USD"),
     expenses: z.number().nonnegative().default(0),
-    period: z.enum(["total", "mensual"]).default("total"),
+    // Qué períodos valen en cada operación lo resuelve el servidor (`effectivePeriod`): una combinación inválida cae en la de siempre.
+    period: z.enum(PRICE_PERIODS).default("total"),
   }),
 
   address: z.object({
@@ -122,8 +141,13 @@ export const propertyInputSchema = z.object({
     age: z.number().int().nonnegative().optional(),
     floor: z.number().int().optional(),
     orientation: z.string().optional(),
+    /** Metros a la playa (0 = frente al mar). */
+    beachDistance: z.number().int().min(0).max(20_000).optional(),
   }),
   amenities: z.array(z.enum(AMENITIES)).default([]),
+
+  /** Sólo se usa en alquileres (el servidor la ignora en una venta). Ver `lib/availability.ts`. */
+  availability: availabilitySchema.default({ state: "available", blocked: [] }),
 
   media: z
     .object({

@@ -42,7 +42,7 @@ export function readRequest(subject: string, text: string, index: EntityIndex = 
   return { body, norm, tokens, detected, slots };
 }
 
-const PLURAL: Record<string, string> = { casa: "casas", departamento: "departamentos", ph: "PH", terreno: "terrenos", local: "locales", oficina: "oficinas", galpon: "galpones", quinta: "quintas" };
+const PLURAL: Record<string, string> = { casa: "casas", departamento: "departamentos", duplex: "dúplex", ph: "PH", terreno: "terrenos", local: "locales", oficina: "oficinas", galpon: "galpones", quinta: "quintas" };
 
 /** Lugares que no están en el catálogo pero se nombran como tales. */
 const PLACE_PATTERNS: RegExp[] = [
@@ -56,7 +56,8 @@ const PLACE_PATTERNS: RegExp[] = [
 /** Palabras que confirman cada tipo de propiedad (sin tildes). El vocabulario del asesor tolera errores de tipeo; acá no. */
 const TYPE_WORDS: Record<string, RegExp> = {
   casa: /\b(?:casas?|casit[ao]s?|chalets?|casonas?)\b/,
-  departamento: /\b(?:departamentos?|deptos?|dptos?|depas?|monoambientes?|duplex|lofts?|pisos?)\b/,
+  departamento: /\b(?:departamentos?|deptos?|dptos?|depas?|monoambientes?|lofts?|pisos?)\b/,
+  duplex: /\bduplex\b/,
   ph: /\b(?:phs?|p h|propiedad horizontal)\b/,
   terreno: /\b(?:terrenos?|lotes?|loteos?|parcelas?)\b/,
   local: /\b(?:locales?|local comercial|fondo de comercio)\b/,

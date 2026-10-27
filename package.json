@@ -21,7 +21,10 @@
     "fix-stale-agency-requests": "tsx scripts/fix-stale-agency-requests.ts",
     "postinstall": "node scripts/copy-maplibre-worker.mjs",
     "mail:check": "tsx scripts/mail-check.ts",
-    "filters:check": "tsx scripts/filters-check.ts"
+    "filters:check": "tsx scripts/filters-check.ts",
+    "rentals:check": "tsx scripts/rentals-check.ts",
+    "seedVacacional": "tsx scripts/seed-vacacional.ts",
+    "eliminarSeedVacacional": "tsx scripts/eliminar-seed-vacacional.ts"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",

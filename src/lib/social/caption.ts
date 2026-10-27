@@ -41,7 +41,7 @@ export function hashtagify(raw: string): string | null {
 }
 
 /** Se vive en ella: el gancho puede hablar de "hogar" o de "mudarse". Los demás tipos (oficina, local, galpón, terreno) son para trabajar o construir. */
-const RESIDENTIAL = new Set(["casa", "departamento", "ph", "quinta"]);
+const RESIDENTIAL = new Set(["casa", "departamento", "duplex", "ph", "quinta"]);
 
 function hook(p: PropertyFacts, seed: number): string {
   const op = p.operation as Operation;

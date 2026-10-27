@@ -43,6 +43,11 @@ const baseFiltersShape = {
   ambient: triState,
   videos: triState,
   recent: triState,
+  /** Hasta cuántos metros de la playa. */
+  beach: z.coerce.number().int().min(0).max(20_000).optional(),
+  /** "Libre en mis fechas": ambos días (`YYYY-MM-DD`) o ninguno; la consulta ignora un rango inválido. */
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 };
 
 /** Query params aceptados por GET /api/map/properties. */

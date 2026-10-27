@@ -6,6 +6,7 @@ import { Agency } from "@/lib/db/models/Agency";
 import { Property } from "@/lib/db/models/Property";
 import { PropertyForm, type PropertyFormValues } from "@/components/dashboard/PropertyForm";
 import type { AmbientManifest } from "@/vendor/ambient";
+import { effectivePeriod } from "@/config/pricing";
 
 export const metadata = { title: "Editar propiedad" };
 
@@ -56,7 +57,8 @@ export default async function EditPropertyPage({ params }: PageProps<"/dashboard
     priceAmount: String(doc.price!.amount),
     currency: doc.price!.currency ?? "USD",
     expenses: doc.price!.expenses ? String(doc.price!.expenses) : "",
-    period: (doc.price!.period ?? "total") as "total" | "mensual",
+    // El período que corresponde a la operación (un alquiler viejo guardado como "total" se edita como "por mes").
+    period: effectivePeriod(doc.operation, doc.price!.period),
     street: doc.address?.street ?? "",
     number: doc.address?.number ?? "",
     neighborhood: doc.address?.neighborhood ?? "",
@@ -74,6 +76,9 @@ export default async function EditPropertyPage({ params }: PageProps<"/dashboard
     age: doc.features?.age != null ? String(doc.features.age) : "",
     floor: doc.features?.floor != null ? String(doc.features.floor) : "",
     orientation: doc.features?.orientation ?? "",
+    beachDistance: doc.features?.beachDistance != null ? String(doc.features.beachDistance) : "",
+    availabilityState: doc.availability?.state === "unavailable" ? "unavailable" : "available",
+    blocked: (doc.availability?.blocked ?? []).map((b) => ({ from: b.from, to: b.to, note: b.note ?? "" })),
     amenities: (doc.amenities ?? []) as PropertyFormValues["amenities"],
     coverMode: ambient ? "ambient" : "photo",
     ambient,

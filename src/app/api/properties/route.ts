@@ -48,7 +48,8 @@ async function getListing(filters: z.infer<typeof listFiltersSchema>) {
     Property.find(query)
       .select(PROPERTY_CARD_PROJECTION)
       .populate({ path: "agencyId", select: "name slug logo" })
-      .sort(SORTS[filters.sort])
+      // En un alquiler temporal se ordena por el equivalente por noche (los montos de períodos distintos no se comparan).
+      .sort(filters.operation === "alquiler_temporal" && filters.sort !== "recientes" ? { "price.perNight": filters.sort === "precio_asc" ? 1 : -1 } : SORTS[filters.sort])
       .skip(skip)
       .limit(filters.pageSize)
       .lean(),

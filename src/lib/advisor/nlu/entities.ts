@@ -20,7 +20,7 @@ export type EntityIndex = {
 
 const GENERIC_TITLE_WORDS = new Set(
   [
-    "casa", "departamento", "depto", "dpto", "ph", "terreno", "lote", "local", "oficina", "galpon", "quinta",
+    "casa", "departamento", "depto", "dpto", "duplex", "ph", "terreno", "lote", "local", "oficina", "galpon", "quinta",
     "venta", "alquiler", "temporal", "ambiente", "dormitorio", "habitacion", "hermoso", "hermosa", "excelente",
     "amplio", "amplia", "luminoso", "luminosa", "moderno", "moderna", "lindo", "linda", "con", "en", "de", "del",
     "y", "para", "sobre", "zona", "barrio", "piso", "nueva", "nuevo", "oportunidad", "impecable", "super",
@@ -69,6 +69,7 @@ const PROPERTY_NOUN = /\b(propiedad(?:es)?|casa|casas|depto|deptos|departamento|
 const TYPE_CONCEPTS: [string, PropertyType][] = [
   ["e.casa", "casa"],
   ["e.departamento", "departamento"],
+  ["e.duplex", "duplex"],
   ["e.ph", "ph"],
   ["e.terreno", "terreno"],
   ["e.local", "local"],

@@ -5,10 +5,13 @@ import { priceKey } from "@/lib/intelligence/user-profile";
 type PropertyLike = {
   operation: string;
   type: string;
-  price: { amount: number; currency?: string };
+  price: { amount: number; currency?: string; period?: string };
   features?: { rooms?: number };
   address?: { neighborhood?: string };
 };
+
+/** Un precio por noche, día, semana o quincena no se compara con el rango de precio de las preferencias (que no tiene período). */
+const isShortStay = (period?: string): boolean => period === "noche" || period === "dia" || period === "semana" || period === "quincena";
 
 /**
  * Usuarios cuyas preferencias explícitas matchean una propiedad nueva —
@@ -31,9 +34,10 @@ export async function findMatchingUsers(property: PropertyLike, limit = 200): Pr
 
       const opMatch = !p.operations?.length || p.operations.includes(property.operation);
       const typeMatch = !p.propertyTypes?.length || p.propertyTypes.includes(property.type);
+      // Los montos de períodos distintos no se comparan: el rango de las preferencias no sabe si es por mes o por noche.
       const priceMatch =
-        (p.priceMin == null || property.price.amount >= p.priceMin) &&
-        (p.priceMax == null || property.price.amount <= p.priceMax);
+        isShortStay(property.price.period) ||
+        ((p.priceMin == null || property.price.amount >= p.priceMin) && (p.priceMax == null || property.price.amount <= p.priceMax));
       const roomsMatch = !p.minRooms || (property.features?.rooms != null && property.features.rooms >= p.minRooms);
       const neighborhood = property.address?.neighborhood?.toLowerCase();
       const locationMatch =
@@ -65,6 +69,7 @@ export async function findUsersByTaste(property: PropertyLike, limit = 200): Pro
 
   const key = priceKey(property.operation, property.price.currency ?? "USD");
   const fits = profiles.filter((p) => {
+    if (isShortStay(property.price.period)) return true;
     const band = p.prices.find((b) => b.key === key);
     return !band || (property.price.amount >= band.low! * 0.8 && property.price.amount <= band.high! * 1.2);
   });

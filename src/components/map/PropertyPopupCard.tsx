@@ -11,8 +11,10 @@ import { PriceTag } from "@/components/property/PriceTag";
 import { PropertyFeatures } from "@/components/property/PropertyFeatures";
 import { TourBadge } from "@/components/property/TourBadge";
 import { AmbientBadge } from "@/components/property/AmbientBadge";
+import { AvailabilityBadge } from "@/components/property/AvailabilityBadge";
 import { AgencyAvatar } from "@/components/property/AgencyAvatar";
 import { OPERATION_LABELS } from "@/config/filters";
+import { beachDistanceLabel } from "@/config/pricing";
 import { cn } from "@/lib/utils/cn";
 import type { PropertyCardData } from "@/components/property/types";
 
@@ -111,6 +113,8 @@ export function PropertyPopupCard({
             area={property.area}
             className="mt-1 flex flex-wrap items-center gap-1.5"
           />
+          {property.beachDistance != null && <p className="truncate text-xs text-text-muted">{beachDistanceLabel(property.beachDistance)}</p>}
+          {property.rental && <AvailabilityBadge rental={property.rental} />}
           {property.agencyName && (
             // <a> plano por la misma razón que el link de abajo (fuera del árbol de React de la app).
             <a

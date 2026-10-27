@@ -1,16 +1,21 @@
 /**
- * Revisión programada del correo de las inmobiliarias: Netlify ejecuta esta función cada 5 minutos y ella llama a la ruta
- * protegida del propio sitio (`/api/cron/mail-poll`). No hace falta cargar nada fuera de Netlify: la clave de la llamada se
- * deriva de `MAIL_CREDENTIALS_KEY` (la misma variable que cifra las contraseñas de las casillas). Si esa variable no está,
- * no hace nada. Sólo corre en el despliegue publicado, nunca en vistas previas.
- *
- * Una llamada revisa un lote (la ruta se corta a los 8 s); si quedan mails (`more: true`) se vuelve a llamar, hasta 3 veces,
- * sin pasar los 30 s que Netlify da a una función programada. Sólo se registran conteos: nunca contenido de mails.
+ * Tareas programadas de la plataforma: Netlify ejecuta esta función cada 5 minutos y ella llama a rutas protegidas del propio
+ * sitio. No hace falta cargar nada fuera de Netlify: la clave de las llamadas se deriva de `MAIL_CREDENTIALS_KEY` (la misma
+ * variable que cifra las contraseñas de las casillas). Si esa variable no está, no hace nada. Sólo corre en el despliegue
+ * publicado, nunca en vistas previas. Es UNA sola función a propósito (cada ejecución cuesta créditos): hace, en orden,
+ *   1. la revisión del correo (`/api/cron/mail-poll`): una llamada revisa un lote (la ruta se corta a los 8 s); si quedan mails
+ *      (`more: true`) se vuelve a llamar, hasta 3 veces;
+ *   2. las tareas que no dependen de que alguien navegue (`/api/cron/sweep`): hoy, avisar cuando un alquiler vuelve a estar
+ *      disponible porque terminó un período ocupado.
+ * Un fallo en una de las dos no frena a la otra. Todo dentro de los 30 s que Netlify da a una función programada. Sólo se
+ * registran conteos: nunca contenido de mails.
  */
 import { deriveCronToken } from "../../src/lib/security/cron-token";
 
 const MAX_CALLS = 3;
-const TOTAL_MS = 26_000;
+/** El correo usa hasta 20 s; el resto del tiempo queda para las demás tareas. */
+const TOTAL_MS = 20_000;
+const SWEEP_MS = 8_000;
 const PER_CALL_MS = 12_000;
 
 type Context = { site?: { url?: string } };
@@ -43,6 +48,33 @@ export default async function handler(_req: Request, context?: Context): Promise
   }
 
   const token = deriveCronToken(key);
+  await pollMail(origin, token);
+  await runSweep(origin, token);
+}
+
+/** Las demás tareas programadas (ver `/api/cron/sweep`). Un fallo acá se registra y nada más. */
+async function runSweep(origin: string, token: string): Promise<void> {
+  try {
+    const res = await fetch(`${origin}/api/cron/sweep`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      redirect: "manual",
+      signal: AbortSignal.timeout(SWEEP_MS),
+    });
+    if (!res.ok) {
+      console.error(`sweep: el sitio respondió ${res.status}.`);
+      return;
+    }
+    const body = (await res.json().catch(() => null)) as { availability?: { checked?: number; changed?: number; freed?: number } } | null;
+    const a = body?.availability;
+    if (a && (a.changed || a.freed)) console.log(`sweep: revisados ${a.checked ?? 0}, cambiaron ${a.changed ?? 0}, quedaron libres ${a.freed ?? 0}.`);
+  } catch (err) {
+    console.error(`sweep: falló (${(err as Error)?.name ?? "error"}).`);
+  }
+}
+
+/** La revisión del correo (ver arriba). */
+async function pollMail(origin: string, token: string): Promise<void> {
   const started = Date.now();
   for (let i = 1; i <= MAX_CALLS; i++) {
     const left = TOTAL_MS - (Date.now() - started);

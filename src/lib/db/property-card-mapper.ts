@@ -1,4 +1,6 @@
 import { fuzzLocation } from "@/lib/map/geo";
+import { effectivePeriod, isRentalOperation } from "@/config/pricing";
+import { rentalStatus, todayAr } from "@/lib/availability";
 import type { PropertyCardData } from "@/components/property/types";
 
 const NEW_WINDOW_DAYS = 14;
@@ -14,8 +16,9 @@ export type LeanPropertyDoc = {
   address?: { neighborhood?: string | null; city?: string | null; showExact?: boolean | null } | null;
   location: { coordinates: number[] };
   features?:
-    | { bedrooms?: number | null; bathrooms?: number | null; totalArea?: number | null; coveredArea?: number | null }
+    | { bedrooms?: number | null; bathrooms?: number | null; totalArea?: number | null; coveredArea?: number | null; beachDistance?: number | null }
     | null;
+  availability?: { state?: string | null; blocked?: { from: string; to: string }[] | null } | null;
   media?: {
     images?: { url: string; order?: number | null }[];
     hasTour3d?: boolean | null;
@@ -46,7 +49,8 @@ export function toPropertyCardData(doc: LeanPropertyDoc, now: number = Date.now(
     title: doc.title,
     price: doc.price!.amount,
     currency: doc.price!.currency!,
-    period: doc.price!.period as "total" | "mensual",
+    // El período que corresponde a la operación (un alquiler viejo guardado como "total" se muestra "/mes").
+    period: effectivePeriod(doc.operation, doc.price!.period),
     operation: doc.operation,
     type: doc.type,
     neighborhood: doc.address?.neighborhood ?? undefined,
@@ -57,6 +61,10 @@ export function toPropertyCardData(doc: LeanPropertyDoc, now: number = Date.now(
     bathrooms: doc.features?.bathrooms ?? undefined,
     area: doc.features?.totalArea ?? doc.features?.coveredArea ?? undefined,
     tour3d: !!doc.media?.hasTour3d,
+    rental: isRentalOperation(doc.operation)
+      ? rentalStatus({ state: doc.availability?.state === "unavailable" ? "unavailable" : "available", blocked: (doc.availability?.blocked ?? []).map((b) => ({ from: b.from, to: b.to })) }, todayAr(new Date(now)))
+      : null,
+    beachDistance: doc.features?.beachDistance ?? undefined,
     isNew: doc.publishedAt ? now - new Date(doc.publishedAt).getTime() < NEW_WINDOW_DAYS * 86_400_000 : false,
     agencyName: agency?.name,
     agencySlug: agency?.slug,

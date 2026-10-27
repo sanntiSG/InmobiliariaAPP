@@ -1,6 +1,7 @@
 import {
   Bell,
   Building2,
+  CalendarCheck,
   CircleX,
   Home,
   ImagePlus,
@@ -31,6 +32,7 @@ export const NOTIFICATION_META: Record<string, { icon: LucideIcon; label: string
   new_match: { icon: Home, label: "Nueva propiedad para vos", group: "recomendaciones" },
   recommendation: { icon: Sparkles, label: "Recomendación", group: "recomendaciones" },
   price_drop: { icon: TrendingDown, label: "Bajó de precio", group: "recomendaciones" },
+  availability: { icon: CalendarCheck, label: "Ya está disponible", group: "recomendaciones" },
   follow_new_property: { icon: Building2, label: "Inmobiliaria que seguís", group: "recomendaciones" },
   comment_reply: { icon: MessageCircle, label: "Respuesta", group: "actividad" },
   activity: { icon: MessageCircle, label: "Actividad", group: "actividad" },

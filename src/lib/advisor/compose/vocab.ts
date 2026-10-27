@@ -6,6 +6,7 @@ import { list, money } from "./format";
 const TYPE_INFO: Record<string, { sg: string; pl: string; f: boolean }> = {
   casa: { sg: "casa", pl: "casas", f: true },
   departamento: { sg: "departamento", pl: "departamentos", f: false },
+  duplex: { sg: "dúplex", pl: "dúplex", f: false },
   ph: { sg: "PH", pl: "PH", f: false },
   terreno: { sg: "terreno", pl: "terrenos", f: false },
   local: { sg: "local", pl: "locales", f: false },

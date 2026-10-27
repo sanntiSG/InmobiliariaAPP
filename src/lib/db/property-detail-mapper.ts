@@ -1,4 +1,6 @@
 import { fuzzLocation } from "@/lib/map/geo";
+import { effectivePeriod, isRentalOperation } from "@/config/pricing";
+import { normalizeBlocked, rentalStatus, todayAr } from "@/lib/availability";
 import type { PropertyDetail } from "@/components/property/types";
 import type { TourLink } from "@/components/tour/tour-types";
 
@@ -24,7 +26,7 @@ export function toPropertyDetail(doc: any): PropertyDetail {
       amount: doc.price.amount,
       currency: doc.price.currency,
       expenses: doc.price.expenses ?? 0,
-      period: doc.price.period,
+      period: effectivePeriod(doc.operation, doc.price.period),
     },
 
     address: {
@@ -49,8 +51,10 @@ export function toPropertyDetail(doc: any): PropertyDetail {
       age: doc.features?.age,
       floor: doc.features?.floor,
       orientation: doc.features?.orientation,
+      beachDistance: doc.features?.beachDistance ?? undefined,
     },
     amenities: doc.amenities ?? [],
+    availability: isRentalOperation(doc.operation) ? detailAvailability(doc.availability) : null,
 
     images: (doc.media?.images ?? [])
       .slice()
@@ -118,5 +122,16 @@ export function toPropertyDetail(doc: any): PropertyDetail {
       : null,
 
     publishedAt: doc.publishedAt ? new Date(doc.publishedAt).toISOString() : null,
+  };
+}
+
+/** El estado de hoy y los períodos ocupados que faltan (los ya terminados y las notas internas no se muestran). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function detailAvailability(av: any): NonNullable<PropertyDetail["availability"]> {
+  const today = todayAr();
+  const blocked = normalizeBlocked((av?.blocked ?? []).map((b: { from: string; to: string }) => ({ from: b.from, to: b.to })));
+  return {
+    status: rentalStatus({ state: av?.state === "unavailable" ? "unavailable" : "available", blocked }, today),
+    busy: blocked.filter((r) => r.to >= today).map((r) => ({ from: r.from, to: r.to })),
   };
 }

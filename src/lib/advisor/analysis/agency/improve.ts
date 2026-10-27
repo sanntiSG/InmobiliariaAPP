@@ -171,7 +171,7 @@ export const photos: AgencyHandler = (env) => {
 
 // ─── Publicaciones incompletas ───────────────────────────────────────────────
 
-const HABITABLE = new Set(["casa", "departamento", "ph", "quinta"]);
+const HABITABLE = new Set(["casa", "departamento", "duplex", "ph", "quinta"]);
 
 function missing(r: PropertyRow): string[] {
   const out: string[] = [];

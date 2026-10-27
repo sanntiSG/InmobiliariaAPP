@@ -10,6 +10,7 @@ import { slugify } from "@/lib/utils/slugify";
 import { notifyNewPublication } from "@/lib/notifications/new-property";
 import { logActivity, touchAgencyData } from "@/lib/activity/log";
 import { AmbientSelectionError, markAmbientAttached, resolveAmbient, type StoredAmbient } from "@/lib/ambient/attach";
+import { normalizeRentalFields } from "@/lib/properties/normalize";
 
 const createSchema = propertyInputSchema.omit({ agencyId: true }).extend({
   // Solo se usa si quien publica es admin (sin inmobiliaria fija); para
@@ -46,6 +47,8 @@ export async function POST(req: Request) {
     }
 
     const data = parsed.data;
+    // Período del precio válido para la operación, equivalente por noche y disponibilidad (sólo alquileres): lo decide el servidor.
+    const norm = normalizeRentalFields(data);
     const slug = `${slugify(data.title)}-${Date.now().toString(36)}`;
 
     // Portada viva: el navegador sólo manda cuál; el resto sale de la portada que el servidor ya verificó.
@@ -60,12 +63,15 @@ export async function POST(req: Request) {
 
     const property = await Property.create({
       ...data,
+      status: norm.status,
+      price: norm.price,
+      availability: norm.availability,
       media: { ...mediaRest, ...(ambient ? { ambient } : {}), hasAmbientCover: !!ambient },
       agencyId,
       slug,
       location: { type: "Point", coordinates: data.location },
       priceHistory: [{ amount: data.price.amount, currency: data.price.currency, changedAt: new Date() }],
-      publishedAt: data.status === "published" ? new Date() : undefined,
+      publishedAt: norm.status === "published" ? new Date() : undefined,
     });
 
     if (ambient) await markAmbientAttached(ambient.coverId, String(property._id));

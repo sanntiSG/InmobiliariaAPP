@@ -10,6 +10,7 @@ import { buttonClasses } from "@/components/ui/Button";
 import { DeletePropertyButton } from "@/components/dashboard/DeletePropertyButton";
 import { AgencyFilterSelect } from "@/components/dashboard/AgencyFilterSelect";
 import { formatPrice } from "@/lib/utils/format";
+import { periodSuffix } from "@/config/pricing";
 import { PROPERTY_STATUS_LABELS, type PropertyStatus } from "@/config/filters";
 
 export const metadata = { title: "Propiedades" };
@@ -32,7 +33,7 @@ export default async function DashboardPropertiesPage({
       : {}
     : { agencyId: access.agencyId };
   let propertiesQuery = Property.find(query)
-    .select("title slug status price stats media.images media.hasAmbientCover media.ambient.poster.url agencyId")
+    .select("title slug status operation price stats media.images media.hasAmbientCover media.ambient.poster.url agencyId")
     .sort({ updatedAt: -1 });
   if (access.isAdmin) {
     propertiesQuery = propertiesQuery.populate({ path: "agencyId", select: "name" });
@@ -92,7 +93,7 @@ export default async function DashboardPropertiesPage({
                 <Link href={`/dashboard/propiedades/${p._id}/editar`} className="min-w-0 flex-1">
                   <p className="truncate font-medium text-text">{p.title}</p>
                   <p className="text-sm text-text-muted">
-                    {formatPrice(p.price!.amount, p.price!.currency)} · {p.stats?.views ?? 0} vistas ·{" "}
+                    {formatPrice(p.price!.amount, p.price!.currency)}{periodSuffix(p.operation, p.price!.period)} · {p.stats?.views ?? 0} vistas ·{" "}
                     {p.stats?.likes ?? 0} likes{agency?.name ? ` · ${agency.name}` : ""}
                   </p>
                 </Link>

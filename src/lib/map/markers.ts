@@ -83,8 +83,28 @@ const TAIL_BASE =
   "pin-tail -mt-[5px] h-2.5 w-2.5 rotate-45 rounded-[2px] shadow-float transition-colors duration-150 [transition-timing-function:var(--ease-out)]";
 const TAIL_NEUTRAL = `${TAIL_BASE} bg-white`;
 const TAIL_ACCENT = `${TAIL_BASE} bg-accent`;
-const DOT_CLASS =
-  "pin-dot h-3.5 w-3.5 rounded-full border-2 border-white bg-accent shadow-float";
+const DOT_BASE = "pin-dot h-3.5 w-3.5 rounded-full border-2 border-white shadow-float";
+const DOT_CLASS = `${DOT_BASE} bg-accent`;
+
+/**
+ * Los ALQUILERES dicen si están disponibles con el color del pin: verde = disponible hoy, rojo = alquilada o no
+ * disponible. Es lo único que cambia de color por la propiedad: las ventas y los grupos siguen igual. Los colores salen
+ * de los tokens del tema (`success` y `danger`), así se leen bien en claro y en oscuro.
+ */
+type RentalPin = "available" | "unavailable" | null;
+const rentalPinOf = (property: PropertyCardData): RentalPin => property.rental?.state ?? null;
+// El `!` (importante) es necesario: `globals.css` define `* { border-color: ... }` fuera de `@layer`, que le gana a las utilidades de color de
+// borde de Tailwind. Sin él el círculo conservaría el borde de siempre y sólo la cola cambiaría de color.
+const RENTAL_TONE = { available: { border: "border-success!", bg: "bg-success" }, unavailable: { border: "border-danger!", bg: "bg-danger" } } as const;
+
+function badgeClass(highlighted: boolean, rental: RentalPin): string {
+  if (rental) return `${BADGE_BASE} ${RENTAL_TONE[rental].border}`;
+  return highlighted ? BADGE_ACCENT : BADGE_NEUTRAL;
+}
+function tailClass(highlighted: boolean, rental: RentalPin): string {
+  if (rental) return `${TAIL_BASE} ${RENTAL_TONE[rental].bg}`;
+  return highlighted ? TAIL_ACCENT : TAIL_NEUTRAL;
+}
 
 /** Ícono de órbita 360° — mismo lenguaje visual que TourBadge, a escala de pin. */
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -131,7 +151,7 @@ export function createPropertyPinElement(property: PropertyCardData): HTMLDivEle
 }
 
 function pinSignature(property: PropertyCardData): string {
-  return [property.agencyLogo ?? "", property.agencyName ?? "", property.tour3d, property.price, property.currency].join("|");
+  return [property.agencyLogo ?? "", property.agencyName ?? "", property.tour3d, property.price, property.currency, rentalPinOf(property) ?? ""].join("|");
 }
 
 /** Refresca el contenido del pin si la propiedad o su inmobiliaria cambiaron desde la última vez. */
@@ -149,13 +169,15 @@ function applyPropertyPinVisual(root: HTMLDivElement, visual: HTMLDivElement, pr
     `${property.title}${property.agencyName ? `, ${property.agencyName}` : ""}, ${new Intl.NumberFormat("es-AR").format(property.price)} ${property.currency}`
   );
 
+  const rental = rentalPinOf(property);
+  root.dataset.rental = rental ?? "";
   const dot = document.createElement("div");
-  dot.className = DOT_CLASS;
+  dot.className = rental ? `${DOT_BASE} ${RENTAL_TONE[rental].bg}` : DOT_CLASS;
 
   const detail = document.createElement("div");
   detail.className = "pin-detail flex flex-col items-center";
   const badge = document.createElement("div");
-  badge.className = BADGE_NEUTRAL;
+  badge.className = badgeClass(false, rental);
   const initial = document.createElement("span");
   initial.className = "pin-initial";
   initial.textContent = (property.agencyName?.trim()[0] ?? "•").toUpperCase();
@@ -168,7 +190,7 @@ function applyPropertyPinVisual(root: HTMLDivElement, visual: HTMLDivElement, pr
     badge.appendChild(tour);
   }
   const tail = document.createElement("div");
-  tail.className = TAIL_NEUTRAL;
+  tail.className = tailClass(false, rental);
   detail.append(badge, tail);
 
   visual.replaceChildren(dot, detail);
@@ -211,10 +233,12 @@ export function setPinHighlighted(markerRoot: HTMLElement, highlighted: boolean)
   visual.style.transform = highlighted ? "scale(1.12) translateY(-2px)" : "";
   markerRoot.style.zIndex = highlighted ? "10" : "";
 
+  // Un alquiler conserva su color (verde o rojo) también resaltado: el color es información, no decoración.
+  const rental = (markerRoot.dataset.rental || null) as RentalPin;
   const badge = visual.querySelector<HTMLElement>(".pin-badge");
-  if (badge) badge.className = highlighted ? BADGE_ACCENT : BADGE_NEUTRAL;
+  if (badge) badge.className = badgeClass(highlighted, rental);
   const tail = visual.querySelector<HTMLElement>(".pin-tail");
-  if (tail) tail.className = highlighted ? TAIL_ACCENT : TAIL_NEUTRAL;
+  if (tail) tail.className = tailClass(highlighted, rental);
   const dot = visual.querySelector<HTMLElement>(".pin-dot");
   if (dot) dot.style.transform = highlighted ? "scale(1.4)" : "";
 }
