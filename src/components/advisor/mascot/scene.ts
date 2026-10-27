@@ -56,6 +56,23 @@ async function loadGltf(url: string, onProgress?: (f: number) => void): Promise<
   return hit;
 }
 
+/**
+ * Adelanta lo pesado sin armar ninguna escena: three.js, sus utilidades y el GLB (que queda en la caché de arriba). Se llama
+ * cuando es probable que se abra un agente —al acercarse al botón, o en un momento ocioso tras cargar la página—, así al abrirlo
+ * el modelo ya está y aparece sin esperar. Nunca lanza: si falla, el escenario lo vuelve a intentar al abrirse.
+ */
+export function preloadMascot(url: string): Promise<void> {
+  return Promise.all([
+    import("three"),
+    import("three/examples/jsm/environments/RoomEnvironment.js"),
+    import("three/examples/jsm/utils/SkeletonUtils.js"),
+    loadGltf(url),
+  ]).then(
+    () => undefined,
+    () => undefined
+  );
+}
+
 /** Lista de animaciones de un modelo, sin armar ninguna escena (para el estudio del admin al elegir un archivo). */
 export async function readClips(url: string): Promise<ClipInfo[]> {
   const gltf = await loadGltf(url);

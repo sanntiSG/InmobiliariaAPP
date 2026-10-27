@@ -1918,6 +1918,26 @@ body {
   display: grid;
   place-items: center;
   pointer-events: none;
+  /* Es la caja de la que el orbe toma su tamaño (ver `.advisor-orb`): su tamaño sale de afuera, no de lo que tiene adentro. */
+  container-type: size;
+  transition: opacity 260ms var(--ease-out);
+}
+/* Cuando el modelo 3D está listo el placeholder se desvanece (en vez de desaparecer de golpe) y el modelo aparece con él. */
+.advisor-mascot[data-status="ready"] .advisor-fallback {
+  opacity: 0;
+}
+.advisor-mascot-host canvas {
+  opacity: 0;
+  transition: opacity 320ms var(--ease-out);
+}
+.advisor-mascot[data-status="ready"] .advisor-mascot-host canvas {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .advisor-fallback,
+  .advisor-mascot-host canvas {
+    transition: none;
+  }
 }
 .advisor-fallback-poster {
   width: 100%;
@@ -1929,8 +1949,12 @@ body {
   align-items: center;
   justify-content: center;
   gap: 14%;
+  /* Se achica a lo que entre en ancho Y en alto: antes era sólo un 56 % del ancho y en un contenedor ancho y bajo (el héroe del
+     celular) quedaba más alto que la caja y se veía enorme hasta que cargaba el 3D. El 56 % de arriba es para quien no entiende cq. */
   width: 56%;
+  width: min(56cqw, 64cqh);
   aspect-ratio: 1;
+  position: relative;
   border-radius: 44% 44% 48% 48%;
   background: var(--accent-soft);
   box-shadow: inset 0 -0.5rem 1rem color-mix(in oklab, var(--accent) 16%, transparent);
@@ -1941,6 +1965,17 @@ body {
   border-radius: 50%;
   background: var(--accent);
   animation: advisor-blink 4.5s ease-in-out infinite;
+}
+/* Aro fino de avance de la descarga del modelo (sólo si el navegador informa el tamaño). */
+.advisor-fallback[data-progress] .advisor-orb::after {
+  content: "";
+  position: absolute;
+  inset: -8%;
+  border-radius: 50%;
+  background: conic-gradient(var(--accent) calc(var(--p, 0) * 1%), transparent 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+  opacity: 0.85;
 }
 .advisor-fallback[data-calm="true"] .advisor-orb-eye {
   animation: none;

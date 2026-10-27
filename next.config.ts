@@ -32,6 +32,12 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        // El modelo 3D del asesor y sus recursos: un día en el navegador y, vencido, se sirve el viejo mientras se revisa (antes Next
+        // lo servía sin caché y cada visita volvía a pedir casi 1 MB).
+        source: "/advisor/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }],
+      },
+      {
         source: "/:path*",
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },
