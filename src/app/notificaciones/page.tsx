@@ -11,6 +11,9 @@ import {
   NOTIFICATION_META,
   type NotificationGroup,
 } from "@/components/notifications/notification-meta";
+import { NotificationSettings } from "@/components/notifications/NotificationSettings";
+import { PushPrompt } from "@/components/notifications/PushPrompt";
+import { groupsForRole } from "@/config/notifications";
 import { cn } from "@/lib/utils/cn";
 
 export const metadata = { title: "Notificaciones" };
@@ -56,6 +59,7 @@ export default async function NotificacionesPage({ searchParams }: PageProps<"/n
       <Navbar />
       <main className="mx-auto flex max-w-2xl flex-col gap-5 px-4 py-8 sm:px-6">
         <PageHeader eyebrow="Actividad" title="Notificaciones" />
+        <PushPrompt />
 
         <nav aria-label="Filtrar notificaciones" className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
           {chips.map((chip) => {
@@ -77,6 +81,11 @@ export default async function NotificacionesPage({ searchParams }: PageProps<"/n
         </nav>
 
         <NotificationsList key={filter ?? "todas"} initialItems={items} />
+
+        {/* Dónde y cuáles avisos recibir: el permiso del dispositivo sólo se pide al tocar "Activar avisos". */}
+        <section id="avisos" aria-label="Configurar avisos" className="scroll-mt-24 pt-4">
+          <NotificationSettings groups={groupsForRole(session.user.role)} />
+        </section>
       </main>
     </div>
   );

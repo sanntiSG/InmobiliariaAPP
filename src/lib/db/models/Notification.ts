@@ -41,11 +41,23 @@ const notificationSchema = new Schema(
      * `opp:<propertyId>:2026-W41`). Único por usuario sólo cuando existe.
      */
     dedupeKey: { type: String },
+    /**
+     * Canal push (aviso en el dispositivo): `pending` = falta enviarlo (lo intenta el servidor que la creó y, si no puede, la tarea
+     * programada de Netlify), `sending` = alguien lo está enviando (evita doble envío), `sent`, `skipped` (la persona lo silenció, está
+     * en pausa o no tiene dispositivos) o `failed` (se agotaron los reintentos). Sin `push` = la notificación no sale por este canal.
+     */
+    push: {
+      state: { type: String, enum: ["pending", "sending", "sent", "skipped", "failed"] },
+      attempts: { type: Number },
+      at: { type: Date },
+    },
   },
   { timestamps: true }
 );
 
 notificationSchema.index({ userId: 1, read: 1, createdAt: -1 });
+// La tarea programada busca lo que falta enviar por push (casi siempre nada): sólo indexa lo pendiente.
+notificationSchema.index({ createdAt: 1 }, { partialFilterExpression: { "push.state": "pending" } });
 notificationSchema.index(
   { userId: 1, dedupeKey: 1 },
   { unique: true, partialFilterExpression: { dedupeKey: { $type: "string" } } }

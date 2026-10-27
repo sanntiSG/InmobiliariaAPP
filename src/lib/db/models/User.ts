@@ -49,6 +49,15 @@ const userSchema = new Schema(
       amenities: [{ type: String }],
     },
 
+    /**
+     * Qué avisos quiere recibir (ver `config/notifications.ts`): los grupos silenciados no generan notificación ni push, y `pushPaused`
+     * pausa los avisos del dispositivo sin tocar la campana de la plataforma. Los del grupo "sistema" nunca se silencian.
+     */
+    notificationPrefs: {
+      muted: [{ type: String }],
+      pushPaused: { type: Boolean, default: false },
+    },
+
     emailVerified: { type: Date, default: null },
   },
   { timestamps: true }

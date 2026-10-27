@@ -23,6 +23,7 @@ export { AgentLesson, LESSON_AGENTS, LESSON_SOURCES } from "./AgentLesson";
 export { AdvisorConfig } from "./AdvisorConfig";
 export { AmbientCover, AMBIENT_COVER_STATUSES } from "./AmbientCover";
 export { AvailabilityWatch } from "./AvailabilityWatch";
+export { PushSubscription } from "./PushSubscription";
 export { Mailbox } from "./Mailbox";
 export { MailSettings } from "./MailSettings";
 export { MailMessage } from "./MailMessage";

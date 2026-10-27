@@ -23,7 +23,7 @@ const GROUPS: NavGroup[] = [
       { href: "/dashboard/agentes", label: "Agentes" },
     ],
   },
-  { title: "Cuenta", items: [{ href: "/dashboard/inmobiliaria", label: "Mi inmobiliaria" }] },
+  { title: "Cuenta", items: [{ href: "/dashboard/inmobiliaria", label: "Mi inmobiliaria" }, { href: "/dashboard/notificaciones", label: "Avisos" }] },
 ];
 
 const ADMIN_GROUP: NavGroup = { title: "Administración", items: [{ href: "/admin/inmobiliarias", label: "Volver al admin", alsoActive: ["/admin"] }] };

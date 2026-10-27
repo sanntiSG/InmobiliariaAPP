@@ -49,6 +49,10 @@ export const metadata: Metadata = {
     template: `%s — ${brand.name}`,
   },
   description: brand.description,
+  applicationName: brand.name,
+  // Al agregarla a la pantalla de inicio (obligatorio en iPhone/iPad para recibir avisos) se abre como app, con su nombre e ícono.
+  appleWebApp: { capable: true, title: brand.name },
+  icons: { apple: "/pwa-icon/180" },
 };
 
 /**

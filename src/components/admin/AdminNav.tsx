@@ -18,6 +18,7 @@ export function AdminNav({ pendingRequests = 0 }: { pendingRequests?: number }) 
       ],
     },
     { title: "Inteligencia", items: [{ href: "/admin/agentes", label: "Agentes", alsoActive: ["/admin/asesor"] }] },
+    { title: "Cuenta", items: [{ href: "/admin/notificaciones", label: "Avisos" }] },
   ];
   return <PanelNav groups={groups} ariaLabel="Panel de administración" />;
 }

@@ -5,8 +5,8 @@
  * publicado, nunca en vistas previas. Es UNA sola función a propósito (cada ejecución cuesta créditos): hace, en orden,
  *   1. la revisión del correo (`/api/cron/mail-poll`): una llamada revisa un lote (la ruta se corta a los 8 s); si quedan mails
  *      (`more: true`) se vuelve a llamar, hasta 3 veces;
- *   2. las tareas que no dependen de que alguien navegue (`/api/cron/sweep`): hoy, avisar cuando un alquiler vuelve a estar
- *      disponible porque terminó un período ocupado.
+ *   2. las tareas que no dependen de que alguien navegue (`/api/cron/sweep`): avisar cuando un alquiler vuelve a estar
+ *      disponible porque terminó un período ocupado y enviar los avisos del dispositivo (push) que quedaron pendientes.
  * Un fallo en una de las dos no frena a la otra. Todo dentro de los 30 s que Netlify da a una función programada. Sólo se
  * registran conteos: nunca contenido de mails.
  */
@@ -65,9 +65,11 @@ async function runSweep(origin: string, token: string): Promise<void> {
       console.error(`sweep: el sitio respondió ${res.status}.`);
       return;
     }
-    const body = (await res.json().catch(() => null)) as { availability?: { checked?: number; changed?: number; freed?: number } } | null;
+    const body = (await res.json().catch(() => null)) as { availability?: { checked?: number; changed?: number; freed?: number }; push?: { claimed?: number; sent?: number; skipped?: number; failed?: number; retry?: number; removed?: number } | null } | null;
     const a = body?.availability;
     if (a && (a.changed || a.freed)) console.log(`sweep: revisados ${a.checked ?? 0}, cambiaron ${a.changed ?? 0}, quedaron libres ${a.freed ?? 0}.`);
+    const p = body?.push;
+    if (p && p.claimed) console.log(`sweep: avisos del dispositivo: enviados ${p.sent ?? 0}, omitidos ${p.skipped ?? 0}, a reintentar ${p.retry ?? 0}, con error ${p.failed ?? 0}, dispositivos dados de baja ${p.removed ?? 0}.`);
   } catch (err) {
     console.error(`sweep: falló (${(err as Error)?.name ?? "error"}).`);
   }
