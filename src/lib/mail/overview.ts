@@ -40,16 +40,18 @@ export type MailOverview = {
     connectedAt: string | null;
   };
   settings: MailSettingsView;
-  counts: { awaiting: number; sent: number; failed: number; ignored: number; queued: number };
+  /** `human`: mails que todavía necesitan a una persona (la pestaña "Dudas"). */
+  counts: { awaiting: number; sent: number; failed: number; ignored: number; queued: number; human: number };
 };
 
 export async function getOverview(agencyId: string, canManage: boolean, viewerIsAdmin = false): Promise<MailOverview> {
   await connectDB();
-  const [mailbox, settings, grouped, agency] = await Promise.all([
+  const [mailbox, settings, grouped, agency, human] = await Promise.all([
     Mailbox.findOne({ agencyId }).select("email provider status lastError lastPollAt nextPollAt consentAt createdAt").lean(),
     loadSettings(agencyId),
     MailMessage.aggregate<{ _id: string; n: number }>([{ $match: { agencyId: new Types.ObjectId(agencyId) } }, { $group: { _id: "$status", n: { $sum: 1 } } }]),
     Agency.findById(agencyId).select("name").lean(),
+    MailMessage.countDocuments({ agencyId, humanState: "pending", status: { $in: ["awaiting_confirmation", "queued", "sending", "sent", "failed"] } }),
   ]);
   const n = (s: string) => grouped.find((g) => g._id === s)?.n ?? 0;
   const runtime = mailRuntime();
@@ -74,6 +76,6 @@ export async function getOverview(agencyId: string, canManage: boolean, viewerIs
         }
       : null,
     settings,
-    counts: { awaiting: n("awaiting_confirmation"), sent: n("sent"), failed: n("failed"), ignored: n("ignored") + n("discarded"), queued: n("queued") + n("sending") },
+    counts: { awaiting: n("awaiting_confirmation"), sent: n("sent"), failed: n("failed"), ignored: n("ignored") + n("discarded"), queued: n("queued") + n("sending"), human },
   };
 }

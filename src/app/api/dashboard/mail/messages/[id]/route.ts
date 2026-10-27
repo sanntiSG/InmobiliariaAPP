@@ -7,7 +7,8 @@ import { saveLesson } from "@/lib/agents/lessons";
 import { mailAccess, sendEnabled } from "@/lib/mail/access";
 import { noteAdminView } from "@/lib/mail/audit";
 import { messageDetail } from "@/lib/mail/messages";
-import { sendQueued } from "@/lib/mail/outbox";
+import { cleanFollowUp, FOLLOWUP_LIMITS } from "@/lib/mail/followup";
+import { sendFollowUp, sendQueued } from "@/lib/mail/outbox";
 import { rescueIgnored } from "@/lib/mail/rescue";
 import { loadSettings, saveSettings } from "@/lib/mail/settings";
 import { limitOr429 } from "@/lib/security/rate-limit";
@@ -47,6 +48,9 @@ const bodySchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("not_inquiry") }),
   z.object({ action: z.literal("was_inquiry") }),
   z.object({ action: z.literal("retry") }),
+  // Contestar la duda que quedó pendiente (sale por el mismo hilo) o darla por resuelta (se habló por otro medio).
+  z.object({ action: z.literal("followup"), body: z.string().min(FOLLOWUP_LIMITS.minChars).max(FOLLOWUP_LIMITS.maxChars) }),
+  z.object({ action: z.literal("resolve") }),
 ]);
 
 /** Cuántas veces una persona marcó "no es una consulta" a un mismo remitente para que se bloquee solo. */
@@ -84,6 +88,9 @@ export async function POST(req: NextRequest, { params }: Ctx) {
         { returnDocument: "after" }
       ).select("_id");
       if (!moved) return conflict();
+      // Si la persona cambió el texto (escribió ella la respuesta, por ejemplo la duda pendiente), ya no queda nada por contestar;
+      // si lo envió tal cual, la duda sigue pendiente hasta que la conteste o la marque resuelta.
+      if (edited) await MailMessage.updateOne({ ...scope, humanState: "pending" }, { $set: { humanState: "resolved", humanResolvedAt: new Date(), humanResolvedBy: a.userId } });
       // Donde se puede enviar, sale en el momento; si no, queda en cola y la manda el servidor que sí puede.
       const result = sendEnabled() ? await sendQueued(id) : { ok: false, status: "queued" as const };
       return NextResponse.json({ ok: true, status: result.status, error: "error" in result ? (result.error ?? null) : null }, { headers: NO_STORE });
@@ -105,14 +112,36 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     }
 
     if (input.action === "discard") {
-      const moved = await MailMessage.findOneAndUpdate({ ...scope, status: "awaiting_confirmation" }, { $set: { status: "discarded", decidedBy: a.userId } }, { returnDocument: "after" }).select("_id");
+      // Descartar la respuesta cierra también la duda: la persona decidió no contestar.
+      const moved = await MailMessage.findOneAndUpdate({ ...scope, status: "awaiting_confirmation" }, { $set: { status: "discarded", decidedBy: a.userId, humanState: "resolved", humanResolvedAt: new Date(), humanResolvedBy: a.userId } }, { returnDocument: "after" }).select("_id");
       return moved ? NextResponse.json({ ok: true, status: "discarded" }, { headers: NO_STORE }) : conflict();
+    }
+
+    // Contestar la duda pendiente: sólo a un mail que ya se respondió (si todavía espera confirmación, se edita su borrador).
+    if (input.action === "followup") {
+      const text = cleanFollowUp(input.body);
+      if (text.length < FOLLOWUP_LIMITS.minChars) return NextResponse.json({ error: "La respuesta no puede estar vacía." }, { status: 400, headers: NO_STORE });
+      const added = await MailMessage.findOneAndUpdate(
+        { ...scope, status: "sent", [`followUps.${FOLLOWUP_LIMITS.max - 1}`]: { $exists: false } },
+        { $push: { followUps: { body: text, by: a.userId, status: "queued" } } },
+        { returnDocument: "after" }
+      ).select("followUps");
+      if (!added) return NextResponse.json({ error: "Sólo se puede contestar un mail que ya se respondió (y hasta 10 veces). Actualizá la lista." }, { status: 409, headers: NO_STORE });
+      const sent = added.followUps[added.followUps.length - 1]!;
+      // Donde se puede enviar, sale en el momento; si no, queda en cola y la manda el servidor que sí puede.
+      const result = sendEnabled() ? await sendFollowUp(id, String(sent._id)) : { ok: false, status: "queued" as const };
+      return NextResponse.json({ ok: true, status: result.status, error: "error" in result ? (result.error ?? null) : null }, { headers: NO_STORE });
+    }
+
+    if (input.action === "resolve") {
+      const moved = await MailMessage.findOneAndUpdate({ ...scope, humanState: "pending" }, { $set: { humanState: "resolved", humanResolvedAt: new Date(), humanResolvedBy: a.userId } }, { returnDocument: "after" }).select("_id");
+      return moved ? NextResponse.json({ ok: true }, { headers: NO_STORE }) : conflict();
     }
 
     // "No es una consulta": se ignora y, si pasa dos veces con la misma persona, se bloquea para no volver a molestar.
     const moved = await MailMessage.findOneAndUpdate(
       { ...scope, status: "awaiting_confirmation" },
-      { $set: { status: "ignored", category: "other", decidedBy: a.userId, needsHuman: false, text: "" }, $push: { reasons: "Una persona del equipo marcó que no es una consulta." }, $unset: { draft: "" } },
+      { $set: { status: "ignored", category: "other", decidedBy: a.userId, needsHuman: false, humanState: "none", text: "" }, $push: { reasons: "Una persona del equipo marcó que no es una consulta." }, $unset: { draft: "" } },
       { returnDocument: "after" }
     ).select("_id");
     if (!moved) return conflict();

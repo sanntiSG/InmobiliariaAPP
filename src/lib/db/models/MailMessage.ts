@@ -6,6 +6,24 @@ import { MAIL_CATEGORIES, MAIL_MESSAGE_STATUSES } from "@/lib/mail/constants";
  * preparó y qué pasó después. Sólo se guarda TEXTO (sin adjuntos ni HTML) y se borra solo (60 días; 14 si se ignoró).
  * El índice único `{ mailboxId, messageId }` evita procesar dos veces el mismo mail.
  */
+/**
+ * Una respuesta que una persona del equipo escribió DESPUÉS de la primera (por ejemplo, para contestar la duda que el agente
+ * dejó pendiente: "sobre mascotas te lo confirmamos"). Sale por el mismo hilo de la conversación y pasa por los mismos estados
+ * atómicos que una respuesta común (`queued → sending → sent | failed`).
+ */
+const followUpSchema = new Schema(
+  {
+    body: { type: String, required: true, maxlength: 6000 },
+    by: { type: Schema.Types.ObjectId, ref: "User" },
+    status: { type: String, enum: ["queued", "sending", "sent", "failed"], default: "queued" },
+    sendingAt: { type: Date },
+    sentAt: { type: Date },
+    attempts: { type: Number, default: 0 },
+    error: { type: String, maxlength: 300 },
+  },
+  { timestamps: { createdAt: "at", updatedAt: false } }
+);
+
 const mailMessageSchema = new Schema(
   {
     agencyId: { type: Schema.Types.ObjectId, ref: "Agency", required: true, index: true },
@@ -46,6 +64,8 @@ const mailMessageSchema = new Schema(
     humanState: { type: String, enum: ["none", "pending", "resolved"], default: "none" },
     humanResolvedAt: { type: Date },
     humanResolvedBy: { type: Schema.Types.ObjectId, ref: "User" },
+    /** Lo que el equipo contestó después de la primera respuesta (máx. 10 por mail). */
+    followUps: { type: [followUpSchema], default: [] },
     /** El servidor del remitente no pasó las verificaciones (SPF/DKIM/DMARC): nunca se responde solo. */
     authFailed: { type: Boolean, default: false },
     propertyIds: [{ type: Schema.Types.ObjectId, ref: "Property" }],

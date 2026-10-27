@@ -16,6 +16,7 @@ import { mailApi, MailApiError } from "./mail-api";
 
 const TABS: { id: MailTab; label: string; empty: string }[] = [
   { id: "confirm", label: "Para confirmar", empty: "No hay respuestas esperando tu confirmación." },
+  { id: "human", label: "Dudas", empty: "No hay dudas pendientes: todo lo que te consultaron está atendido." },
   { id: "sent", label: "Enviados", empty: "Todavía no se envió ninguna respuesta." },
   { id: "ignored", label: "Ignorados", empty: "No ignoré ningún mail todavía. Acá aparecen los que no eran consultas." },
 ];
@@ -61,6 +62,8 @@ export function MailDesk({
   const [detail, setDetail] = useState<MailDetail | null>(null);
   const [draftSubject, setDraftSubject] = useState("");
   const [draftBody, setDraftBody] = useState("");
+  /** Lo que se escribe para contestar la duda pendiente (arranca con saludo, tema, cierre y firma). */
+  const [followBody, setFollowBody] = useState("");
   const [busy, setBusy] = useState<null | "poll" | "action" | "detail">(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -111,6 +114,7 @@ export function MailDesk({
         setDetail(d);
         setDraftSubject(d.draft?.subject ?? "");
         setDraftBody(d.draft?.body ?? "");
+        setFollowBody(d.followUpStarter);
       } catch (e) {
         if (alive) {
           setError(e instanceof Error ? e.message : "No pude abrir ese mail.");
@@ -224,6 +228,34 @@ export function MailDesk({
               : r.status === "failed"
                 ? `No se pudo enviar: ${r.error ?? "error desconocido"}`
                 : "Confirmada. Sale en unos minutos."
+      );
+      await refresh();
+    } catch (e) {
+      setError(e instanceof MailApiError ? e.message : "No se pudo completar la acción.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /** Contestar la duda pendiente (sale por el mismo hilo) o darla por resuelta porque se habló por otro medio. */
+  const answerDoubt = async (kind: "followup" | "resolve") => {
+    if (!detail) return;
+    setBusy("action");
+    setError(null);
+    try {
+      const r = await mailApi<{ status?: string; error?: string | null }>(`/messages/${detail.id}`, agencyId, {
+        method: "POST",
+        body: JSON.stringify(kind === "followup" ? { action: kind, body: followBody } : { action: kind }),
+      });
+      closeDetail();
+      setNotice(
+        kind === "resolve"
+          ? "Listo: la duda quedó resuelta."
+          : r.status === "sent"
+            ? "Respuesta enviada: la duda quedó resuelta."
+            : r.status === "failed"
+              ? `No se pudo enviar: ${r.error ?? "error desconocido"}`
+              : "Quedó en cola: sale en unos minutos."
       );
       await refresh();
     } catch (e) {
@@ -348,7 +380,7 @@ export function MailDesk({
         <>
           <div role="tablist" aria-label="Mails" className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
             {TABS.map((t) => {
-              const count = t.id === "confirm" ? overview.counts.awaiting : t.id === "sent" ? overview.counts.sent + overview.counts.queued + overview.counts.failed : overview.counts.ignored;
+              const count = t.id === "confirm" ? overview.counts.awaiting : t.id === "human" ? overview.counts.human : t.id === "sent" ? overview.counts.sent + overview.counts.queued + overview.counts.failed : overview.counts.ignored;
               const on = tab === t.id;
               return (
                 <button
@@ -402,7 +434,13 @@ export function MailDesk({
                           {m.auto && m.status === "sent" ? "Enviado automáticamente" : MAIL_STATUS_LABELS[m.status]}
                         </span>
                       )}
-                      {m.needsHuman && <span className="rounded-pill bg-warning-soft px-2 py-0.5 text-[11px] font-medium text-warning">Lo tiene que ver una persona</span>}
+                      {m.humanState === "pending" ? (
+                        <span className="rounded-pill bg-warning-soft px-2 py-0.5 text-[11px] font-medium text-warning">
+                          Falta tu respuesta{m.humanTopics.length > 0 ? `: ${m.humanTopics.slice(0, 2).join(", ")}` : ""}
+                        </span>
+                      ) : (
+                        m.needsHuman && m.status === "awaiting_confirmation" && <span className="rounded-pill bg-warning-soft px-2 py-0.5 text-[11px] font-medium text-warning">Lo tiene que ver una persona</span>
+                      )}
                     </span>
                   </button>
                 </li>
@@ -430,6 +468,75 @@ export function MailDesk({
               </p>
             </div>
 
+            {detail.humanState === "pending" && (
+              <section aria-label="Falta tu respuesta" className="flex flex-col gap-3 rounded-media bg-warning-soft p-4">
+                <h3 className="flex items-center gap-2 font-display text-sm font-bold text-text">
+                  <UserRoundCheck className="h-4 w-4 shrink-0 text-warning" aria-hidden />
+                  Falta la respuesta de una persona
+                </h3>
+                <ul className="flex flex-col gap-1 text-sm text-text">
+                  {detail.repliedToAuto && <li>Contestó un correo automático: posiblemente quiere hablar con una persona.</li>}
+                  {detail.humanTopics.length > 0 && <li>Preguntó sobre {detail.humanTopics.join(", ")}.</li>}
+                  {detail.missingData > 0 && <li>Preguntó algo que la publicación no tiene cargado.</li>}
+                  {detail.status === "sent" && <li>Ya se le respondió con lo que se sabía; falta lo demás.</li>}
+                </ul>
+                {detail.status === "sent" ? (
+                  <>
+                    <label className="flex flex-col gap-1 text-xs font-medium text-text-muted">
+                      Tu respuesta (sale en el mismo hilo del mail)
+                      <textarea
+                        value={followBody}
+                        onChange={(e) => setFollowBody(e.target.value)}
+                        maxLength={6000}
+                        rows={9}
+                        className="resize-y rounded-media border border-border bg-surface px-3 py-2.5 text-sm leading-relaxed text-text outline-none focus:border-accent/60"
+                      />
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      <Button disabled={busy !== null || followBody.trim().length < 3} onClick={() => answerDoubt("followup")}>
+                        <Send className="h-4 w-4" aria-hidden />
+                        {busy === "action" ? "Enviando…" : "Enviar mi respuesta"}
+                      </Button>
+                      <Button variant="ghost" disabled={busy !== null} onClick={() => answerDoubt("resolve")}>
+                        Ya lo resolví por otro medio
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {editable && <p className="text-sm text-text">Editá la respuesta de abajo con lo que corresponda y enviala: la duda queda resuelta.</p>}
+                    <div>
+                      <Button variant="ghost" disabled={busy !== null} onClick={() => answerDoubt("resolve")}>
+                        Ya lo resolví por otro medio
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
+            {detail.humanState === "resolved" && (
+              <p className="flex items-center gap-2 text-sm text-text-muted">
+                <Check className="h-4 w-4 text-success" aria-hidden />
+                La duda de este cliente ya está resuelta.
+              </p>
+            )}
+            {detail.followUps.length > 0 && (
+              <section aria-label="Lo que contestó el equipo" className="flex flex-col gap-2">
+                <h3 className="font-display text-sm font-bold text-text">Lo que contestó el equipo</h3>
+                <ul className="flex flex-col gap-2">
+                  {detail.followUps.map((f) => (
+                    <li key={f.id} className="rounded-media bg-surface-2 p-3.5 text-sm text-text">
+                      <p className="mb-1.5 text-xs text-text-muted">
+                        {f.status === "sent" ? "Enviada" : f.status === "failed" ? "No se pudo enviar" : "En cola"} · {formatRelativeTime(f.at)}
+                        {f.status === "failed" && f.error ? ` · ${f.error}` : ""}
+                      </p>
+                      <p className="whitespace-pre-wrap break-words">{f.body}</p>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
             <section aria-label="Por qué lo detecté" className="flex flex-col gap-2">
               <h3 className="font-display text-sm font-bold text-text">{detail.status === "ignored" ? "Por qué lo ignoré" : "Por qué lo detecté así"}</h3>
               <ul className="flex flex-wrap gap-1.5">
@@ -449,7 +556,7 @@ export function MailDesk({
                   El servidor de quien escribió no pasó las verificaciones del correo: puede no ser quien dice. No respondas sin comprobarlo.
                 </p>
               )}
-              {detail.needsHuman && (
+              {detail.needsHuman && editable && detail.humanState !== "pending" && (
                 <p className="flex items-start gap-2 rounded-media bg-warning-soft px-3 py-2 text-xs text-text">
                   <UserRoundCheck className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />
                   Hay algo en este mail que tiene que contestar una persona. Revisá la respuesta antes de enviarla.

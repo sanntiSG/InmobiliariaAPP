@@ -15,6 +15,7 @@ import { MailMessage } from "@/lib/db/models/MailMessage";
 import { createNotificationForMany } from "@/lib/notifications/create";
 import { agencyMemberIds } from "@/lib/notifications/agency-members";
 import { sendEnabled } from "./access";
+import { replySubject } from "./compose";
 import type { MailMessageStatus } from "./constants";
 import { openCreds } from "./creds";
 import { explain, sendReply } from "./transport";
@@ -80,14 +81,67 @@ export async function sendQueued(messageId: string): Promise<SendResult> {
 }
 
 /**
+ * Envía una respuesta posterior del equipo (`followUps`, por ejemplo la que contesta una duda que quedó pendiente) por el mismo
+ * hilo de la conversación. Idempotente: si ya no está en cola, no hace nada. Al salir bien, la duda queda resuelta.
+ */
+export async function sendFollowUp(messageId: string, followUpId: string): Promise<SendResult> {
+  if (!Types.ObjectId.isValid(messageId) || !Types.ObjectId.isValid(followUpId)) return { ok: false, status: "missing" };
+  await connectDB();
+  const claimed = await MailMessage.findOneAndUpdate(
+    { _id: messageId, followUps: { $elemMatch: { _id: followUpId, status: "queued" } } },
+    { $set: { "followUps.$.status": "sending", "followUps.$.sendingAt": new Date() }, $inc: { "followUps.$.attempts": 1 } },
+    { returnDocument: "after" }
+  );
+  if (!claimed) return { ok: false, status: "missing" };
+  const followUp = claimed.followUps.find((f) => String(f._id) === followUpId);
+  if (!followUp) return { ok: false, status: "missing" };
+
+  const setFollowUp = (set: Record<string, unknown>, doc: Record<string, unknown> = {}) =>
+    MailMessage.updateOne({ _id: claimed._id }, { $set: { ...Object.fromEntries(Object.entries(set).map(([k, v]) => [`followUps.$[f].${k}`, v])), ...doc } }, { arrayFilters: [{ "f._id": followUp._id }] });
+  const fail = async (error: string): Promise<SendResult> => {
+    await setFollowUp({ status: "failed", error: error.slice(0, 300) });
+    return { ok: false, status: "failed", error };
+  };
+
+  try {
+    const [mailbox, agency] = await Promise.all([
+      Mailbox.findById(claimed.mailboxId).select("+secret agencyId provider email imap smtp status"),
+      Agency.findById(claimed.agencyId).select("name").lean(),
+    ]);
+    if (!mailbox || mailbox.status === "paused") return await fail("El buzón ya no está conectado.");
+    const real = !claimed.messageId.startsWith("uid:");
+    await sendReply(openCreds(mailbox), {
+      to: claimed.replyTo || claimed.from?.email || "",
+      fromName: agency?.name ?? "Inmobiliaria",
+      subject: replySubject(claimed.subject),
+      text: followUp.body,
+      inReplyTo: real ? claimed.messageId : null,
+      references: [...(claimed.references ?? []), ...(real ? [claimed.messageId] : [])],
+      auto: false,
+    });
+    const now = new Date();
+    await setFollowUp({ status: "sent", sentAt: now }, { humanState: "resolved", humanResolvedAt: now, humanResolvedBy: followUp.by ?? null });
+    await MailMessage.updateOne({ _id: claimed._id }, { $unset: { "followUps.$[f].error": "" } }, { arrayFilters: [{ "f._id": followUp._id }] });
+    if (claimed.leadId) await Lead.updateOne({ _id: claimed.leadId }, { $set: { lastContactAt: now } });
+    return { ok: true, status: "sent" };
+  } catch (err) {
+    return fail(explain(err).message);
+  }
+}
+
+/**
  * Pasa por el envío de todo lo que quedó en cola (donde se puede enviar) y marca como fallido lo que quedó "enviando"
  * demasiado tiempo. Devuelve cuántos salieron y si quedan más.
  */
 export async function processOutbox(deadline: number): Promise<{ sent: number; failed: number; more: boolean }> {
   await connectDB();
+  const stuckBefore = new Date(Date.now() - STUCK_SENDING_MS);
+  const uncertain = "No se sabe si el mail salió: revisá la carpeta de enviados de tu casilla antes de reintentar.";
+  await MailMessage.updateMany({ status: "sending", sendingAt: { $lt: stuckBefore } }, { $set: { status: "failed", error: uncertain } });
   await MailMessage.updateMany(
-    { status: "sending", sendingAt: { $lt: new Date(Date.now() - STUCK_SENDING_MS) } },
-    { $set: { status: "failed", error: "No se sabe si el mail salió: revisá la carpeta de enviados de tu casilla antes de reintentar." } }
+    { followUps: { $elemMatch: { status: "sending", sendingAt: { $lt: stuckBefore } } } },
+    { $set: { "followUps.$[f].status": "failed", "followUps.$[f].error": uncertain } },
+    { arrayFilters: [{ "f.status": "sending", "f.sendingAt": { $lt: stuckBefore } }] }
   );
   if (!sendEnabled()) return { sent: 0, failed: 0, more: false };
 
@@ -100,5 +154,18 @@ export async function processOutbox(deadline: number): Promise<{ sent: number; f
     if (r.ok) sent++;
     else if (r.status === "failed") failed++;
   }
-  return { sent, failed, more: queue.length === 20 };
+  let more = queue.length === 20;
+
+  // Las respuestas posteriores del equipo que esperan salir (si se escribieron donde no se puede enviar, las manda este servidor).
+  const withFollowUps = await MailMessage.find({ "followUps.status": "queued" }).sort({ updatedAt: 1 }).limit(10).select("_id followUps").lean();
+  for (const doc of withFollowUps) {
+    for (const f of (doc.followUps ?? []).filter((x) => x.status === "queued")) {
+      if (Date.now() > deadline) return { sent, failed, more: true };
+      const r = await sendFollowUp(String(doc._id), String(f._id));
+      if (r.ok) sent++;
+      else if (r.status === "failed") failed++;
+    }
+  }
+  if (withFollowUps.length === 10) more = true;
+  return { sent, failed, more };
 }

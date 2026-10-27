@@ -15,6 +15,7 @@ import { cleanBody, htmlToText } from "../src/lib/mail/clean";
 import { firstNameOf, prefilter, replyAddress, type MailHeaders } from "../src/lib/mail/prefilter";
 import { classifyMail, needsHardHuman, SOFT_HUMAN_TOPICS } from "../src/lib/mail/classify";
 import { attentionNotice, isClosingReason, needsAttention, quotesAutoFooter, type AttentionInput } from "../src/lib/mail/attention";
+import { cleanFollowUp, followUpStarter, FOLLOWUP_LIMITS } from "../src/lib/mail/followup";
 import { extractSlugs } from "../src/lib/mail/refs";
 import { composeReply, replySubject, type ComposeInput, type ReplyProperty } from "../src/lib/mail/compose";
 import { AUTO_MIN_CONFIDENCE, argentinaClock, decideAuto, inSchedule, type AutoInput } from "../src/lib/mail/decide";
@@ -779,6 +780,15 @@ async function hosts() {
   check("aviso: un dato que la publicación no tiene se avisa", /no tiene/.test(attentionNotice(mk({ missing: 2 }))!.title) && /Confirmá el dato/.test(attentionNotice(mk({ missing: 2 }))!.body));
   check("aviso: lo que el agente no entendió se avisa", /No supe bien/.test(attentionNotice(mk({ uncertain: true }))!.title));
   check("aviso: el texto es corto y no copia el mail", attentionNotice(mk({ humanTopics: ["mascotas", "financiación"], missing: 1, subject: "x".repeat(500), awaiting: true }))!.body.length <= 200);
+
+  // Contestar la duda desde el panel.
+  const starter = followUpStarter({ fromName: "Santi McQueen", topics: ["mascotas"], settings: { closing: "", signature: "" }, agencyName: "Inmobiliaria SS" });
+  check("seguimiento: arranca con saludo, el tema, el cierre y la firma de la inmobiliaria", /^Hola Santi,/.test(starter) && /Sobre mascotas: /.test(starter) && /Quedamos a tu disposición\./.test(starter) && /Equipo de Inmobiliaria SS$/.test(starter), starter);
+  check("seguimiento: usa el cierre y la firma propios si los hay", /Un abrazo\n\nJuan, de SS$/.test(followUpStarter({ fromName: null, topics: [], settings: { closing: "Un abrazo", signature: "Juan, de SS" }, agencyName: "X" })));
+  const bare = followUpStarter({ fromName: null, topics: [], settings: { closing: "", signature: "" }, agencyName: "X" });
+  check("seguimiento: sin nombre ni tema no inventa nada", /^Hola,\n/.test(bare) && !/undefined|null|Sobre/.test(bare), bare);
+  check("seguimiento: se limpian los caracteres de control y los saltos de línea", cleanFollowUp("Hola\r\n\u0000mundo\u0007\r\n") === "Hola\n" + "mundo" && cleanFollowUp("  hola  ") === "hola");
+  check("seguimiento: tope de respuestas y de largo", FOLLOWUP_LIMITS.max === 10 && FOLLOWUP_LIMITS.maxChars === 6000 && FOLLOWUP_LIMITS.minChars >= 1);
 }
 
 hosts().then(() => {
