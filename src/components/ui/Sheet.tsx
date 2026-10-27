@@ -39,6 +39,12 @@ export function Sheet({ open, onClose, children, title, side = "bottom", size = 
   const [shown, setShown] = useState(false);
   const [lingering, setLingering] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  // `onClose` suele ser una función nueva en cada render del padre: si el efecto de abajo dependiera de ella, cada tecla
+  // tipeada en un campo del cartel lo volvería a correr y le quitaría el foco al campo (sólo entraba la primera letra).
+  const closeHandler = useRef(onClose);
+  useEffect(() => {
+    closeHandler.current = onClose;
+  });
 
   // `mounted` se deriva (no es estado): abierto, o cerrándose mientras corre la
   // animación de salida. Todos los setState ocurren dentro de callbacks
@@ -69,7 +75,7 @@ export function Sheet({ open, onClose, children, title, side = "bottom", size = 
       if (e.key !== "Escape") return;
       // Sobre el escenario de un agente, Esc cierra sólo este cartel (el escenario ignora los eventos ya atendidos).
       if (layer === "overlay") e.preventDefault();
-      onClose();
+      closeHandler.current();
     };
     document.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
@@ -79,7 +85,7 @@ export function Sheet({ open, onClose, children, title, side = "bottom", size = 
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
     };
-  }, [mounted, onClose, layer]);
+  }, [mounted, layer]);
 
   if (!mounted) return null;
 
