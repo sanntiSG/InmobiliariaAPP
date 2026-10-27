@@ -8,6 +8,8 @@ import { useGSAP } from "@gsap/react";
 import { Compass, MapPin, Heart, Lightbulb, TrendingUp } from "lucide-react";
 import { buttonClasses } from "@/components/ui/Button";
 import { AGENCIES, CLOSING, SHOWCASE } from "@/config/home-sections";
+import type { HomeAgentCard } from "@/lib/agents/home";
+import { HomeAgents } from "./HomeAgents";
 import type { SecondaryCta } from "./HeroCtas";
 
 gsap.registerPlugin(ScrollTrigger);
@@ -87,7 +89,7 @@ function CardArt({ kind }: { kind: (typeof AGENCIES.cards)[number]["kind"] }) {
   );
 }
 
-export function HomeSections({ secondaryCta }: { secondaryCta: SecondaryCta }) {
+export function HomeSections({ secondaryCta, agents = [] }: { secondaryCta: SecondaryCta; /** Agentes que se muestran en su sección (ver `lib/agents/home.ts`); vacío = la sección no aparece. */ agents?: HomeAgentCard[] }) {
   const scope = useRef<HTMLDivElement>(null);
 
   useGSAP(
@@ -254,6 +256,40 @@ export function HomeSections({ secondaryCta }: { secondaryCta: SecondaryCta }) {
             );
           }
 
+          // Tarjetas de los agentes: suben en cascada y, ya asentada cada una, su mini-escena arma sus piezas una a una.
+          // Es un bloque aparte del de arriba (`[data-rise]`): ése dispara todo junto cuando asoma la primera tarjeta.
+          const agentCards = q("[data-agent]");
+          agentCards.forEach((card, i) => {
+            gsap.fromTo(
+              card,
+              { y: 56, opacity: 0, filter: blur(8) },
+              {
+                y: 0,
+                opacity: 1,
+                filter: "blur(0px)",
+                duration: 0.85,
+                delay: coarse ? 0 : i * 0.1,
+                ease: "power3.out",
+                clearProps: clear,
+                scrollTrigger: { trigger: card, start: "top 88%", once: true },
+              }
+            );
+            gsap.fromTo(
+              card.querySelectorAll("[data-part]"),
+              { y: 10, opacity: 0 },
+              {
+                y: 0,
+                opacity: 1,
+                duration: 0.5,
+                delay: (coarse ? 0 : i * 0.1) + 0.45,
+                stagger: 0.12,
+                ease: "power2.out",
+                clearProps: "transform",
+                scrollTrigger: { trigger: card, start: "top 88%", once: true },
+              }
+            );
+          });
+
           // Cierre: las líneas topográficas se dibujan con el scroll.
           q("[data-topo] path").forEach((path) => {
             // pathLength=1 normaliza el trazo: no depende de getTotalLength (en WebKit con el SVG
@@ -333,6 +369,8 @@ export function HomeSections({ secondaryCta }: { secondaryCta: SecondaryCta }) {
           ))}
         </div>
       </section>
+
+      <HomeAgents agents={agents} />
 
       <section className="home-section" aria-labelledby="home-agencies-title">
         <p className="hero-eyebrow home-eyebrow" data-reveal="">

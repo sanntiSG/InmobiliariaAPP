@@ -5,6 +5,7 @@
 import { describeLine, factItems, firstSentences, highlights, priceText, type PropertyFacts } from "../src/lib/agents/knowledge/facts";
 import { matchPreferences, type PrefProperty } from "../src/lib/agents/knowledge/preferences";
 import { lowerFirst, phrase, phraseFor } from "../src/lib/agents/knowledge/phrasing";
+import { HOME_AUDIENCE_LABELS, homeAgentCards } from "../src/lib/agents/home";
 import { clarifyLead, unknownHelp } from "../src/lib/advisor/compose/unknown";
 import { isFreeIntent } from "../src/lib/advisor/types";
 import { normalizeContent, toPublicConfig } from "../src/lib/advisor/config";
@@ -367,6 +368,28 @@ check("recommend sí lo gasta", !isFreeIntent("explorer.recommend"));
   check("hoy: un cliente → singular y no urgente", one.length === 1 && /1 cliente sin seguimiento/.test(one[0]!.title) && one[0]!.severity === "medium", one);
   check("hoy: sin nada pendiente → lista vacía", buildTodayList({ opportunities: [many[4]!], staleClients: 0 }).length === 0);
   check("hoy: lleva al diagnóstico de la propiedad cuando es una sola", list.find((i) => i.id.startsWith("low-views"))?.href === "/dashboard/propiedades/d/estadisticas");
+}
+
+// ── Portada: qué agentes se muestran y para quién ────────────────────────────
+{
+  const published = (over: Partial<Record<(typeof AGENT_IDS)[number], { name: string; enabled: { agency: boolean; explorer: boolean }; poster?: string | null }>> = {}) => ({
+    advisor: { name: "Lott", enabled: { agency: true, explorer: true }, poster: null },
+    marketing: { name: "Mark", enabled: { agency: true, explorer: false }, poster: null },
+    mail: { name: "Reply", enabled: { agency: true, explorer: false }, poster: null },
+    ...over,
+  });
+  const cards = homeAgentCards(published());
+  check("portada: una tarjeta por agente publicado, en el orden del registro", cards.map((c) => c.id).join() === "advisor,marketing,mail", cards.map((c) => c.id));
+  check("portada: los nombres salen de lo que publicó el admin", cards.map((c) => c.name).join() === "Lott,Mark,Reply", cards.map((c) => c.name));
+  check("portada: si el admin los renombra, la portada los sigue (nada fijo en el código)", homeAgentCards(published({ advisor: { name: "Nubi", enabled: { agency: true, explorer: true } } }))[0]!.name === "Nubi");
+  check("portada: sin nombre se muestra el rol", homeAgentCards(published({ mail: { name: "  ", enabled: { agency: true, explorer: false } } })).find((c) => c.id === "mail")!.name === "Correo");
+  check("portada: asesor para todos; marketing y correo sólo para inmobiliarias", cards[0]!.audience === "all" && cards[1]!.audience === "agency" && cards[2]!.audience === "agency", cards.map((c) => c.audience));
+  check("portada: un agente de inmobiliarias no se ofrece a quien explora aunque el admin lo marque", homeAgentCards(published({ marketing: { name: "Mark", enabled: { agency: false, explorer: true } } })).every((c) => c.id !== "marketing"));
+  check("portada: un agente apagado para todos no aparece", homeAgentCards(published({ mail: { name: "Reply", enabled: { agency: false, explorer: false } } })).map((c) => c.id).join() === "advisor,marketing");
+  check("portada: sólo para quien busca", homeAgentCards(published({ advisor: { name: "Lott", enabled: { agency: false, explorer: true } } }))[0]!.audience === "explorer");
+  check("portada: todos apagados → ninguna tarjeta", homeAgentCards({ advisor: { name: "", enabled: { agency: false, explorer: false } }, marketing: { name: "", enabled: { agency: false, explorer: false } }, mail: { name: "", enabled: { agency: false, explorer: false } } }).length === 0);
+  check("portada: lleva su póster y su descripción corta", homeAgentCards(published({ advisor: { name: "Lott", enabled: { agency: true, explorer: true }, poster: "/p.png" } }))[0]!.poster === "/p.png" && cards.every((c) => c.tagline.length > 20));
+  check("portada: etiquetas de público claras", HOME_AUDIENCE_LABELS.all === "Para todos" && /inmobiliarias/.test(HOME_AUDIENCE_LABELS.agency) && /buscan/.test(HOME_AUDIENCE_LABELS.explorer));
 }
 
 // ── Voz compartida: bancos de frases que no se repiten ───────────────────────

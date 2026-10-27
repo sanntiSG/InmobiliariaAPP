@@ -50,3 +50,19 @@ export const CLOSING = {
   title: "Entrá antes de entrar.",
   text: "Explorá sin cuenta o sumá tu inmobiliaria a la plataforma.",
 } as const;
+
+/**
+ * La sección de agentes de la portada. Los NOMBRES de los agentes no están acá: los define el admin y salen de lo publicado (ver
+ * `lib/agents/home.ts`). Estos textos son genéricos a propósito, para que sigan valiendo si el admin cambia nombres o apaga alguno.
+ */
+export const AGENTS_SECTION = {
+  eyebrow: "Agentes",
+  title: "Agentes que conocen la plataforma y te ahorran trabajo.",
+  lead: "Cada uno se ocupa de una cosa y todos comparten lo que saben, con los datos reales y sin inteligencia artificial de pago.",
+  /** Texto de las mini-escenas decorativas de cada tarjeta (no son datos de nadie). */
+  scenes: {
+    advisor: { question: "¿Qué conviene revisar primero?", answer: ["Fotos de la casa de Canning", "Precio del PH de Villa Crespo", "Videos para la oficina"] },
+    marketing: { chip: "Imagen lista", tags: ["#Venta", "#Palermo", "#Recorrido360"] },
+    mail: { rows: [{ text: "Consulta por la casa de Canning", state: "Respondida", done: true }, { text: "¿Aceptan mascotas?", state: "Para confirmar", done: false }] },
+  },
+} as const;

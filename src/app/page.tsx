@@ -11,6 +11,8 @@ import { brand } from "@/config/brand";
 import { getHeroStats } from "@/lib/home/hero-stats";
 import { auth } from "@/auth";
 import { getFreshAccount, type FreshAccount } from "@/lib/auth/fresh-account";
+import { getPublishedAgents } from "@/lib/advisor/config";
+import { homeAgentCards } from "@/lib/agents/home";
 
 /**
  * Landing con los 3 caminos del brief: Explorar (sin cuenta), Ingresar /
@@ -19,12 +21,17 @@ import { getFreshAccount, type FreshAccount } from "@/lib/auth/fresh-account";
  */
 export default async function Home() {
   const statsPromise = getHeroStats();
+  // Los agentes de su sección salen de lo que el admin publicó (nombres incluidos); si la base falla, la sección simplemente no aparece.
+  const agentsPromise = getPublishedAgents()
+    .then((published) => homeAgentCards(published))
+    .catch(() => []);
   const session = await auth().catch(() => null);
   // Rol y agencia de la base, no del JWT: justo después de recibir el permiso o de crear la
   // inmobiliaria la cookie todavía trae el estado anterior.
-  const [account, stats] = await Promise.all([
+  const [account, stats, agents] = await Promise.all([
     session?.user?.id ? getFreshAccount(session.user.id) : null,
     statsPromise,
+    agentsPromise,
   ]);
   const secondaryCta = resolveSecondaryCta(account);
 
@@ -55,7 +62,7 @@ export default async function Home() {
       <HeroMarquee />
       </section>
 
-      <HomeSections secondaryCta={secondaryCta} />
+      <HomeSections secondaryCta={secondaryCta} agents={agents} />
 
       <footer className="hero-footer">
         {brand.name} — {brand.domainLabel}

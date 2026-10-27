@@ -1387,6 +1387,229 @@ body {
   background: var(--surface);
   color: var(--text-muted);
 }
+/* Sección de agentes (HomeAgents): tarjetas livianas con una mini-escena dibujada en CSS. */
+.home-agents-lead {
+  max-width: 38rem;
+  margin-top: 1rem;
+  font-size: 1.0625rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.home-agent-grid {
+  display: grid;
+  /* Una columna que nunca pasa del ancho de la pantalla (sin esto el contenido ancho de una tarjeta la ensancha y se desborda). */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  margin-top: clamp(1.75rem, 4vw, 3rem);
+}
+@media (min-width: 900px) {
+  .home-agent-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.25rem;
+  }
+  .home-agent-grid[data-agents="1"] {
+    grid-template-columns: minmax(0, 26rem);
+  }
+  .home-agent-grid[data-agents="2"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.home-agent {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+.home-agent-head {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+.home-agent-avatar {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.home-agent-avatar svg {
+  width: 1.3rem;
+  height: 1.3rem;
+}
+.home-agent-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.home-agent .home-agent-name {
+  margin: 0;
+  font-family: var(--font-display), system-ui, sans-serif;
+  font-size: 1.1875rem;
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.home-agent-role {
+  margin-top: 0.2rem;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+.home-agent .home-agent-text {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.home-agent .home-art {
+  min-height: 11rem;
+  justify-content: center;
+  margin-top: auto;
+}
+.home-agent-foot {
+  display: flex;
+  min-height: 2.25rem;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.home-agent-foot .hero-chip svg {
+  width: 1em;
+  height: 1em;
+}
+/* Asesor: una pregunta y una respuesta con barras. */
+.agent-bubble {
+  display: block;
+  max-width: 92%;
+  padding: 0.55rem 0.8rem;
+  border-radius: 1rem;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+.agent-bubble-q {
+  align-self: flex-end;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-bottom-right-radius: 0.3rem;
+}
+.agent-bubble-a {
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: 92%;
+  background: var(--surface);
+  color: var(--text);
+  border-bottom-left-radius: 0.3rem;
+}
+.agent-line {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.agent-line-bar {
+  display: block;
+  height: 0.28rem;
+  margin-bottom: 0.2rem;
+  border-radius: 9999px;
+  background: color-mix(in oklab, var(--accent) 55%, transparent);
+}
+/* Marketing: la imagen de la publicación y sus etiquetas. */
+.agent-scene-post {
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0.85rem;
+}
+.agent-post-photo {
+  position: relative;
+  flex: 0 0 38%;
+  min-height: 6.5rem;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  background: linear-gradient(180deg, var(--accent-soft), color-mix(in oklab, var(--accent) 24%, var(--surface)));
+}
+.agent-post-sun {
+  position: absolute;
+  top: 18%;
+  right: 16%;
+  width: 22%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.7;
+}
+.agent-post-roof {
+  position: absolute;
+  bottom: 0;
+  left: 14%;
+  width: 62%;
+  height: 46%;
+  background: var(--surface);
+  clip-path: polygon(0 38%, 50% 0, 100% 38%, 100% 100%, 0 100%);
+}
+.agent-post-side {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.agent-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.agent-tag {
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  background: var(--surface);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+/* Correo: dos consultas, una ya respondida y otra esperando confirmación. */
+.agent-mail {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.85rem;
+  background: var(--surface);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.agent-mail-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-mail .hero-chip {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+}
+.agent-dot {
+  flex-shrink: 0;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--text-subtle);
+}
+.agent-dot-done {
+  background: var(--success);
+}
 .home-cta-row {
   display: flex;
   margin-top: clamp(1.75rem, 4vw, 2.5rem);
@@ -1440,6 +1663,8 @@ body {
   .js .home-sections [data-reveal],
   .js .home-sections [data-drift],
   .js .home-sections [data-rise],
+  .js .home-sections [data-agent],
+  .js .home-sections [data-part],
   .js .home-sections [data-hotspot] {
     opacity: 0;
   }
