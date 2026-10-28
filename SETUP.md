@@ -16,9 +16,19 @@ npm install
 
 ## 3. Crear `.env.local`
 
-```bash
-cp .env.example .env.local
-```
+Creá el archivo `.env.local` en la raíz del proyecto (está en `.gitignore`: nunca se sube) con estas variables, que se explican en los pasos siguientes:
+
+| Variable | Para qué |
+|---|---|
+| `MONGODB_URI` | Conexión a la base (3.1). **Obligatoria.** |
+| `AUTH_SECRET` | Secreto de las sesiones (3.2). **Obligatoria.** |
+| `AUTH_URL` | Dirección de la web (`http://localhost:3000` en local). |
+| `AUTH_GOOGLE_ID` · `AUTH_GOOGLE_SECRET` | Ingreso con Google (opcional). |
+| `ADMIN_EMAILS` | Correos que entran como administrador (separados por coma). |
+| `CLOUDINARY_CLOUD_NAME` · `CLOUDINARY_API_KEY` · `CLOUDINARY_API_SECRET` | Fotos (3.3). Opcionales en local. |
+| `NEXT_PUBLIC_PROVIDER_WHATSAPP` | WhatsApp del proveedor para "Publicá tu inmobiliaria". |
+
+Las claves del correo (§8) y de los avisos del dispositivo (§9) **no** se cargan en local: se cargan en Netlify, y sólo hace falta si querés probar esas funciones.
 
 ### 3.1 MongoDB Atlas (base de datos)
 
@@ -64,6 +74,26 @@ Esto crea ~4 inmobiliarias y ~40 propiedades demo distribuidas en CABA/AMBA (coo
 
 Un usuario común (rol `user`, sin inmobiliaria) se crea normalmente desde `/crear-cuenta`.
 
+### 4.1 Alquileres de temporada (para mostrar el mapa con playa)
+
+Sobre una base que ya tiene el seed original (no hace falta `--wipe` ni borra nada):
+
+```bash
+npm run seedVacacional -- --dry-run   # muestra qué crearía, sin escribir nada
+npm run seedVacacional                # crea 14 alquileres de temporada
+```
+
+Reparte 14 propiedades (departamentos, dúplex y casas) entre **Mar del Plata, Aguas Verdes, Mar del Tuyú y Cariló**, con precio por noche, semana o quincena, distancia a la playa, disponibilidad variada (verdes y rojas en el mapa) y fotos de Unsplash. Las asigna a las 4 inmobiliarias del seed original; si falta alguna, se detiene en lugar de crear otras. Se puede correr varias veces: no duplica. Todo lo que crea queda marcado.
+
+Para dejarlo como estaba:
+
+```bash
+npm run eliminarSeedVacacional              # simulación: lista qué borraría
+npm run eliminarSeedVacacional -- --confirm # borra de verdad
+```
+
+Sólo borra las propiedades marcadas por ese seed y lo que cuelga de ellas (me gusta, favoritos, puntajes, comentarios, vistas, avisos). **No** toca inmobiliarias, usuarios ni propiedades reales, y avisa lo que no pueda atribuir con seguridad (por ejemplo un cliente real que consultó por una propiedad del seed).
+
 ## 5. Levantar el proyecto
 
 ```bash
@@ -80,7 +110,9 @@ Abrí http://localhost:3000/mapa
 | `npm run build` | Build de producción |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | Chequeo de tipos TypeScript |
-| `npm run seed` | Carga datos demo en MongoDB |
+| `npm run seed -- --wipe` | Carga datos demo en MongoDB (borra la base: sólo de pruebas) |
+| `npm run seedVacacional` · `npm run eliminarSeedVacacional` | Agrega / quita los alquileres de temporada de demostración (ver 4.1) |
+| `npm run filters:check` · `mail:check` · `agents:check` · `advisor:check` · `ambient:check` · `rentals:check` · `push:check` | Pruebas de la lógica (sin red) |
 
 ## 7. Deploy (Netlify + Render + MongoDB Atlas)
 
@@ -223,6 +255,48 @@ Si ya tenías cargadas `MAIL_POLLER_ENABLED=true`, `MAIL_SEND_ENABLED=true`, `CR
 **Qué hace y qué no.** Sólo lee la bandeja de entrada en modo lectura y sólo los mails que llegan *después* de conectar; no borra ni mueve nada. Guarda el texto (sin adjuntos) 60 días (14 si lo ignoró) y todo se borra al desconectar. Empieza en modo *con confirmación*: nada se envía sin que una persona lo confirme. El modo automático sólo responde consultas claras, con una propiedad identificada, de remitentes que pasan las verificaciones SPF/DKIM/DMARC y dentro de los topes configurados. Las pruebas de la lógica (sin red ni base): `npm run mail:check`.
 
 **Datos personales (Ley 25.326).** El agente trata nombre, email y texto de las consultas de terceros. La finalidad (atender la consulta), la retención (60 días) y el borrado al desconectar están en el aviso que acepta quien conecta la casilla; la política de privacidad del sitio la redacta el dueño de la plataforma.
+
+## 9. Avisos del dispositivo (push) y app instalable (opcional)
+
+Además de la campana, quien tiene sesión puede recibir un aviso en el celular o la computadora aunque no tenga la plataforma abierta. Es **Web Push estándar**: gratis, sin servicios externos y sin guardar datos en terceros. Los visitantes sin sesión no ven nada de esto. Mientras no se carguen las claves, todo sigue funcionando igual con los avisos de la campana.
+
+**Qué se carga, y cuántas veces.** Un par de claves **una sola vez para toda la plataforma**, en **Netlify** (donde corre la función programada que despacha y reintenta los avisos). En Render y GitHub no hay que hacer nada.
+
+| Variable | Qué es |
+|---|---|
+| `VAPID_PUBLIC_KEY` | Clave pública. La recibe el navegador para suscribirse. |
+| `VAPID_PRIVATE_KEY` | Clave privada. **Nunca** se escribe en un archivo del repo ni se comparte. |
+| `VAPID_SUBJECT` | Opcional: `mailto:` o `https://` de contacto. Si falta se usa la dirección pública del sitio. |
+
+### Activarlo (admin, unos 3 minutos)
+
+1. En *Admin → Avisos* tocá **Generar las claves** y **Copiar** cada una. Se crean en tu navegador (la privada no pasa por el servidor); guardalas en tu gestor de contraseñas.
+2. En Netlify: **Site configuration → Environment variables**, agregá `VAPID_PUBLIC_KEY` y `VAPID_PRIVATE_KEY` con los valores copiados.
+3. **Deploys → Trigger deploy → Deploy site**.
+4. Volvé a *Admin → Avisos* (en la dirección de Netlify): arriba tiene que decir *"Este servidor tiene las claves y puede enviar avisos"*, con el conteo de personas, dispositivos, avisos esperando y errores de las últimas 24 h.
+5. Cada persona entra a su pantalla de avisos (exploradores: *Notificaciones*; inmobiliarias: *Avisos* en su panel; admin: *Admin → Avisos*) y toca **Activar avisos**. El permiso del navegador se pide sólo en ese momento. Hay un botón de **prueba** para ver que llega.
+
+Si se cambian las claves, los dispositivos ya suscriptos dejan de recibir hasta volver a activar los avisos.
+
+### Cómo funciona
+
+- Al crearse una notificación se guarda en la base y, si la persona tiene dispositivos activos y no silenció ese grupo, queda marcada para enviar. Si el servidor que la creó tiene las claves, se intenta en el momento; si no (por ejemplo Render), la envía la función programada de Netlify (`netlify/functions/mail-poll.mts`, cada 5 minutos, que además llama a `/api/cron/sweep`).
+- Reintenta hasta 3 veces; si el servicio de push responde que la suscripción no existe más (404/410) la borra; tras 5 fallas seguidas desactiva ese dispositivo; un aviso que no se pudo enviar en 24 horas se descarta (sigue en la campana).
+- El texto de los avisos privados (consultas, clientes, correo) es genérico en la pantalla bloqueada: el contenido se ve al entrar.
+- Cada persona elige qué grupos recibe (recomendaciones, actividad, gestión) o pausa el dispositivo; lo que apaga no le llega a la campana ni al dispositivo. Los avisos del sistema no se pueden silenciar.
+- La misma pasada programada revisa los períodos de ocupación vencidos de los alquileres y avisa a quienes pidieron enterarse cuando una propiedad se libere.
+
+### Por dispositivo
+
+| Dispositivo | Qué hay que hacer |
+|---|---|
+| Computadora (Chrome, Edge, Firefox, Safari) y Android | Tocar **Activar avisos** y aceptar. Se puede instalar como app, pero no es obligatorio. |
+| iPhone / iPad | Sólo con **iOS/iPadOS 16.4 o más** y con la plataforma **agregada a la pantalla de inicio desde Safari** (Compartir → *Agregar a inicio*); abrirla desde ese ícono y recién ahí activar los avisos. En Chrome o Firefox de iOS no se puede. La pantalla de avisos muestra estos pasos al detectar el dispositivo. |
+| Permiso bloqueado | La pantalla explica cómo desbloquearlo según el navegador. |
+
+**Sin probar acá:** la recepción en un iPhone o Android reales y el permiso del navegador (la automatización no puede aceptarlo); en la computadora se verificó la suscripción, el despacho, los reintentos y el borrado. Se recomienda una primera prueba real con el botón de prueba apenas se carguen las claves.
+
+La app instalada (PWA) usa `manifest.webmanifest`, íconos generados en `/pwa-icon/<tamaño>` y un service worker (`/sw.js`) que **sólo** recibe avisos: no guarda nada en caché, así la web siempre se ve actualizada.
 
 ## Nota de seguridad
 
