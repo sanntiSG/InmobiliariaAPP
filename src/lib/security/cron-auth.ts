@@ -1,5 +1,5 @@
 import { createHash, timingSafeEqual } from "node:crypto";
-import { deriveCronToken } from "./cron-token";
+import { deriveCronToken, deriveSweepToken } from "./cron-token";
 import { createSecretBox } from "./secret-box";
 
 const MIN_SECRET_LENGTH = 32;
@@ -17,6 +17,18 @@ export function cronSecrets(env: Env = process.env): string[] {
   if (key && createSecretBox({ current: key }).ready()) out.push(deriveCronToken(key));
   if (env.CRON_SECRET && env.CRON_SECRET.length >= MIN_SECRET_LENGTH) out.push(env.CRON_SECRET);
   return out;
+}
+
+/**
+ * Las claves con las que se puede llamar a `/api/cron/sweep`: la derivada de `AUTH_SECRET` (siempre existe, así las tareas no
+ * dependen de que el correo esté configurado) y, para no romper lo ya publicado, las del correo (`cronSecrets`). Un secreto corto
+ * no cuenta. La del sweep NO sirve en `/api/cron/mail-poll`, que sigue usando sólo `cronSecrets`.
+ */
+export function sweepSecrets(env: Env = process.env): string[] {
+  const out: string[] = [];
+  const auth = env.AUTH_SECRET?.trim();
+  if (auth && auth.length >= MIN_SECRET_LENGTH) out.push(deriveSweepToken(auth));
+  return [...out, ...cronSecrets(env)];
 }
 
 /**

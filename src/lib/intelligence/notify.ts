@@ -70,27 +70,30 @@ export async function maybeSendRecommendationNotifications(userId: string): Prom
  * y se evalúa a lo sumo una vez por hora.
  */
 export function maybeSendOpportunityNotifications(agencyId: string): Promise<void> {
-  return memo(`opp-notify:${agencyId}`, HOUR_MS, async () => {
-    try {
-      const { opportunities } = await getIntelligence(agencyId);
-      const important = opportunities.filter((o) => o.severity === "high" && o.kind !== "opportunity").slice(0, 3);
-      if (important.length === 0) return;
+  return memo(`opp-notify:${agencyId}`, HOUR_MS, () => runOpportunityNotifications(agencyId));
+}
 
-      const week = weekKey();
-      for (const o of important) {
-        await notifyAgency(agencyId, {
-          type: "opportunity",
-          title: o.title,
-          body: o.propertyTitle ? `${o.propertyTitle} — ${o.explanation}` : o.explanation,
-          href: o.href ?? "/dashboard/oportunidades",
-          propertyId: o.propertyId,
-          dedupeKey: `opp:${o.id}:${week}`,
-        });
-      }
-    } catch (err) {
-      console.error("maybeSendOpportunityNotifications failed:", err);
+/** El cuerpo de lo anterior, sin la limitación por instancia (`memo`): lo usa también la tarea programada, que se limita con `claimSlot`. Nunca lanza. */
+export async function runOpportunityNotifications(agencyId: string): Promise<void> {
+  try {
+    const { opportunities } = await getIntelligence(agencyId);
+    const important = opportunities.filter((o) => o.severity === "high" && o.kind !== "opportunity").slice(0, 3);
+    if (important.length === 0) return;
+
+    const week = weekKey();
+    for (const o of important) {
+      await notifyAgency(agencyId, {
+        type: "opportunity",
+        title: o.title,
+        body: o.propertyTitle ? `${o.propertyTitle} — ${o.explanation}` : o.explanation,
+        href: o.href ?? "/dashboard/oportunidades",
+        propertyId: o.propertyId,
+        dedupeKey: `opp:${o.id}:${week}`,
+      });
     }
-  });
+  } catch (err) {
+    console.error("maybeSendOpportunityNotifications failed:", err);
+  }
 }
 
 /** Una solicitud de inmobiliaria que lleva más que esto sin resolverse requiere atención. */
@@ -102,53 +105,56 @@ const REQUEST_ALERT_AFTER_MS = 48 * HOUR_MS;
  * 14 días. Se evalúan a lo sumo cada 30 minutos; los avisos no se repiten.
  */
 export function sendAdminAlerts(): Promise<void> {
-  return memo("admin-alerts", 30 * 60_000, async () => {
-    try {
-      const stale = await AgencyRequest.find({
-        status: "pending",
-        createdAt: { $lte: new Date(Date.now() - REQUEST_ALERT_AFTER_MS) },
-      })
-        .select("name agencyName")
-        .limit(20)
-        .lean();
-      for (const r of stale) {
-        await notifyAdmins({
-          type: "admin_alert",
-          title: "Solicitud sin resolver hace más de 48 horas",
-          body: `${r.name} · ${r.agencyName}`,
-          href: "/admin/solicitudes",
-          dedupeKey: `admin_alert:request:${r._id}`,
-        });
-      }
+  return memo("admin-alerts", 30 * 60_000, runAdminAlerts);
+}
 
-      const since = new Date(dayStart().getTime() - 13 * DAY_MS);
-      const [published, active] = await Promise.all([
-        Property.aggregate([{ $match: { status: "published" } }, { $group: { _id: "$agencyId", n: { $sum: 1 } } }]),
-        PropertyDailyStat.aggregate([
-          { $match: { day: { $gte: since }, views: { $gt: 0 } } },
-          { $group: { _id: "$agencyId" } },
-        ]),
-      ]);
-      // Si nadie en toda la plataforma recibió una visita, todavía no hay tráfico medido:
-      // avisar que "todas" están inactivas sería ruido, no información.
-      if (active.length === 0) return;
-      const withViews = new Set(active.map((a) => String(a._id)));
-      const inactiveIds = published.filter((p) => !withViews.has(String(p._id))).map((p) => p._id);
-      if (inactiveIds.length === 0) return;
-
-      const agencies = await Agency.find({ _id: { $in: inactiveIds }, status: "active" }).select("name").limit(20).lean();
-      const week = weekKey();
-      for (const a of agencies) {
-        await notifyAdmins({
-          type: "admin_alert",
-          title: "Inmobiliaria sin actividad",
-          body: `${a.name} tiene propiedades publicadas pero no recibió visitas en 14 días.`,
-          href: `/admin`,
-          dedupeKey: `admin_alert:inactive:${a._id}:${week}`,
-        });
-      }
-    } catch (err) {
-      console.error("sendAdminAlerts failed:", err);
+/** El cuerpo de lo anterior, sin la limitación por instancia (`memo`): lo usa también la tarea programada, que se limita con `claimSlot`. Nunca lanza. */
+export async function runAdminAlerts(): Promise<void> {
+  try {
+    const stale = await AgencyRequest.find({
+      status: "pending",
+      createdAt: { $lte: new Date(Date.now() - REQUEST_ALERT_AFTER_MS) },
+    })
+      .select("name agencyName")
+      .limit(20)
+      .lean();
+    for (const r of stale) {
+      await notifyAdmins({
+        type: "admin_alert",
+        title: "Solicitud sin resolver hace más de 48 horas",
+        body: `${r.name} · ${r.agencyName}`,
+        href: "/admin/solicitudes",
+        dedupeKey: `admin_alert:request:${r._id}`,
+      });
     }
-  });
+
+    const since = new Date(dayStart().getTime() - 13 * DAY_MS);
+    const [published, active] = await Promise.all([
+      Property.aggregate([{ $match: { status: "published" } }, { $group: { _id: "$agencyId", n: { $sum: 1 } } }]),
+      PropertyDailyStat.aggregate([
+        { $match: { day: { $gte: since }, views: { $gt: 0 } } },
+        { $group: { _id: "$agencyId" } },
+      ]),
+    ]);
+    // Si nadie en toda la plataforma recibió una visita, todavía no hay tráfico medido:
+    // avisar que "todas" están inactivas sería ruido, no información.
+    if (active.length === 0) return;
+    const withViews = new Set(active.map((a) => String(a._id)));
+    const inactiveIds = published.filter((p) => !withViews.has(String(p._id))).map((p) => p._id);
+    if (inactiveIds.length === 0) return;
+
+    const agencies = await Agency.find({ _id: { $in: inactiveIds }, status: "active" }).select("name").limit(20).lean();
+    const week = weekKey();
+    for (const a of agencies) {
+      await notifyAdmins({
+        type: "admin_alert",
+        title: "Inmobiliaria sin actividad",
+        body: `${a.name} tiene propiedades publicadas pero no recibió visitas en 14 días.`,
+        href: `/admin`,
+        dedupeKey: `admin_alert:inactive:${a._id}:${week}`,
+      });
+    }
+  } catch (err) {
+    console.error("sendAdminAlerts failed:", err);
+  }
 }

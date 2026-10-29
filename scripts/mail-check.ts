@@ -4,8 +4,9 @@
  * modo automático. Correr con `npm run mail:check`: sale con código 1 si alguna falla.
  */
 import { createSecretBox, SecretBoxError, mailboxAad } from "../src/lib/security/secret-box";
-import { cronSecrets, verifyCronRequest } from "../src/lib/security/cron-auth";
-import { CRON_TOKEN_LABEL, deriveCronToken } from "../src/lib/security/cron-token";
+import { cronSecrets, sweepSecrets, verifyCronRequest } from "../src/lib/security/cron-auth";
+import { CRON_TOKEN_LABEL, SWEEP_TOKEN_LABEL, deriveCronToken, deriveSweepToken } from "../src/lib/security/cron-token";
+import { sweepEnabled } from "../src/lib/cron/runtime";
 import { mailRuntime } from "../src/lib/mail/runtime";
 import { POLL_EVERY_MS, SCHEDULE_SLACK_MS, dueFilter, isDue, nextAutoCheckAt } from "../src/lib/mail/schedule";
 import { explain, MailTransportError, parseAuth } from "../src/lib/mail/transport";
@@ -97,6 +98,17 @@ const throwsCode = (fn: () => unknown, code: string): boolean => {
   check("cronSecrets: una clave inválida o corta no aporta nada", cronSecrets({ MAIL_CREDENTIALS_KEY: "abc" }).length === 0 && cronSecrets({ CRON_SECRET: "corta" }).length === 0 && cronSecrets({}).length === 0);
   check("cronSecrets: CRON_SECRET (≥32) se suma como opción", cronSecrets({ MAIL_CREDENTIALS_KEY: key, CRON_SECRET: secret }).length === 2 && cronSecrets({ CRON_SECRET: secret })[0] === secret);
   check("cron: el token derivado pasa y la clave de cifrado en crudo NO", verifyCronRequest(req(`Bearer ${token}`), cronSecrets({ MAIL_CREDENTIALS_KEY: key })) && !verifyCronRequest(req(`Bearer ${key}`), cronSecrets({ MAIL_CREDENTIALS_KEY: key })));
+
+  // Las demás tareas programadas (`/api/cron/sweep`) tienen su propia clave, derivada de AUTH_SECRET: no dependen del correo.
+  const auth = Buffer.alloc(32, 5).toString("base64");
+  const sweep = deriveSweepToken(auth);
+  check("sweep-token: determinista, hexadecimal, no contiene el secreto y no es el del correo ni el secreto", sweep === deriveSweepToken(auth) && /^[0-9a-f]{64}$/.test(sweep) && !sweep.includes(auth) && sweep !== auth && sweep !== deriveCronToken(auth) && (SWEEP_TOKEN_LABEL as string) !== CRON_TOKEN_LABEL);
+  check("sweepSecrets: con AUTH_SECRET alcanza (sin clave del correo)", sweepSecrets({ AUTH_SECRET: auth }).join() === sweep, sweepSecrets({ AUTH_SECRET: auth }));
+  check("sweepSecrets: un AUTH_SECRET corto no aporta nada", sweepSecrets({ AUTH_SECRET: "corto" }).length === 0 && sweepSecrets({}).length === 0);
+  check("sweepSecrets: sigue aceptando la clave del correo y CRON_SECRET (lo ya publicado no se rompe)", sweepSecrets({ AUTH_SECRET: auth, MAIL_CREDENTIALS_KEY: key, CRON_SECRET: secret }).length === 3 && verifyCronRequest(req(`Bearer ${token}`), sweepSecrets({ MAIL_CREDENTIALS_KEY: key })));
+  check("sweep: la clave del sweep pasa en el sweep y NO en la revisión del correo", verifyCronRequest(req(`Bearer ${sweep}`), sweepSecrets({ AUTH_SECRET: auth })) && !verifyCronRequest(req(`Bearer ${sweep}`), cronSecrets({ AUTH_SECRET: auth, MAIL_CREDENTIALS_KEY: key })));
+  check("sweep: el secreto de sesiones en crudo no pasa", !verifyCronRequest(req(`Bearer ${auth}`), sweepSecrets({ AUTH_SECRET: auth })));
+  check("sweepEnabled: la principal sí (sin clave del correo), Render no, y se puede forzar", sweepEnabled({}) && !sweepEnabled({ RENDER: "true" }) && sweepEnabled({ RENDER: "true", SWEEP_ENABLED: "true" }) && !sweepEnabled({ SWEEP_ENABLED: "false" }));
 }
 
 // ── Dirección pública del sitio ─────────────────────────────────────────────

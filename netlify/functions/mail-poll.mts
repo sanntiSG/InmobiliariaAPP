@@ -1,16 +1,17 @@
 /**
  * Tareas programadas de la plataforma: Netlify ejecuta esta función cada 5 minutos y ella llama a rutas protegidas del propio
- * sitio. No hace falta cargar nada fuera de Netlify: la clave de las llamadas se deriva de `MAIL_CREDENTIALS_KEY` (la misma
- * variable que cifra las contraseñas de las casillas). Si esa variable no está, no hace nada. Sólo corre en el despliegue
- * publicado, nunca en vistas previas. Es UNA sola función a propósito (cada ejecución cuesta créditos): hace, en orden,
- *   1. la revisión del correo (`/api/cron/mail-poll`): una llamada revisa un lote (la ruta se corta a los 8 s); si quedan mails
- *      (`more: true`) se vuelve a llamar, hasta 3 veces;
- *   2. las tareas que no dependen de que alguien navegue (`/api/cron/sweep`): avisar cuando un alquiler vuelve a estar
- *      disponible porque terminó un período ocupado y enviar los avisos del dispositivo (push) que quedaron pendientes.
+ * sitio. No hace falta cargar nada más fuera de Netlify: las claves de las llamadas se derivan de variables que ya existen
+ * (`MAIL_CREDENTIALS_KEY` para el correo y `AUTH_SECRET` para el resto). Sólo corre en el despliegue publicado, nunca en vistas
+ * previas. Es UNA sola función a propósito (cada ejecución cuesta créditos): hace, en orden,
+ *   1. la revisión del correo (`/api/cron/mail-poll`), sólo si el correo está activado: una llamada revisa un lote (la ruta se
+ *      corta a los 8 s); si quedan mails (`more: true`) se vuelve a llamar, hasta 3 veces;
+ *   2. las tareas que no dependen de que alguien navegue (`/api/cron/sweep`), con o sin correo: avisar cuando un alquiler vuelve
+ *      a estar disponible porque terminó un período ocupado, las alertas del admin y oportunidades de las inmobiliarias, y enviar
+ *      los avisos del dispositivo (push) que quedaron pendientes.
  * Un fallo en una de las dos no frena a la otra. Todo dentro de los 30 s que Netlify da a una función programada. Sólo se
  * registran conteos: nunca contenido de mails.
  */
-import { deriveCronToken } from "../../src/lib/security/cron-token";
+import { deriveCronToken, deriveSweepToken } from "../../src/lib/security/cron-token";
 
 const MAX_CALLS = 3;
 /** El correo usa hasta 20 s; el resto del tiempo queda para las demás tareas. */
@@ -35,10 +36,23 @@ function siteOrigin(context?: Context): string | null {
   return null;
 }
 
+/** La clave de las tareas: la derivada de `AUTH_SECRET` y, si esa variable no llegara a la función, la del correo (como antes). */
+function sweepToken(mailKey: string | undefined): string | null {
+  const auth = process.env.AUTH_SECRET?.trim();
+  if (auth && auth.length >= 32) return deriveSweepToken(auth);
+  if (mailKey) {
+    console.warn("sweep: AUTH_SECRET no está disponible para la función; se usa la clave del correo.");
+    return deriveCronToken(mailKey);
+  }
+  return null;
+}
+
 export default async function handler(_req: Request, context?: Context): Promise<void> {
-  const key = process.env.MAIL_CREDENTIALS_KEY?.trim();
-  if (!key || process.env.MAIL_POLLER_ENABLED === "false") {
-    console.log("mail-poll: el correo no está activado, no se revisa nada.");
+  const mailKey = process.env.MAIL_CREDENTIALS_KEY?.trim();
+  const mailOn = !!mailKey && process.env.MAIL_POLLER_ENABLED !== "false";
+  const sweepKey = sweepToken(mailKey);
+  if (!mailOn && !sweepKey) {
+    console.log("mail-poll: no hay claves cargadas (ni AUTH_SECRET ni MAIL_CREDENTIALS_KEY), no se hace nada.");
     return;
   }
   const origin = siteOrigin(context);
@@ -47,9 +61,9 @@ export default async function handler(_req: Request, context?: Context): Promise
     return;
   }
 
-  const token = deriveCronToken(key);
-  await pollMail(origin, token);
-  await runSweep(origin, token);
+  if (mailOn) await pollMail(origin, deriveCronToken(mailKey!));
+  else console.log("mail-poll: el correo no está activado, sólo se hacen las demás tareas.");
+  if (sweepKey) await runSweep(origin, sweepKey);
 }
 
 /** Las demás tareas programadas (ver `/api/cron/sweep`). Un fallo acá se registra y nada más. */
@@ -65,9 +79,11 @@ async function runSweep(origin: string, token: string): Promise<void> {
       console.error(`sweep: el sitio respondió ${res.status}.`);
       return;
     }
-    const body = (await res.json().catch(() => null)) as { availability?: { checked?: number; changed?: number; freed?: number }; push?: { claimed?: number; sent?: number; skipped?: number; failed?: number; retry?: number; removed?: number } | null } | null;
+    const body = (await res.json().catch(() => null)) as { availability?: { checked?: number; changed?: number; freed?: number }; jobs?: { adminAlerts?: boolean; opportunities?: number } | null; push?: { claimed?: number; sent?: number; skipped?: number; failed?: number; retry?: number; removed?: number } | null } | null;
     const a = body?.availability;
     if (a && (a.changed || a.freed)) console.log(`sweep: revisados ${a.checked ?? 0}, cambiaron ${a.changed ?? 0}, quedaron libres ${a.freed ?? 0}.`);
+    const j = body?.jobs;
+    if (j && (j.adminAlerts || j.opportunities)) console.log(`sweep: alertas del admin ${j.adminAlerts ? "revisadas" : "sin cambios"}, oportunidades de ${j.opportunities ?? 0} inmobiliaria(s).`);
     const p = body?.push;
     if (p && p.claimed) console.log(`sweep: avisos del dispositivo: enviados ${p.sent ?? 0}, omitidos ${p.skipped ?? 0}, a reintentar ${p.retry ?? 0}, con error ${p.failed ?? 0}, dispositivos dados de baja ${p.removed ?? 0}.`);
   } catch (err) {
