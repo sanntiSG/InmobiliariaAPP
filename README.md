@@ -41,9 +41,9 @@ Abrir [http://localhost:3000](http://localhost:3000).
 
 ## Estado del proyecto
 
-Producto en uso y en evolución continua. Lo último incorporado (sesión 21): filtros reversibles sin estados escondidos, correo con seguimiento y firma, alquileres temporales con disponibilidad y los dos seeds de demostración, y avisos push con PWA y preferencias.
+Producto en uso y en evolución continua. Lo último incorporado (sesiones 21 y 22): filtros reversibles y sin desborde en pantallas chicas, resultados vacíos con alternativas, correo con seguimiento, firma, bandeja por lo que hay que hacer y analista, alquileres temporales con sus seeds, y avisos (campana y dispositivo) para todos los roles con guía ilustrada de activación.
 
-El detalle de decisiones, arquitectura y lecciones está en **[context.md](./context.md)**; las secciones 18 y 19 cubren la última sesión.
+El detalle de decisiones, arquitectura y lecciones está en **[context.md](./context.md)**; las secciones 18 a 20 cubren las últimas sesiones.
 
 ## Comandos
 

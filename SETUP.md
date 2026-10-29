@@ -251,6 +251,7 @@ Si ya tenías cargadas `MAIL_POLLER_ENABLED=true`, `MAIL_SEND_ENABLED=true`, `CR
 - Cada corrida deja una señal de vida en la base: el panel del admin la muestra ("Última revisión hace 3 min"). Si pasan 15 minutos sin corrida, el panel avisa.
 - El botón **Revisar ahora** del panel de cada inmobiliaria sirve de respaldo (1 por minuto).
 - Las funciones programadas de Netlify sólo corren en el despliegue publicado, no en vistas previas.
+- Esa misma función también hace las demás tareas programadas (ver "Tareas programadas" en la sección 9): **no dependen de que el correo esté activado**.
 
 **Qué hace y qué no.** Sólo lee la bandeja de entrada en modo lectura y sólo los mails que llegan *después* de conectar; no borra ni mueve nada. Guarda el texto (sin adjuntos) 60 días (14 si lo ignoró) y todo se borra al desconectar. Empieza en modo *con confirmación*: nada se envía sin que una persona lo confirme. El modo automático sólo responde consultas claras, con una propiedad identificada, de remitentes que pasan las verificaciones SPF/DKIM/DMARC y dentro de los topes configurados. Las pruebas de la lógica (sin red ni base): `npm run mail:check`.
 
@@ -285,6 +286,16 @@ Si se cambian las claves, los dispositivos ya suscriptos dejan de recibir hasta 
 - El texto de los avisos privados (consultas, clientes, correo) es genérico en la pantalla bloqueada: el contenido se ve al entrar.
 - Cada persona elige qué grupos recibe (recomendaciones, actividad, gestión) o pausa el dispositivo; lo que apaga no le llega a la campana ni al dispositivo. Los avisos del sistema no se pueden silenciar.
 - La misma pasada programada revisa los períodos de ocupación vencidos de los alquileres y avisa a quienes pidieron enterarse cuando una propiedad se libere.
+- **Una inmobiliaria sin dueño ni agentes** (la administra el admin "viendo como" ella) no tiene a quién avisarle: sus avisos (correo, consultas, oportunidades, actividad) le llegan a **los admins**, con el nombre de la inmobiliaria y un enlace que abre su panel. Cuando se le asigna un dueño, pasan a él solos.
+- En el celular, los avisos de lo mismo se **reemplazan** en vez de apilarse (por ejemplo, las respuestas para confirmar dicen "Tenés 3 respuestas para confirmar"); la campana conserva uno por evento.
+
+### Tareas programadas (sin depender del correo)
+
+La función de Netlify `mail-poll` (cada 5 minutos) hace, además de revisar el correo cuando está activado, las tareas que antes sólo corrían cuando alguien entraba a la web: reintentar y enviar los avisos del dispositivo pendientes, avisar que un alquiler se liberó, las alertas del admin (solicitud sin resolver hace más de 48 horas, inmobiliarias sin actividad) y las oportunidades de cada inmobiliaria (hasta 2 por pasada, cada una cada 6 horas).
+
+- **No hay que cargar nada nuevo:** usa una clave propia derivada de `AUTH_SECRET` (que ya existe), distinta a la del correo; esa clave **no** sirve para la revisión del correo. Si `AUTH_SECRET` no llegara a las funciones, usa la del correo como antes y lo deja registrado en el log (*Logs → Functions → mail-poll*).
+- Render no corre estas tareas (la ruta responde 404). `SWEEP_ENABLED=true|false` sólo existe para forzarlo.
+- Cada tarea tiene un cerrojo en la base (`ServiceHeartbeat`), así dos servidores no la hacen a la vez ni se repite en cada pasada.
 
 ### Por dispositivo
 
