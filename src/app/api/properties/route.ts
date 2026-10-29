@@ -61,8 +61,9 @@ async function getListing(filters: z.infer<typeof listFiltersSchema>) {
 
   return NextResponse.json(
     { items, total, page: filters.page, pageSize: filters.pageSize },
-    // El navegador siempre revalida: antes (max-age=30 + stale-while-revalidate=60) una propiedad recién
-    // publicada tardaba hasta ~90 s en aparecer. Sólo un CDN, si lo hay, amortigua unos segundos.
-    { headers: { "Cache-Control": "public, max-age=0, s-maxage=10, stale-while-revalidate=20" } }
+    // SIN caché compartido (CDN): la respuesta depende de los parámetros de la dirección (filtros, zona, página) y el caché de Netlify
+    // ignora lo que va después del "?": servía el resultado de una consulta a otra (por ejemplo, el de "ventas" a "alquiler temporal") y
+    // el listado y el mapa mostraban propiedades que no correspondían. El navegador igual no guarda nada y revalida siempre.
+    { headers: { "Cache-Control": "no-store" } }
   );
 }

@@ -14,7 +14,9 @@ export async function GET(req: NextRequest) {
   const agencyId = req.nextUrl.searchParams.get("agencyId");
   try {
     return NextResponse.json(await getFacets(agencyId && /^[a-f0-9]{24}$/i.test(agencyId) ? agencyId : null), {
-      headers: { "Cache-Control": "public, max-age=0, s-maxage=60, stale-while-revalidate=120" },
+      // Sin caché compartido: depende de `?agencyId=` y el caché de Netlify ignora los parámetros (ver las otras dos rutas). El servidor ya
+      // guarda el cálculo 5 minutos en su memoria (`getFacets`).
+      headers: { "Cache-Control": "no-store" },
     });
   } catch (err) {
     console.error("GET /api/properties/facets failed:", (err as Error)?.message);
