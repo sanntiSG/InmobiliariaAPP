@@ -40,18 +40,23 @@ export type MailOverview = {
     connectedAt: string | null;
   };
   settings: MailSettingsView;
-  /** `human`: mails que todavía necesitan a una persona (la pestaña "Dudas"). */
-  counts: { awaiting: number; sent: number; failed: number; ignored: number; queued: number; human: number };
+  /**
+   * `human`: dudas sin responder. `attention`: todo lo que necesita a una persona (para confirmar + dudas + envíos con error, sin repetir).
+   * `unsure`: los que el agente no entendió. `answered`: lo que ya se respondió (solo o por una persona).
+   */
+  counts: { awaiting: number; sent: number; failed: number; ignored: number; queued: number; human: number; attention: number; unsure: number; answered: number };
 };
 
 export async function getOverview(agencyId: string, canManage: boolean, viewerIsAdmin = false): Promise<MailOverview> {
   await connectDB();
-  const [mailbox, settings, grouped, agency, human] = await Promise.all([
+  const [mailbox, settings, grouped, agency, human, attention, unsure] = await Promise.all([
     Mailbox.findOne({ agencyId }).select("email provider status lastError lastPollAt nextPollAt consentAt createdAt").lean(),
     loadSettings(agencyId),
     MailMessage.aggregate<{ _id: string; n: number }>([{ $match: { agencyId: new Types.ObjectId(agencyId) } }, { $group: { _id: "$status", n: { $sum: 1 } } }]),
     Agency.findById(agencyId).select("name").lean(),
     MailMessage.countDocuments({ agencyId, humanState: "pending", status: { $in: ["awaiting_confirmation", "queued", "sending", "sent", "failed"] } }),
+    MailMessage.countDocuments({ agencyId, $or: [{ status: "awaiting_confirmation" }, { status: "failed" }, { humanState: "pending", status: { $in: ["awaiting_confirmation", "queued", "sending", "sent", "failed"] } }] }),
+    MailMessage.countDocuments({ agencyId, status: "awaiting_confirmation", uncertain: true }),
   ]);
   const n = (s: string) => grouped.find((g) => g._id === s)?.n ?? 0;
   const runtime = mailRuntime();
@@ -76,6 +81,6 @@ export async function getOverview(agencyId: string, canManage: boolean, viewerIs
         }
       : null,
     settings,
-    counts: { awaiting: n("awaiting_confirmation"), sent: n("sent"), failed: n("failed"), ignored: n("ignored") + n("discarded"), queued: n("queued") + n("sending"), human },
+    counts: { awaiting: n("awaiting_confirmation"), sent: n("sent"), failed: n("failed"), ignored: n("ignored") + n("discarded"), queued: n("queued") + n("sending"), human, attention, unsure, answered: n("sent") + n("queued") + n("sending") },
   };
 }

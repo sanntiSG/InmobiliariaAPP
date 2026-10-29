@@ -35,7 +35,8 @@ export type AnalystData = {
   received: { total: number; byCategory: Record<string, number>; previousInquiries: number };
   sent: { total: number; auto: number; byPerson: number; failed: number; followUps: number; unedited: number; confirmedByPerson: number };
   /** Lo que espera a alguien AHORA (sin importar la ventana). */
-  pending: { confirm: number; doubts: number; unsure: number; errors: number; oldestConfirmHours: number | null; oldestDoubtHours: number | null };
+  /** `attention`: cuántos mails DISTINTOS esperan a una persona (un mismo mail puede estar para confirmar y con una duda a la vez; los otros números cuentan por tipo). */
+  pending: { confirm: number; doubts: number; unsure: number; errors: number; attention: number; oldestConfirmHours: number | null; oldestDoubtHours: number | null };
   topics: { topic: string; count: number }[];
   humanTopics: { topic: string; count: number }[];
   /** Preguntas puntuales más frecuentes (sin las que el agente no reconoce). */
@@ -180,7 +181,7 @@ export function answerAnalyst(option: AnalystOption, d: AnalystData): AnalystAns
     }
     case "needs_human": {
       const p = d.pending;
-      const total = p.confirm + p.doubts + p.unsure + p.errors;
+      const total = p.attention;
       if (total === 0) return { ...base, lead: "No tenés nada pendiente: todo lo que llegó está atendido.", blocks: [], followUps: ["summary_sent", "recommendations"] };
       const oldest = Math.max(p.oldestConfirmHours ?? 0, p.oldestDoubtHours ?? 0);
       return {
@@ -211,7 +212,7 @@ export function answerAnalyst(option: AnalystOption, d: AnalystData): AnalystAns
 /** Lo primero que se ve: 1 o 2 titulares y las opciones con un adelanto de cada una. */
 export function briefing(d: AnalystData): AnalystBriefing {
   const p = d.pending;
-  const todo = p.confirm + p.doubts + p.unsure + p.errors;
+  const todo = p.attention;
   const inquiries = inquiriesOf(d);
   const trend = trendOf(inquiries, d.received.previousInquiries);
   const headlines: AnalystBriefing["headlines"] = [];
@@ -246,7 +247,7 @@ export async function loadAnalystData(agencyId: string, mode: "confirm" | "auto"
   const inWindow = { agencyId: agency, receivedAt: { $gte: since } };
   const hoursSince = (d: Date | null | undefined): number | null => (d ? Math.max(0, (now.getTime() - new Date(d).getTime()) / 3_600_000) : null);
 
-  const [byCategory, previousInquiries, sentAgg, topics, humanTopics, askAgg, holdAgg, awaiting, doubts, unsure, failed, oldestConfirm, oldestDoubt, recentDocs] = await Promise.all([
+  const [byCategory, previousInquiries, sentAgg, topics, humanTopics, askAgg, holdAgg, awaiting, doubts, unsure, failed, attention, oldestConfirm, oldestDoubt, recentDocs] = await Promise.all([
     MailMessage.aggregate<CountRow>([{ $match: inWindow }, { $group: { _id: "$category", n: { $sum: 1 } } }]),
     MailMessage.countDocuments({ agencyId: agency, receivedAt: { $gte: before, $lt: since }, category: { $in: INQUIRY_CATEGORIES } }),
     MailMessage.aggregate<{ _id: { auto: boolean; edited: boolean } | null; n: number; followUps: number }>([
@@ -265,6 +266,7 @@ export async function loadAnalystData(agencyId: string, mode: "confirm" | "auto"
     MailMessage.countDocuments({ agencyId: agency, humanState: "pending" }),
     MailMessage.countDocuments({ agencyId: agency, status: "awaiting_confirmation", uncertain: true }),
     MailMessage.countDocuments({ agencyId: agency, status: "failed" }),
+    MailMessage.countDocuments({ agencyId: agency, $or: [{ status: "awaiting_confirmation" }, { status: "failed" }, { humanState: "pending" }] }),
     MailMessage.findOne({ agencyId: agency, status: "awaiting_confirmation" }).sort({ receivedAt: 1 }).select("receivedAt").lean(),
     MailMessage.findOne({ agencyId: agency, humanState: "pending" }).sort({ receivedAt: 1 }).select("receivedAt").lean(),
     MailMessage.find({ agencyId: agency }).sort({ receivedAt: -1 }).limit(8).select("from subject status auto humanState receivedAt category").lean(),
@@ -303,7 +305,7 @@ export async function loadAnalystData(agencyId: string, mode: "confirm" | "auto"
     mode,
     received: { total: Object.values(toMap(byCategory)).reduce((a, b) => a + b, 0), byCategory: toMap(byCategory), previousInquiries },
     sent: { total, auto, byPerson: total - auto, failed, followUps, unedited, confirmedByPerson },
-    pending: { confirm: awaiting, doubts, unsure, errors: failed, oldestConfirmHours: hoursSince(oldestConfirm?.receivedAt), oldestDoubtHours: hoursSince(oldestDoubt?.receivedAt) },
+    pending: { confirm: awaiting, doubts, unsure, errors: failed, attention, oldestConfirmHours: hoursSince(oldestConfirm?.receivedAt), oldestDoubtHours: hoursSince(oldestDoubt?.receivedAt) },
     topics: topics.filter((t) => t._id).map((t) => ({ topic: t._id as string, count: t.n })),
     humanTopics: humanTopics.filter((t) => t._id).map((t) => ({ topic: t._id as string, count: t.n })),
     questions: [...byKey.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([key, count]) => ({ key, label: askLabel(key), count })),

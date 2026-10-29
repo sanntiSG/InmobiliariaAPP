@@ -2,24 +2,31 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, Check, Inbox, Mail, RefreshCw, Send, ShieldAlert, Trash2, UserRoundCheck } from "lucide-react";
+import { AlertTriangle, ArrowRight, Check, Mail, MessagesSquare, RefreshCw, Send, ShieldAlert, Trash2, UserRoundCheck } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Sheet } from "@/components/ui/Sheet";
 import { cn } from "@/lib/utils/cn";
 import { formatRelativeTime } from "@/lib/utils/format";
-import { MAIL_CATEGORY_LABELS, MAIL_STATUS_LABELS } from "@/lib/mail/constants";
+import { INQUIRY_CATEGORIES, MAIL_CATEGORY_LABELS } from "@/lib/mail/constants";
+import { holdText } from "@/lib/mail/inbox-meta";
 import type { MailOverview } from "@/lib/mail/overview";
-import type { MailDetail, MailListItem, MailTab } from "@/lib/mail/messages";
+import type { MailDetail, MailGroup, MailListItem, MailSub } from "@/lib/mail/messages";
+import { MailAnalystPanel } from "./MailAnalystPanel";
+import { MailInbox } from "./MailInbox";
 import { MailSetupNotice, setupState } from "./MailSetupNotice";
 import { MailRealTestGuide, MailTryOut } from "./MailTryOut";
 import { mailApi, MailApiError } from "./mail-api";
 
-const TABS: { id: MailTab; label: string; empty: string }[] = [
-  { id: "confirm", label: "Para confirmar", empty: "No hay respuestas esperando tu confirmación." },
-  { id: "human", label: "Dudas", empty: "No hay dudas pendientes: todo lo que te consultaron está atendido." },
-  { id: "sent", label: "Enviados", empty: "Todavía no se envió ninguna respuesta." },
-  { id: "ignored", label: "Ignorados", empty: "No ignoré ningún mail todavía. Acá aparecen los que no eran consultas." },
-];
+/** Los temas que se pueden corregir a mano en una consulta ("no era precio, era visita"). */
+const TOPIC_CHOICES: { id: (typeof INQUIRY_CATEGORIES)[number]; label: string }[] = INQUIRY_CATEGORIES.map((id) => ({ id, label: MAIL_CATEGORY_LABELS[id] }));
+
+/** Dónde queda un mail en la bandeja (para abrir el grupo correcto cuando se llega desde una notificación). */
+function locate(d: { status: string; humanState: string; uncertain: boolean }): { group: MailGroup; sub: MailSub } {
+  if (d.status === "ignored" || d.status === "discarded") return { group: "ignored", sub: "all" };
+  if (d.status === "failed") return { group: "attention", sub: "errors" };
+  if (d.status === "awaiting_confirmation") return { group: "attention", sub: d.uncertain ? "unsure" : d.humanState === "pending" ? "doubts" : "confirm" };
+  return d.humanState === "pending" ? { group: "attention", sub: "doubts" } : { group: "answered", sub: "all" };
+}
 
 const confidenceText = (c: number) => (c >= 0.8 ? "alta" : c >= 0.6 ? "media" : "baja");
 
@@ -56,7 +63,11 @@ export function MailDesk({
   onOverview?: (o: MailOverview) => void;
 }) {
   const [overview, setOverview] = useState<MailOverview | null>(null);
-  const [tab, setTab] = useState<MailTab>("confirm");
+  // Qué se está mirando: el grupo ("necesita tu atención"…), su afinado y la búsqueda (con un momento de espera para no pedir en cada tecla).
+  const [group, setGroup] = useState<MailGroup>("attention");
+  const [sub, setSub] = useState<MailSub>("all");
+  const [queryInput, setQueryInput] = useState("");
+  const [q, setQ] = useState("");
   const [items, setItems] = useState<MailListItem[] | null>(null);
   const [openMail, setOpenMail] = useState<string | null>(openId);
   const [detail, setDetail] = useState<MailDetail | null>(null);
@@ -68,6 +79,7 @@ export function MailDesk({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const handled = useRef<string | null>(null);
+  const aligned = useRef(false);
 
   const loadOverview = useCallback(async () => {
     const o = await mailApi<MailOverview>("", agencyId);
@@ -76,22 +88,29 @@ export function MailDesk({
     return o;
   }, [agencyId, onOverview]);
 
+  const view = { group, sub, q };
   const loadList = useCallback(
-    async (which: MailTab) => {
-      const r = await mailApi<{ items: MailListItem[] }>(`/messages?tab=${which}`, agencyId);
+    async (v: { group: MailGroup; sub: MailSub; q: string }) => {
+      const r = await mailApi<{ items: MailListItem[] }>(`/messages?group=${v.group}&sub=${v.sub}${v.q ? `&q=${encodeURIComponent(v.q)}` : ""}`, agencyId);
       setItems(r.items);
     },
     [agencyId]
   );
 
-  // Carga inicial y al cambiar de pestaña.
+  // La búsqueda se aplica un momento después de dejar de escribir.
+  useEffect(() => {
+    const t = setTimeout(() => setQ(queryInput.trim().length >= 2 ? queryInput.trim() : ""), 300);
+    return () => clearTimeout(t);
+  }, [queryInput]);
+
+  // Carga inicial y al cambiar de grupo, afinado o búsqueda.
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
         const o = await loadOverview();
         if (!alive) return;
-        if (o.mailbox) await loadList(tab);
+        if (o.mailbox) await loadList({ group, sub, q });
         else setItems([]);
       } catch (e) {
         if (alive) setError(e instanceof Error ? e.message : "No se pudo cargar el correo.");
@@ -100,7 +119,7 @@ export function MailDesk({
     return () => {
       alive = false;
     };
-  }, [loadOverview, loadList, tab]);
+  }, [loadOverview, loadList, group, sub, q]);
 
   // Abrir el detalle de un mail (de una notificación o tocando una fila).
   useEffect(() => {
@@ -111,6 +130,13 @@ export function MailDesk({
       try {
         const d = await mailApi<MailDetail>(`/messages/${openMail}`, agencyId);
         if (!alive) return;
+        // Si se llegó desde una notificación, la bandeja de atrás pasa al grupo donde está ese mail.
+        if (openMail === openId && !aligned.current) {
+          aligned.current = true;
+          const where = locate(d);
+          setGroup(where.group);
+          setSub(where.sub);
+        }
         setDetail(d);
         setDraftSubject(d.draft?.subject ?? "");
         setDraftBody(d.draft?.body ?? "");
@@ -127,22 +153,22 @@ export function MailDesk({
       // Si el efecto se vuelve a correr (modo estricto de desarrollo o cambio de inmobiliaria), tiene que volver a pedir el mail.
       handled.current = null;
     };
-  }, [openMail, agencyId]);
+  }, [openMail, agencyId, openId]);
 
   // La revisión de la casilla ocurre sola (cada 5 min, en el servidor): acá sólo se vuelve a leer lo que ya pasó para que lo
   // nuevo aparezca sin tener que tocar "Revisar ahora". Se pausa con la pestaña oculta y mientras se hace otra cosa, y nunca
   // toca el cajón de un mail abierto (no pisa un borrador que se está editando).
   const hasMailbox = Boolean(overview?.mailbox);
-  const live = useRef({ loadOverview, loadList, tab, busy });
+  const live = useRef({ loadOverview, loadList, view, busy });
   useEffect(() => {
-    live.current = { loadOverview, loadList, tab, busy };
+    live.current = { loadOverview, loadList, view, busy };
   });
   useEffect(() => {
     if (!hasMailbox) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let stopped = false;
     const sync = async () => {
-      const { loadOverview: reloadOverview, loadList: reloadList, tab: current, busy: working } = live.current;
+      const { loadOverview: reloadOverview, loadList: reloadList, view: current, busy: working } = live.current;
       if (stopped || working || document.visibilityState !== "visible") return;
       try {
         await Promise.all([reloadOverview(), reloadList(current)]);
@@ -174,8 +200,8 @@ export function MailDesk({
     handled.current = null;
   };
 
-  const refresh = async (which: MailTab = tab) => {
-    await Promise.all([loadOverview(), loadList(which)]);
+  const refresh = async () => {
+    await Promise.all([loadOverview(), loadList(view)]);
   };
 
   const pollNow = async () => {
@@ -186,7 +212,7 @@ export function MailDesk({
       const r = await mailApi<{ outcome: { seen: number; drafts: number; queued: number; ignored: number; status: string; error?: string }; overview: MailOverview }>("/poll", agencyId, { method: "POST" });
       setOverview(r.overview);
       onOverview?.(r.overview);
-      await loadList(tab);
+      await loadList(view);
       const o = r.outcome;
       setNotice(
         o.status === "busy"
@@ -232,6 +258,24 @@ export function MailDesk({
       await refresh();
     } catch (e) {
       setError(e instanceof MailApiError ? e.message : "No se pudo completar la acción.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /** Corregir el tema de la consulta ("no era precio, era visita"): se guarda y el agente lo tiene en cuenta en mails dudosos parecidos. */
+  const changeTopic = async (topic: (typeof INQUIRY_CATEGORIES)[number]) => {
+    if (!detail) return;
+    setBusy("action");
+    setError(null);
+    try {
+      await mailApi<{ ok: true; learned: boolean }>(`/messages/${detail.id}`, agencyId, { method: "POST", body: JSON.stringify({ action: "set_topic", topic }) });
+      const d = await mailApi<MailDetail>(`/messages/${detail.id}`, agencyId);
+      setDetail(d);
+      setNotice(`Listo: el tema quedó como «${MAIL_CATEGORY_LABELS[topic]}». El agente lo va a tener en cuenta en mails dudosos parecidos.`);
+      await refresh();
+    } catch (e) {
+      setError(e instanceof MailApiError ? e.message : "No se pudo cambiar el tema.");
     } finally {
       setBusy(null);
     }
@@ -378,75 +422,29 @@ export function MailDesk({
 
       {mb && (
         <>
-          <div role="tablist" aria-label="Mails" className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
-            {TABS.map((t) => {
-              const count = t.id === "confirm" ? overview.counts.awaiting : t.id === "human" ? overview.counts.human : t.id === "sent" ? overview.counts.sent + overview.counts.queued + overview.counts.failed : overview.counts.ignored;
-              const on = tab === t.id;
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={on}
-                  onClick={() => {
-                    setItems(null);
-                    setTab(t.id);
-                  }}
-                  className={cn(
-                    "inline-flex min-h-11 shrink-0 items-center gap-2 rounded-pill px-4 py-2 text-sm font-medium transition-[background-color,color,transform] duration-150 [transition-timing-function:var(--ease-out)] active:scale-[0.97]",
-                    on ? "bg-accent text-accent-contrast" : "bg-surface text-text-muted shadow-pop hover:text-text"
-                  )}
-                >
-                  {t.label}
-                  {count > 0 && <span className={cn("rounded-full px-1.5 text-[11px] font-semibold", on ? "bg-accent-contrast/20" : "bg-surface-2")}>{count > 99 ? "99+" : count}</span>}
-                </button>
-              );
-            })}
-          </div>
-
-          {items === null ? (
-            <p className="text-sm text-text-muted" role="status">
-              Cargando…
-            </p>
-          ) : items.length === 0 ? (
-            <>
-              <p className="flex items-start gap-3 rounded-card bg-surface p-5 text-sm text-text-muted shadow-card">
-                <Inbox className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
-                {TABS.find((t) => t.id === tab)!.empty}
-              </p>
-              {tab === "confirm" && Object.values(overview.counts).every((n) => n === 0) && <MailRealTestGuide agencyId={agencyId} email={mb.email} />}
-            </>
-          ) : (
-            <ul className="swap-in flex flex-col divide-y divide-border overflow-hidden rounded-card bg-surface shadow-card">
-              {items.map((m) => (
-                <li key={m.id}>
-                  <button type="button" onClick={() => setOpenMail(m.id)} className="flex w-full flex-col gap-1 px-4 py-3.5 text-left transition-colors duration-150 hover:bg-surface-2/70 active:bg-surface-2">
-                    <span className="flex items-baseline justify-between gap-3">
-                      <span className="min-w-0 truncate text-sm font-semibold text-text">{m.from.name || m.from.email}</span>
-                      <span className="shrink-0 text-xs text-text-muted">{formatRelativeTime(m.receivedAt)}</span>
-                    </span>
-                    <span className="truncate text-sm text-text">{m.subject || "(sin asunto)"}</span>
-                    {tab === "ignored" && m.reason ? <span className="line-clamp-2 text-xs text-text-muted">{m.reason}</span> : m.snippet && <span className="line-clamp-1 text-xs text-text-muted">{m.snippet}</span>}
-                    <span className="mt-1 flex flex-wrap gap-1.5">
-                      <span className="rounded-pill bg-accent-soft px-2 py-0.5 text-[11px] font-medium text-accent">{MAIL_CATEGORY_LABELS[m.category]}</span>
-                      {tab === "sent" && (
-                        <span className={cn("rounded-pill px-2 py-0.5 text-[11px] font-medium", m.status === "failed" ? "bg-danger-soft text-danger" : "bg-surface-2 text-text-muted")}>
-                          {m.auto && m.status === "sent" ? "Enviado automáticamente" : MAIL_STATUS_LABELS[m.status]}
-                        </span>
-                      )}
-                      {m.humanState === "pending" ? (
-                        <span className="rounded-pill bg-warning-soft px-2 py-0.5 text-[11px] font-medium text-warning">
-                          Falta tu respuesta{m.humanTopics.length > 0 ? `: ${m.humanTopics.slice(0, 2).join(", ")}` : ""}
-                        </span>
-                      ) : (
-                        m.needsHuman && m.status === "awaiting_confirmation" && <span className="rounded-pill bg-warning-soft px-2 py-0.5 text-[11px] font-medium text-warning">Lo tiene que ver una persona</span>
-                      )}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+          {/* Resumen y recomendaciones con opciones fijas (no es un chat), y debajo la bandeja por lo que hay que hacer. */}
+          <MailAnalystPanel agencyId={agencyId} />
+          <MailInbox
+            counts={overview.counts}
+            group={group}
+            sub={sub}
+            query={queryInput}
+            items={items}
+            onGroup={(g) => {
+              setItems(null);
+              setGroup(g);
+            }}
+            onSub={(x) => {
+              setItems(null);
+              setSub(x);
+            }}
+            onQuery={(x) => {
+              setItems(null);
+              setQueryInput(x);
+            }}
+            onOpen={setOpenMail}
+            emptyExtra={group === "attention" && sub === "all" && q === "" && Object.values(overview.counts).every((n) => n === 0) ? <MailRealTestGuide agencyId={agencyId} email={mb.email} /> : null}
+          />
         </>
       )}
 
@@ -571,13 +569,84 @@ export function MailDesk({
               </section>
             )}
 
-            {editable && detail.reasons.some((r) => r.startsWith("No salió sola: ")) && (
+            {editable && (detail.holdCode || detail.reasons.some((r) => r.startsWith("No salió sola: "))) && (
               <p role="status" className="flex items-start gap-2 rounded-media bg-warning-soft px-3.5 py-3 text-sm text-text">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />
                 <span>
-                  Está en modo automático, pero esta respuesta <strong className="font-semibold">no salió sola</strong>: {detail.reasons.find((r) => r.startsWith("No salió sola: "))!.slice("No salió sola: ".length)}
+                  {overview.settings.mode === "auto" ? "Está en modo automático, pero esta respuesta " : "Esta respuesta "}
+                  <strong className="font-semibold">no salió sola</strong>
+                  {detail.holdCode ? `: ${holdText(detail.holdCode)?.toLowerCase()}.` : `: ${detail.reasons.find((r) => r.startsWith("No salió sola: "))!.slice("No salió sola: ".length)}`}
+                  {detail.holdCode && detail.reasons.find((r) => r.startsWith("No salió sola: ")) ? ` ${detail.reasons.find((r) => r.startsWith("No salió sola: "))!.slice("No salió sola: ".length)}` : ""}
                 </span>
               </p>
+            )}
+
+            {detail.askList.length > 0 && (
+              <section aria-label="Qué preguntó" className="flex flex-col gap-2">
+                <h3 className="font-display text-sm font-bold text-text">Qué preguntó y cómo quedó cada cosa</h3>
+                <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-media bg-surface-2">
+                  {detail.askList.map((a, i) => {
+                    const property = detail.properties.find((p) => p.id === a.propertyId);
+                    const state =
+                      a.state === "answered"
+                        ? { text: "Contestada", cls: "bg-success-soft text-success" }
+                        : a.state === "missing"
+                          ? { text: "Falta cargar el dato", cls: "bg-warning-soft text-warning" }
+                          : { text: "Para una persona", cls: "bg-warning-soft text-warning" };
+                    return (
+                      <li key={`${a.key}-${a.propertyId ?? "x"}-${i}`} className="flex items-start justify-between gap-3 px-3.5 py-2.5 text-sm">
+                        <span className="min-w-0 text-text">
+                          <span className="font-medium">{a.key === "other" ? a.label : a.label.charAt(0).toUpperCase() + a.label.slice(1)}</span>
+                          {property && detail.properties.length > 1 && <span className="block truncate text-xs text-text-muted">{property.title}</span>}
+                        </span>
+                        <span className={cn("shrink-0 rounded-pill px-2 py-0.5 text-[11px] font-semibold", state.cls)}>{state.text}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            )}
+
+            {detail.thread.length > 0 && (
+              <section aria-label="Otros mails de esta conversación" className="flex flex-col gap-2">
+                <h3 className="flex items-center gap-2 font-display text-sm font-bold text-text">
+                  <MessagesSquare className="h-4 w-4 text-text-muted" aria-hidden /> Otros mails de esta conversación
+                </h3>
+                <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-media bg-surface-2">
+                  {detail.thread.map((t) => (
+                    <li key={t.id}>
+                      <button type="button" onClick={() => setOpenMail(t.id)} className="flex w-full items-baseline justify-between gap-3 px-3.5 py-2.5 text-left text-sm transition-colors hover:bg-surface-3">
+                        <span className="min-w-0 truncate text-text">{t.subject || "(sin asunto)"}</span>
+                        <span className="shrink-0 text-xs text-text-muted">{formatRelativeTime(t.receivedAt)}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {INQUIRY_CATEGORIES.includes(detail.category as (typeof INQUIRY_CATEGORIES)[number]) && detail.text && (
+              <section aria-label="Tema" className="flex flex-col gap-2">
+                <h3 className="font-display text-sm font-bold text-text">¿Era otro tema?</h3>
+                <div className="flex flex-wrap gap-1.5" role="group" aria-label="Corregir el tema">
+                  {TOPIC_CHOICES.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      aria-pressed={detail.category === t.id}
+                      disabled={busy !== null || detail.category === t.id}
+                      onClick={() => void changeTopic(t.id)}
+                      className={cn(
+                        "inline-flex min-h-9 items-center rounded-pill border px-3 text-[13px] font-medium transition-colors pointer-coarse:min-h-11",
+                        detail.category === t.id ? "border-accent/30 bg-accent-soft text-accent" : "border-border-hi bg-surface text-text-muted hover:text-text"
+                      )}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-text-muted">{detail.correctedTopic ? "Ya lo corregiste a mano. " : ""}Si lo cambiás, el agente lo tiene en cuenta en mails dudosos parecidos (nunca lo hace salir solo).</p>
+              </section>
             )}
 
             {detail.properties.length > 0 && (

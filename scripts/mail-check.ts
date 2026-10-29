@@ -33,6 +33,8 @@ import { askCounts, MAX_STORED_ASKS, storedAsks } from "../src/lib/mail/asks-sto
 import { normalizeSubject, threadKeyOf } from "../src/lib/mail/thread";
 import { HOLD_CODES, HOLD_LABELS, type HoldCode } from "../src/lib/mail/constants";
 import { ANALYST_OPTIONS, answerAnalyst, briefing, inquiriesOf, recommendationsFor, trendOf, type AnalystData } from "../src/lib/mail/analyst";
+import { asksSummary, holdText, rowLabel } from "../src/lib/mail/inbox-meta";
+import { groupFilter, SUBS_BY_GROUP, tabToGroup } from "../src/lib/mail/messages";
 import { answerAsks } from "../src/lib/agents/knowledge/answers";
 import { readRequest } from "../src/lib/mail/signals";
 import type { PropertyFacts } from "../src/lib/agents/knowledge/facts";
@@ -1002,7 +1004,7 @@ async function hosts() {
     mode: "confirm",
     received: { total: 40, byCategory: { availability: 12, price: 10, features: 8, visit: 3, general: 1, newsletter: 4, automated: 2 }, previousInquiries: 24 },
     sent: { total: 20, auto: 6, byPerson: 14, failed: 0, followUps: 3, unedited: 13, confirmedByPerson: 14 },
-    pending: { confirm: 4, doubts: 2, unsure: 3, errors: 0, oldestConfirmHours: 30, oldestDoubtHours: 50 },
+    pending: { confirm: 4, doubts: 2, unsure: 3, errors: 0, attention: 6, oldestConfirmHours: 30, oldestDoubtHours: 50 },
     topics: [{ topic: "availability", count: 12 }, { topic: "price", count: 10 }],
     humanTopics: [{ topic: "mascotas", count: 5 }, { topic: "financiación", count: 2 }],
     questions: [{ key: "expenses", label: "expensas", count: 9 }, { key: "amenity:pileta", label: "pileta", count: 6 }],
@@ -1011,7 +1013,7 @@ async function hosts() {
     recent: [{ at: "2026-10-28T10:00:00.000Z", title: "Ana: Casa en Tigre", detail: "Espera tu confirmación", tone: "warn", href: "/dashboard/agentes/correo?m=abc" }],
     ...over,
   });
-  const empty = data({ received: { total: 0, byCategory: {}, previousInquiries: 0 }, sent: { total: 0, auto: 0, byPerson: 0, failed: 0, followUps: 0, unedited: 0, confirmedByPerson: 0 }, pending: { confirm: 0, doubts: 0, unsure: 0, errors: 0, oldestConfirmHours: null, oldestDoubtHours: null }, topics: [], humanTopics: [], questions: [], missing: [], holdReasons: [], recent: [] });
+  const empty = data({ received: { total: 0, byCategory: {}, previousInquiries: 0 }, sent: { total: 0, auto: 0, byPerson: 0, failed: 0, followUps: 0, unedited: 0, confirmedByPerson: 0 }, pending: { confirm: 0, doubts: 0, unsure: 0, errors: 0, attention: 0, oldestConfirmHours: null, oldestDoubtHours: null }, topics: [], humanTopics: [], questions: [], missing: [], holdReasons: [], recent: [] });
 
   check("analista: son 6 opciones fijas y todas contestan con texto, sin romper con datos vacíos", ANALYST_OPTIONS.length === 6 && ANALYST_OPTIONS.every((o) => answerAnalyst(o, data()).lead.length > 10 && answerAnalyst(o, empty).lead.length > 10));
   check("analista: cada respuesta sugiere seguir con otras opciones que existen (y no con ella misma)", ANALYST_OPTIONS.every((o) => { const a = answerAnalyst(o, data()); return a.option === o && a.followUps.length > 0 && a.followUps.every((f) => (ANALYST_OPTIONS as readonly string[]).includes(f) && f !== o); }));
@@ -1025,7 +1027,7 @@ async function hosts() {
   const freq = answerAnalyst("frequent_questions", data());
   check("analista (preguntas frecuentes): las más preguntadas primero, y sin datos avisa que falta información", /expensas \(9\), pileta \(6\)/.test(freq.lead) && freq.blocks.some((b) => b.type === "bars") && /Todavía no hay suficientes/.test(answerAnalyst("frequent_questions", empty).lead));
   const human = answerAnalyst("needs_human", data());
-  check("analista (necesita a una persona): suma lo pendiente, lo más viejo y los temas; sin nada pendiente lo dice", /9 cosas/.test(human.lead) && /hace 2 días/.test(human.lead) && human.blocks.some((b) => b.type === "bars") && /nada pendiente/.test(answerAnalyst("needs_human", empty).lead));
+  check("analista (necesita a una persona): suma lo pendiente, lo más viejo y los temas; sin nada pendiente lo dice", /6 cosas/.test(human.lead) && /hace 2 días/.test(human.lead) && human.blocks.some((b) => b.type === "bars") && /nada pendiente/.test(answerAnalyst("needs_human", empty).lead));
   check("analista (reciente): una línea de tiempo con enlaces a la conversación", answerAnalyst("recent", data()).blocks[0]?.type === "timeline" && answerAnalyst("recent", empty).blocks.length === 0);
 
   const recs = recommendationsFor(data());
@@ -1034,11 +1036,34 @@ async function hosts() {
   check("analista (recomendaciones): si casi todo lo confirmado salió sin cambios, propone pasar a automático (sólo en modo confirmación)", recs.some((r) => /sin cambios/.test(r.title)) && !recommendationsFor(data({ mode: "auto" })).some((r) => /sin cambios/.test(r.title)) && !recommendationsFor(data({ sent: { total: 5, auto: 0, byPerson: 5, failed: 0, followUps: 0, unedited: 5, confirmedByPerson: 5 } })).some((r) => /sin cambios/.test(r.title)));
   check("analista (recomendaciones): un tema que preguntan seguido, y el agente que dudó seguido", recs.some((r) => /mascotas/.test(r.title)) && recs.some((r) => /no estuvo seguro 3 veces/.test(r.title)));
   const calm = recommendationsFor(empty);
-  check("analista (recomendaciones): sin mails, revisar la conexión; con todo en orden, una sola nota positiva", calm.length === 1 && /No llegaron mails/.test(calm[0]!.title) && recommendationsFor(data({ received: { total: 10, byCategory: { availability: 10 }, previousInquiries: 10 }, pending: { confirm: 0, doubts: 0, unsure: 0, errors: 0, oldestConfirmHours: null, oldestDoubtHours: null }, humanTopics: [], missing: [], sent: { total: 3, auto: 3, byPerson: 0, failed: 0, followUps: 0, unedited: 0, confirmedByPerson: 0 } })).every((r) => r.tone === "good"));
+  check("analista (recomendaciones): sin mails, revisar la conexión; con todo en orden, una sola nota positiva", calm.length === 1 && /No llegaron mails/.test(calm[0]!.title) && recommendationsFor(data({ received: { total: 10, byCategory: { availability: 10 }, previousInquiries: 10 }, pending: { confirm: 0, doubts: 0, unsure: 0, errors: 0, attention: 0, oldestConfirmHours: null, oldestDoubtHours: null }, humanTopics: [], missing: [], sent: { total: 3, auto: 3, byPerson: 0, failed: 0, followUps: 0, unedited: 0, confirmedByPerson: 0 } })).every((r) => r.tone === "good"));
   check("analista (recomendaciones): cada una dice qué hacer con un enlace interno", recs.filter((r) => r.action).every((r) => r.action!.href.startsWith("/dashboard")));
   const brief = briefing(data());
-  check("analista (titulares): dice lo pendiente y la tendencia, y ofrece las 6 opciones con adelantos", brief.headlines[0]!.tone === "warn" && /9 cosas/.test(brief.headlines[0]!.text) && brief.headlines.some((h) => /subieron 42 %/.test(h.text)) && brief.options.length === 6 && brief.options.find((o) => o.option === "needs_human")!.hint === "9");
+  check("analista (titulares): dice lo pendiente y la tendencia, y ofrece las 6 opciones con adelantos", brief.headlines[0]!.tone === "warn" && /6 cosas/.test(brief.headlines[0]!.text) && brief.headlines.some((h) => /subieron 42 %/.test(h.text)) && brief.options.length === 6 && brief.options.find((o) => o.option === "needs_human")!.hint === "6");
   check("analista (titulares): sin nada pendiente, todo al día", briefing(empty).headlines[0]!.tone === "good" && briefing(empty).headlines.length === 1);
+}
+
+// ── La bandeja: qué etiqueta y qué acción tiene cada mail, y qué filtra cada grupo ───────────
+{
+  const row = (over: Partial<Parameters<typeof rowLabel>[0]> = {}) => rowLabel({ status: "awaiting_confirmation", auto: false, uncertain: false, humanState: "none", humanTopics: [], ...over });
+  check("bandeja: una respuesta lista para enviar → 'Para confirmar', con lo que hay que hacer", row().label === "Para confirmar" && row().tone === "action" && /enviá/.test(row().hint));
+  check("bandeja: un mail que el agente no entendió → se avisa y se pide que lo responda una persona", row({ uncertain: true }).label === "No supe qué necesita" && row({ uncertain: true }).tone === "warn");
+  check("bandeja: una duda pendiente dice sobre qué (máximo dos temas)", row({ humanState: "pending", humanTopics: ["mascotas", "financiación", "permuta"] }).label === "Falta tu respuesta: mascotas, financiación" && row({ humanState: "pending" }).label === "Falta tu respuesta");
+  check("bandeja: lo ya respondido con una duda pendiente sigue pidiendo atención", row({ status: "sent", humanState: "pending", humanTopics: ["mascotas"] }).tone === "warn" && /contestá lo demás/.test(row({ status: "sent", humanState: "pending" }).hint));
+  check("bandeja: lo respondido se distingue entre solo y por una persona", row({ status: "sent", auto: true }).label === "Respondido solo" && row({ status: "sent", auto: false }).label === "Respondido por una persona" && row({ status: "sent" }).tone === "done");
+  check("bandeja: un envío fallido es un error con la acción de reintentar", row({ status: "failed" }).tone === "danger" && /reintent/.test(row({ status: "failed" }).hint));
+  check("bandeja: lo ignorado muestra su motivo; lo descartado y lo que está saliendo, en silencio", row({ status: "ignored", reason: "Es una promoción" }).hint === "Es una promoción" && row({ status: "discarded" }).tone === "quiet" && row({ status: "queued" }).label === "Saliendo" && row({ status: "sending" }).hint === "");
+  check("bandeja: el motivo de por qué no salió sola sale del código", holdText("human_hard") === "Lo tiene que ver una persona" && holdText(null) === null && holdText(undefined) === null);
+  check("bandeja: el resumen de preguntas dice cuántas se contestaron, cuántas faltan y cuántas son para una persona", asksSummary({ answered: 3, missing: 1, human: 1 }) === "3 contestadas · 1 falta cargar · 1 para una persona" && asksSummary({ answered: 1, missing: 0, human: 0 }) === "1 contestada" && asksSummary({ answered: 0, missing: 2, human: 0 }) === "2 faltan cargar" && asksSummary({ answered: 0, missing: 0, human: 0 }) === null);
+
+  const A = "6a9e1a2622a2aace3e629905";
+  const att = groupFilter(A, "attention") as { agencyId: string; $or: Record<string, unknown>[] };
+  check("grupos: 'Necesita tu atención' suma lo que espera confirmación, las dudas pendientes y los envíos fallidos", att.agencyId === A && att.$or.length === 3 && att.$or.some((c) => c.status === "awaiting_confirmation") && att.$or.some((c) => c.humanState === "pending") && att.$or.some((c) => c.status === "failed"), att);
+  check("grupos: cada afinado de la atención filtra lo suyo", (groupFilter(A, "attention", "confirm") as { status: string }).status === "awaiting_confirmation" && (groupFilter(A, "attention", "doubts") as { humanState: string }).humanState === "pending" && (groupFilter(A, "attention", "unsure") as { uncertain: boolean }).uncertain === true && (groupFilter(A, "attention", "errors") as { status: string }).status === "failed");
+  check("grupos: 'Respondidos' separa lo que salió solo de lo que envió una persona; no incluye lo fallido", (groupFilter(A, "answered", "auto") as { auto: boolean }).auto === true && (groupFilter(A, "answered", "person") as { auto: boolean }).auto === false && !("auto" in (groupFilter(A, "answered") as object)) && JSON.stringify((groupFilter(A, "answered") as { status: { $in: string[] } }).status.$in) === JSON.stringify(["queued", "sending", "sent"]));
+  check("grupos: 'Ignorados' junta lo ignorado y lo descartado", JSON.stringify((groupFilter(A, "ignored") as { status: { $in: string[] } }).status.$in) === JSON.stringify(["ignored", "discarded"]));
+  check("grupos: todos los filtros son de ESA inmobiliaria", (["attention", "answered", "ignored"] as const).every((g) => SUBS_BY_GROUP[g].every((sub) => (groupFilter(A, g, sub) as { agencyId: string }).agencyId === A)));
+  check("grupos: las pestañas de antes siguen existiendo (mapeadas a los grupos)", tabToGroup("confirm").sub === "confirm" && tabToGroup("human").sub === "doubts" && tabToGroup("sent").group === "answered" && tabToGroup("ignored").group === "ignored");
 }
 
 hosts().then(() => {
