@@ -25,6 +25,8 @@ self.addEventListener("push", (event) => {
     self.registration.showNotification(title, {
       body: typeof data.body === "string" ? data.body : "",
       tag: typeof data.tag === "string" ? data.tag : undefined,
+      // Con un tag compartido (varios avisos que se reemplazan), el reemplazo vuelve a avisar.
+      renotify: data.renotify === true && typeof data.tag === "string",
       icon: "/pwa-icon/192",
       badge: "/pwa-icon/192",
       data: { href: safeHref(data.href) },

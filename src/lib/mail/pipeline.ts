@@ -12,11 +12,10 @@ import { Agency } from "@/lib/db/models/Agency";
 import { Lead } from "@/lib/db/models/Lead";
 import { Mailbox } from "@/lib/db/models/Mailbox";
 import { MailMessage } from "@/lib/db/models/MailMessage";
-import { createNotification, createNotificationForMany } from "@/lib/notifications/create";
-import { agencyMemberIds } from "@/lib/notifications/agency-members";
+import { notifyAgency } from "@/lib/notifications/create";
 import { dayStart } from "@/lib/tracking/record";
 import { analyzeMail } from "./analyze";
-import { attentionNotice, isClosingReason, needsAttention, quotesAutoFooter, REPLIED_TO_AUTO_REASON } from "./attention";
+import { attentionNotice, confirmTitle, isClosingReason, needsAttention, quotesAutoFooter, REPLIED_TO_AUTO_REASON } from "./attention";
 import { needsHardHuman } from "./classify";
 import { cleanBody } from "./clean";
 import { openCreds } from "./creds";
@@ -261,14 +260,18 @@ export async function processMail(ctx: PipelineCtx, mail: FetchedMail, counts: C
     subject: mail.subject,
   });
   if (notice) {
-    await createNotificationForMany(await agencyMemberIds(ctx.agencyId), { type: "mail_attention", ...notice, href, dedupeKey: `mail-human:${created._id}` });
+    await notifyAgency(String(ctx.agencyId), { type: "mail_attention", ...notice, href, dedupeKey: `mail-human:${created._id}` });
   } else if (!decision.auto) {
-    await createNotificationForMany(await agencyMemberIds(ctx.agencyId), {
+    // En la campana queda un aviso por mail; en el dispositivo se reemplazan entre sí y dicen cuántas respuestas esperan.
+    const waiting = await MailMessage.countDocuments({ agencyId: ctx.agencyId, status: "awaiting_confirmation" }).catch(() => 1);
+    await notifyAgency(String(ctx.agencyId), {
       type: "mail_draft",
       title: "Hay una respuesta para confirmar.",
       body: `${mail.from.name || mail.from.email}: ${mail.subject}`.slice(0, 200),
       href,
       dedupeKey: `mail:${created._id}`,
+      pushTag: `mail-confirm:${ctx.agencyId}`,
+      pushTitle: confirmTitle(waiting),
     });
   }
 }
@@ -351,8 +354,7 @@ export async function pollMailbox(mailboxId: string, opts: { deadline: number })
       nextPollAt: new Date(now.getTime() + wait),
     });
     if (authFailed || failCount === 3) {
-      const owners = await agencyMemberIds(agencyId).catch(() => []);
-      await createNotificationForMany(owners, {
+      await notifyAgency(String(agencyId), {
         type: "mail_error",
         title: authFailed ? "El agente de correo no pudo entrar a tu casilla." : "El agente de correo tiene problemas para conectarse.",
         body: e.message.slice(0, 200),
@@ -363,6 +365,3 @@ export async function pollMailbox(mailboxId: string, opts: { deadline: number })
     return { ...out, status: "error", error: e.message };
   }
 }
-
-/** Notificación a una persona puntual (por ejemplo, el aviso de que una respuesta salió sola). */
-export const notifyMail = createNotification;

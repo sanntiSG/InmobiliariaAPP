@@ -36,6 +36,12 @@ export type AttentionInput = {
 
 export type Attention = { title: string; body: string };
 
+/**
+ * El título del aviso del dispositivo cuando hay respuestas esperando confirmación: como los avisos se reemplazan entre sí, el último
+ * dice el total ("Tenés 3 respuestas para confirmar") en vez de apilar uno por mail.
+ */
+export const confirmTitle = (waiting: number): string => (waiting <= 1 ? "Tenés 1 respuesta para confirmar" : `Tenés ${waiting} respuestas para confirmar`);
+
 /** ¿Este mail deja algo pendiente para una persona? */
 export const needsAttention = (i: Pick<AttentionInput, "repliedToAuto" | "uncertain" | "humanTopics" | "missing">): boolean =>
   i.repliedToAuto || i.uncertain || i.humanTopics.length > 0 || i.missing > 0;

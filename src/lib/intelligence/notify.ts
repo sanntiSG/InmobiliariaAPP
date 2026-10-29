@@ -3,8 +3,7 @@ import { AgencyRequest } from "@/lib/db/models/AgencyRequest";
 import { Notification } from "@/lib/db/models/Notification";
 import { Property } from "@/lib/db/models/Property";
 import { PropertyDailyStat } from "@/lib/db/models/PropertyDailyStat";
-import { createNotification, createNotificationForMany, notifyAdmins } from "@/lib/notifications/create";
-import { agencyMemberIds } from "@/lib/notifications/agency-members";
+import { createNotification, notifyAdmins, notifyAgency } from "@/lib/notifications/create";
 import { getRecommendations, type ReasonCode } from "@/lib/recommendations/engine";
 import { memo } from "./cache";
 import { getIntelligence } from "./opportunities";
@@ -78,9 +77,8 @@ export function maybeSendOpportunityNotifications(agencyId: string): Promise<voi
       if (important.length === 0) return;
 
       const week = weekKey();
-      const members = await agencyMemberIds(agencyId);
       for (const o of important) {
-        await createNotificationForMany(members, {
+        await notifyAgency(agencyId, {
           type: "opportunity",
           title: o.title,
           body: o.propertyTitle ? `${o.propertyTitle} — ${o.explanation}` : o.explanation,

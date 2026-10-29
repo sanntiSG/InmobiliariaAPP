@@ -4,8 +4,10 @@ import { PushSubscription } from "@/lib/db/models/PushSubscription";
 import { User } from "@/lib/db/models/User";
 import { MUTABLE_GROUPS, groupOf } from "@/config/notifications";
 import { dispatchPending } from "@/lib/push/send";
+import { agencyRecipients } from "@/lib/notifications/agency-members";
+import { withAgencyName, withAgencyParam } from "@/lib/notifications/agency-link";
 
-type NotificationInput = {
+export type NotificationInput = {
   userId: string;
   type: (typeof NOTIFICATION_TYPES)[number];
   title: string;
@@ -14,7 +16,18 @@ type NotificationInput = {
   propertyId?: string;
   /** Si ya existe una notificación con esta clave para el usuario, no se crea otra. */
   dedupeKey?: string;
+  /** En el dispositivo, los avisos con el mismo `tag` se reemplazan en vez de apilarse (la campana igual muestra cada uno). */
+  pushTag?: string;
+  /** Título propio para el dispositivo (por ejemplo, con el total pendiente); la campana conserva el suyo. */
+  pushTitle?: string;
 };
+
+/** Lo que se guarda para el canal del dispositivo de quien tiene dispositivos activos (acotado: el esquema rechaza lo largo). */
+const pushFields = (input: Pick<NotificationInput, "pushTag" | "pushTitle">) => ({
+  state: "pending" as const,
+  ...(input.pushTag ? { tag: input.pushTag.slice(0, 64) } : {}),
+  ...(input.pushTitle ? { title: input.pushTitle.slice(0, 120) } : {}),
+});
 
 const isDuplicateKeyError = (err: unknown) =>
   (err as { code?: number })?.code === 11000 ||
@@ -64,7 +77,7 @@ export async function createNotification(input: NotificationInput): Promise<void
       href: input.href,
       propertyId: input.propertyId ?? null,
       dedupeKey: input.dedupeKey,
-      ...(devices.has(input.userId) ? { push: { state: "pending" } } : {}),
+      ...(devices.has(input.userId) ? { push: pushFields(input) } : {}),
     });
     // Sólo si se creó (un duplicado cae en el `catch` de abajo y no vuelve a avisar).
     if (devices.has(input.userId)) scheduleDispatch([input.userId]);
@@ -95,7 +108,7 @@ export async function createNotificationForMany(
         href: rest.href,
         propertyId: rest.propertyId ?? null,
         dedupeKey: rest.dedupeKey,
-        ...(devices.has(userId) ? { push: { state: "pending" } } : {}),
+        ...(devices.has(userId) ? { push: pushFields(rest) } : {}),
       })),
       // ordered:false — un duplicado (dedupeKey) no debe impedir avisar al resto.
       { ordered: false }
@@ -105,6 +118,29 @@ export async function createNotificationForMany(
   } finally {
     // Los que quedaron pendientes (los duplicados nunca se crearon, así que no se vuelven a enviar).
     scheduleDispatch([...devices]);
+  }
+}
+
+/**
+ * Avisa a quienes gestionan una inmobiliaria (dueños y agentes). Si todavía no tiene ninguno, a los admins, con el enlace que abre el
+ * panel de ESA inmobiliaria y su nombre en el texto. `exclude` saca a quien hizo la acción (lo propio no se avisa). Nunca lanza.
+ */
+export async function notifyAgency(
+  agencyId: string,
+  rest: Omit<NotificationInput, "userId">,
+  opts: { exclude?: (string | null | undefined)[] } = {}
+): Promise<void> {
+  try {
+    const { ids, viaAdmins, agencyName } = await agencyRecipients(agencyId);
+    const skip = new Set((opts.exclude ?? []).filter((x): x is string => !!x).map(String));
+    const targets = ids.filter((id) => !skip.has(id));
+    if (targets.length === 0) return;
+    await createNotificationForMany(
+      targets,
+      viaAdmins ? { ...rest, href: withAgencyParam(rest.href, String(agencyId)), body: withAgencyName(rest.body, agencyName) } : rest
+    );
+  } catch (err) {
+    console.error("notifyAgency failed:", err);
   }
 }
 

@@ -12,8 +12,7 @@ import { Agency } from "@/lib/db/models/Agency";
 import { Lead } from "@/lib/db/models/Lead";
 import { Mailbox } from "@/lib/db/models/Mailbox";
 import { MailMessage } from "@/lib/db/models/MailMessage";
-import { createNotificationForMany } from "@/lib/notifications/create";
-import { agencyMemberIds } from "@/lib/notifications/agency-members";
+import { notifyAgency } from "@/lib/notifications/create";
 import { sendEnabled } from "./access";
 import { replySubject } from "./compose";
 import type { MailMessageStatus } from "./constants";
@@ -69,8 +68,8 @@ export async function sendQueued(messageId: string): Promise<SendResult> {
     }
     // Si quedó una duda para una persona, el aviso de "necesita a alguien" (que ya salió al leer el mail) cubre esta respuesta.
     if (doc.auto && doc.humanState !== "pending") {
-      await createNotificationForMany(await agencyMemberIds(String(doc.agencyId)), {
-        type: "mail_draft",
+      await notifyAgency(String(doc.agencyId), {
+        type: "mail_auto",
         title: "Se respondió una consulta automáticamente.",
         body: `${doc.from?.name || doc.from?.email || ""}: ${doc.subject}`.slice(0, 200),
         href: `/dashboard/agentes/correo?m=${doc._id}`,

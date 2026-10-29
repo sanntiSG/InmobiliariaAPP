@@ -2,8 +2,7 @@ import { Types } from "mongoose";
 import { connectDB } from "@/lib/db/connect";
 import { Property } from "@/lib/db/models/Property";
 import { SocialContent, type SocialContentDoc, type SocialRecipe } from "@/lib/db/models/SocialContent";
-import { createNotificationForMany } from "@/lib/notifications/create";
-import { agencyMemberIds } from "@/lib/notifications/agency-members";
+import { notifyAgency } from "@/lib/notifications/create";
 import { dayStart } from "@/lib/tracking/record";
 import { TEMPLATE_COUNT } from "./templates";
 import type { GenerateRequest, SocialMode, SocialState } from "./types";
@@ -144,8 +143,7 @@ async function commit(doc: Doc, set: Record<string, unknown>): Promise<boolean> 
 }
 
 async function notifyReady(agencyId: string, today: Date): Promise<void> {
-  const members = await agencyMemberIds(agencyId);
-  await createNotificationForMany(members, {
+  await notifyAgency(agencyId, {
     type: "social_post",
     title: "Tu publicación está lista.",
     body: "Ya tenés nuevo contenido para compartir en redes.",

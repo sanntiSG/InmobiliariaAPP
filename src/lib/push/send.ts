@@ -76,7 +76,7 @@ export async function dispatchPending(opts: DispatchOptions = {}): Promise<Dispa
 
   const query: Record<string, unknown> = { "push.state": "pending", createdAt: { $gte: expiredBefore } };
   if (opts.userIds) query.userId = { $in: opts.userIds };
-  const pending = await Notification.find(query).sort({ createdAt: 1 }).limit(opts.limit ?? 100).select("userId type title body href").lean();
+  const pending = await Notification.find(query).sort({ createdAt: 1 }).limit(opts.limit ?? 100).select("userId type title body href push.tag push.title").lean();
   if (pending.length === 0) return result;
 
   const userIds = [...new Set(pending.map((n) => String(n.userId)))];
@@ -106,7 +106,7 @@ export async function dispatchPending(opts: DispatchOptions = {}): Promise<Dispa
       continue;
     }
 
-    const payload = buildPushPayload({ id: String(n._id), type: n.type, title: n.title, body: n.body, href: n.href }, brand.name);
+    const payload = buildPushPayload({ id: String(n._id), type: n.type, title: n.title, body: n.body, href: n.href, push: { tag: n.push?.tag, title: n.push?.title } }, brand.name);
     const outcomes = await Promise.all(
       mine.map(async (s) => {
         try {

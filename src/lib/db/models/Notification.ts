@@ -24,6 +24,16 @@ export const NOTIFICATION_TYPES = [
   "mail_error", // (inmobiliaria) el buzón de correo necesita atención (contraseña, conexión)
   "mail_attention", // (inmobiliaria) un cliente necesita a una persona: duda sin resolver, respondió a un mail automático
   "availability", // un alquiler que no estaba disponible volvió a estarlo (lo pidió, lo guardó o encaja con sus intereses)
+  "follower", // (inmobiliaria) alguien empezó a seguirla
+  "like", // (inmobiliaria) le dieron me gusta a una propiedad
+  "save", // (inmobiliaria) guardaron una propiedad
+  "share", // (inmobiliaria) compartieron una propiedad
+  "rating", // (inmobiliaria) puntuaron una propiedad
+  "property_comment", // (inmobiliaria) comentaron una propiedad
+  "price_up", // subió el precio de una propiedad que guardó, le gustó o pidió seguir
+  "unavailable", // una propiedad que guardó, le gustó o pidió seguir dejó de estar disponible (vendida, alquilada, reservada)
+  "new_media", // una propiedad que guardó, le gustó o pidió seguir sumó fotos, video o recorrido
+  "mail_auto", // (inmobiliaria) el agente de correo respondió una consulta solo
 ] as const;
 
 const notificationSchema = new Schema(
@@ -50,6 +60,10 @@ const notificationSchema = new Schema(
       state: { type: String, enum: ["pending", "sending", "sent", "skipped", "failed"] },
       attempts: { type: Number },
       at: { type: Date },
+      /** Avisos con el mismo `tag` se reemplazan en el dispositivo en vez de apilarse (la campana igual muestra cada uno). */
+      tag: { type: String, maxlength: 64 },
+      /** Título propio para el dispositivo (por ejemplo, "Tenés 3 respuestas para confirmar"); la campana conserva el suyo. */
+      title: { type: String, maxlength: 120 },
     },
   },
   { timestamps: true }

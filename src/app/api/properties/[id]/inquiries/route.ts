@@ -8,8 +8,7 @@ import { auth } from "@/auth";
 import { inquirySchema } from "@/lib/validation/lead";
 import { clientIp, rateLimit } from "@/lib/security/rate-limit";
 import { recordEvent } from "@/lib/tracking/record";
-import { createNotificationForMany } from "@/lib/notifications/create";
-import { agencyMemberIds } from "@/lib/notifications/agency-members";
+import { notifyAgency } from "@/lib/notifications/create";
 import { inquiryMessage, whatsappUrl } from "@/lib/whatsapp/messages";
 import { getSiteOrigin } from "@/lib/site-url";
 
@@ -96,14 +95,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         anonId: visitorId,
       });
       if (!isNew) return;
-      await createNotificationForMany(await agencyMemberIds(property.agencyId), {
-        type: "lead",
-        title: "Nueva consulta",
-        body: `${data.name} consultó por «${property.title}»`,
-        href: "/dashboard/clientes",
-        propertyId: String(property._id),
-        dedupeKey: `lead:${leadId}`,
-      });
+      await notifyAgency(
+        String(property.agencyId),
+        {
+          type: "lead",
+          title: "Nueva consulta",
+          body: `${data.name} consultó por «${property.title}»`,
+          href: "/dashboard/clientes",
+          propertyId: String(property._id),
+          dedupeKey: `lead:${leadId}`,
+        },
+        // Quien consulta puede ser alguien del propio equipo probando el formulario: lo propio no se avisa.
+        { exclude: [userId ? String(userId) : null] }
+      );
     });
 
     const whatsapp = agency?.contact?.whatsapp;

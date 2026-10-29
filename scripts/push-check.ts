@@ -13,6 +13,8 @@ import { buildPushPayload, safeHref } from "../src/lib/push/payload";
 import { areValidSubscriptionKeys, isKnownPushEndpoint } from "../src/lib/push/endpoint";
 import { deviceLabel, detectDevice, pushStatus, unblockSteps, IOS_INSTALL_STEPS } from "../src/lib/push/device";
 import { vapidConfig } from "../src/lib/push/vapid";
+import { withAgencyName, withAgencyParam } from "../src/lib/notifications/agency-link";
+import { confirmTitle } from "../src/lib/mail/attention";
 
 let failed = 0;
 let total = 0;
@@ -52,11 +54,26 @@ async function main() {
   // ── Texto de los avisos ───────────────────────────────────────────────────
   const lead = buildPushPayload({ id: "1", type: "lead", title: "Nueva consulta de María Pérez", body: "maria@example.com: quiero ver la casa", href: "/dashboard/clientes" }, brand.name);
   check("privacidad: un aviso de gestión no muestra el detalle en la pantalla bloqueada (y usa el nombre de la marca, no uno fijo)", lead.body === `Tocá para verlo en ${brand.name}.` && !/maria|example|casa/i.test(lead.body));
-  check("privacidad: todos los tipos que nombran clientes o mails son genéricos", ["lead", "mail_draft", "mail_attention", "mail_error", "agency_request", "admin_alert", "opportunity"].every((t) => PRIVATE_PUSH_TYPES.has(t) && buildPushPayload({ id: "1", type: t, title: "x", body: "dato personal" }, "X").body.includes("Tocá para verlo")));
+  check("privacidad: todos los tipos que nombran clientes o mails son genéricos", ["lead", "mail_draft", "mail_auto", "mail_attention", "mail_error", "agency_request", "admin_alert", "opportunity"].every((t) => PRIVATE_PUSH_TYPES.has(t) && buildPushPayload({ id: "1", type: t, title: "x", body: "dato personal" }, "X").body.includes("Tocá para verlo")));
   const open = buildPushPayload({ id: "7", type: "price_drop", title: "Bajó el precio de una propiedad que guardaste", body: "Casa en Tigre", href: "/propiedades/casa-en-tigre" }, brand.name);
   check("avisos públicos: llevan su texto, su enlace y una marca para no apilarse", open.body === "Casa en Tigre" && open.href === "/propiedades/casa-en-tigre" && open.tag === "n:7");
   check("enlace: sólo rutas internas (nada externo ni '//')", safeHref("https://evil.com") === "/notificaciones" && safeHref("//evil.com/x") === "/notificaciones" && safeHref("javascript:alert(1)") === "/notificaciones" && safeHref("/ok?a=1") === "/ok?a=1" && safeHref(undefined) === "/notificaciones" && safeHref("/con espacio") === "/notificaciones");
   check("texto: se acorta lo largo y nunca queda vacío el título", buildPushPayload({ id: "1", type: "activity", title: "t".repeat(300), body: "b".repeat(500) }, "X").title.length <= 90 && buildPushPayload({ id: "1", type: "activity", title: "t".repeat(300), body: "b".repeat(500) }, "X").body.length <= 140 && buildPushPayload({ id: "1", type: "activity", title: "  " }, "Marca").title === "Marca");
+
+  // ── Agrupar en el dispositivo (tag y título propios) ──────────────────────
+  const grouped = buildPushPayload({ id: "9", type: "mail_draft", title: "Hay una respuesta para confirmar.", body: "x", push: { tag: "mail-confirm:abc123", title: "Tenés 3 respuestas para confirmar" } }, "X");
+  check("agrupar: un tag propio reemplaza al por aviso y vuelve a avisar (renotify)", grouped.tag === "mail-confirm:abc123" && grouped.renotify === true && open.renotify === false);
+  check("agrupar: el título propio se usa en el dispositivo (la campana conserva el suyo)", grouped.title === "Tenés 3 respuestas para confirmar" && buildPushPayload({ id: "9", type: "like", title: "A alguien le gustó «Casa»", push: { tag: null, title: null } }, "X").title === "A alguien le gustó «Casa»");
+  check("agrupar: un tag raro (espacios, símbolos, muy largo) se descarta y vale el por aviso", ["con espacio", "a/b", "<script>", "x".repeat(65), ""].every((t) => buildPushPayload({ id: "5", type: "like", title: "t", push: { tag: t } }, "X").tag === "n:5"));
+  check("agrupar: un aviso privado sigue genérico aunque tenga título propio", buildPushPayload({ id: "1", type: "mail_draft", title: "t", body: "María: quiero ver la casa", push: { title: "Tenés 2 respuestas para confirmar" } }, "X").body === "Tocá para verlo en X.");
+  check("agrupar: el título del total (uno, varios)", confirmTitle(1) === "Tenés 1 respuesta para confirmar" && confirmTitle(0) === "Tenés 1 respuesta para confirmar" && confirmTitle(3) === "Tenés 3 respuestas para confirmar");
+
+  // ── Inmobiliaria sin dueño: el aviso va al admin con el enlace de ESA inmobiliaria ──
+  const AG = "6a9e1a2622a2aace3e629905";
+  check("sin dueño: el enlace del panel abre esa inmobiliaria (?agencyId=) y conserva lo demás", withAgencyParam("/dashboard/agentes/correo?m=abc", AG) === `/dashboard/agentes/correo?m=abc&agencyId=${AG}` && withAgencyParam("/dashboard/clientes", AG) === `/dashboard/clientes?agencyId=${AG}` && withAgencyParam("/dashboard", AG) === `/dashboard?agencyId=${AG}`);
+  check("sin dueño: fichas, admin, enlaces externos o ids raros no se tocan", withAgencyParam("/propiedades/casa", AG) === "/propiedades/casa" && withAgencyParam("/admin/agentes/mail", AG) === "/admin/agentes/mail" && withAgencyParam("https://evil.com/dashboard", AG) === "https://evil.com/dashboard" && withAgencyParam("//evil.com/dashboard", AG) === "//evil.com/dashboard" && withAgencyParam("/dashboard/x", "no-es-un-id") === "/dashboard/x" && withAgencyParam(undefined, AG) === undefined);
+  check("sin dueño: si ya trae ?agencyId se reemplaza (no queda duplicado)", withAgencyParam(`/dashboard/clientes?agencyId=${"f".repeat(24)}`, AG) === `/dashboard/clientes?agencyId=${AG}`);
+  check("sin dueño: el texto nombra la inmobiliaria (acotado) y no queda vacío", withAgencyName("Nueva consulta", "Inmobiliaria SS") === "«Inmobiliaria SS» · Nueva consulta" && withAgencyName(undefined, "Inmobiliaria SS") === "«Inmobiliaria SS»" && withAgencyName("x", "") === "x" && withAgencyName("x", "n".repeat(200)).length < 90);
 
   // ── Servicios de push ─────────────────────────────────────────────────────
   const good = ["https://fcm.googleapis.com/fcm/send/abc", "https://updates.push.services.mozilla.com/wpush/v2/abc", "https://web.push.apple.com/QWxn", "https://wns2-par02p.notify.windows.com/w/?token=x", "https://eu.push.apple.com/x", "https://us-east.push.services.mozilla.com/x"];
@@ -87,7 +104,7 @@ async function main() {
   check("grupos: la tabla no tiene tipos que no existen ni grupos inventados", Object.keys(TYPE_GROUP).every((t) => (NOTIFICATION_TYPES as readonly string[]).includes(t)) && Object.values(TYPE_GROUP).every((g) => (NOTIFICATION_GROUPS as readonly string[]).includes(g)));
   check("grupos: la campana y el servidor coinciden", NOTIFICATION_TYPES.every((t) => NOTIFICATION_META[t]?.group === groupOf(t)));
   check("grupos: 'sistema' nunca se silencia y lo desconocido cae ahí", !MUTABLE_GROUPS.includes("sistema") && groupOf("tipo-inventado") === "sistema" && groupOf("agency_approved") === "sistema");
-  check("grupos: cada tipo de cuenta ve lo suyo", groupsForRole("user").join() === "recomendaciones,actividad" && groupsForRole("agency_owner").join() === "gestion,actividad" && groupsForRole("agency_agent").join() === "gestion,actividad" && groupsForRole("admin").join() === "gestion" && groupsForRole(undefined).join() === "recomendaciones,actividad");
+  check("grupos: cada tipo de cuenta ve lo suyo", groupsForRole("user").join() === "recomendaciones,actividad" && groupsForRole("agency_owner").join() === "gestion,actividad" && groupsForRole("agency_agent").join() === "gestion,actividad" && groupsForRole("admin").join() === "gestion,actividad" && groupsForRole(undefined).join() === "recomendaciones,actividad");
   check("tipos privados: todos existen", [...PRIVATE_PUSH_TYPES].every((t) => (NOTIFICATION_TYPES as readonly string[]).includes(t)));
 
   console.log(`\n${total - failed}/${total} pruebas correctas`);
