@@ -4,6 +4,7 @@ import { z } from "zod";
 import { connectDB } from "@/lib/db/connect";
 import { MailMessage } from "@/lib/db/models/MailMessage";
 import { saveLesson } from "@/lib/agents/lessons";
+import { INQUIRY_CATEGORIES } from "@/lib/mail/constants";
 import { mailAccess, sendEnabled } from "@/lib/mail/access";
 import { noteAdminView } from "@/lib/mail/audit";
 import { messageDetail } from "@/lib/mail/messages";
@@ -51,6 +52,8 @@ const bodySchema = z.discriminatedUnion("action", [
   // Contestar la duda que quedó pendiente (sale por el mismo hilo) o darla por resuelta (se habló por otro medio).
   z.object({ action: z.literal("followup"), body: z.string().min(FOLLOWUP_LIMITS.minChars).max(FOLLOWUP_LIMITS.maxChars) }),
   z.object({ action: z.literal("resolve") }),
+  // "No era precio, era visita": se corrige el tema y el agente lo tiene en cuenta en mails dudosos parecidos.
+  z.object({ action: z.literal("set_topic"), topic: z.enum(["availability", "price", "features", "visit", "general"]) }),
 ]);
 
 /** Cuántas veces una persona marcó "no es una consulta" a un mismo remitente para que se bloquee solo. */
@@ -90,7 +93,11 @@ export async function POST(req: NextRequest, { params }: Ctx) {
       if (!moved) return conflict();
       // Si la persona cambió el texto (escribió ella la respuesta, por ejemplo la duda pendiente), ya no queda nada por contestar;
       // si lo envió tal cual, la duda sigue pendiente hasta que la conteste o la marque resuelta.
-      if (edited) await MailMessage.updateOne({ ...scope, humanState: "pending" }, { $set: { humanState: "resolved", humanResolvedAt: new Date(), humanResolvedBy: a.userId } });
+      if (edited) {
+        await MailMessage.updateOne({ ...scope, humanState: "pending" }, { $set: { humanState: "resolved", humanResolvedAt: new Date(), humanResolvedBy: a.userId } });
+        // Las preguntas cuyo dato no estaba cargado las contestó la persona a mano: quedan como respondidas por el equipo.
+        await MailMessage.updateOne(scope, { $set: { "asks.$[m].state": "human" } }, { arrayFilters: [{ "m.state": "missing" }] });
+      }
       // Donde se puede enviar, sale en el momento; si no, queda en cola y la manda el servidor que sí puede.
       const result = sendEnabled() ? await sendQueued(id) : { ok: false, status: "queued" as const };
       return NextResponse.json({ ok: true, status: result.status, error: "error" in result ? (result.error ?? null) : null }, { headers: NO_STORE });
@@ -131,6 +138,22 @@ export async function POST(req: NextRequest, { params }: Ctx) {
       // Donde se puede enviar, sale en el momento; si no, queda en cola y la manda el servidor que sí puede.
       const result = sendEnabled() ? await sendFollowUp(id, String(sent._id)) : { ok: false, status: "queued" as const };
       return NextResponse.json({ ok: true, status: result.status, error: "error" in result ? (result.error ?? null) : null }, { headers: NO_STORE });
+    }
+
+    // Corregir el tema de una consulta: se guarda en el mail y como lección (sólo las raíces de las palabras) para esta inmobiliaria.
+    if (input.action === "set_topic") {
+      const msg = await MailMessage.findOne(scope).select("category topics subject text").lean();
+      if (!msg || !INQUIRY_CATEGORIES.includes(msg.category)) return NextResponse.json({ error: "Sólo se puede corregir el tema de una consulta." }, { status: 400, headers: NO_STORE });
+      const topics = [input.topic, ...(msg.topics ?? []).filter((t) => t !== input.topic)].slice(0, 5);
+      await MailMessage.updateOne(scope, { $set: { category: input.topic, topics, correctedTopic: input.topic } });
+      let learned = false;
+      try {
+        const r = await saveLesson({ agent: "mail", target: `topic:${input.topic}`, text: `${msg.subject ?? ""}\n${msg.text ?? ""}`, source: "mail_topic", agencyId: a.agencyId, userId: a.userId });
+        learned = r.ok;
+      } catch (err) {
+        console.error("set_topic: no se pudo guardar la lección:", (err as Error)?.message);
+      }
+      return NextResponse.json({ ok: true, topic: input.topic, learned }, { headers: NO_STORE });
     }
 
     if (input.action === "resolve") {

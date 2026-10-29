@@ -5,7 +5,7 @@ export const LESSON_AGENTS = ["advisor", "mail"] as const;
 export type LessonAgent = (typeof LESSON_AGENTS)[number];
 
 /** De dónde salió la lección. */
-export const LESSON_SOURCES = ["unmatched", "manual", "mail_rescue", "mail_dismiss"] as const;
+export const LESSON_SOURCES = ["unmatched", "manual", "mail_rescue", "mail_dismiss", "mail_topic"] as const;
 export type LessonSource = (typeof LESSON_SOURCES)[number];
 
 /**

@@ -694,6 +694,19 @@ async function hosts() {
   const joined = [...fp].join(" ");
   check("lecciones (correo): la huella no incluye emails, teléfonos ni links", !/gmail|3779|x\.com|perez@/.test(joined), joined);
 
+  // Corregir el TEMA ("no era precio, era visita"): sólo ayuda en mails dudosos parecidos y nunca vuelve al agente más confiado.
+  const topicLessons = (topic: string, mails: [string, string][]): MailLessons => ({ inquiry: [], notInquiry: [], topics: { [topic]: mails.map(([s, t]) => mailFingerprint(s, t)) } });
+  const doubtText = "Hola, pasó algo con la propiedad";
+  const retopic = applyMailLessons(doubt, "", doubtText, topicLessons("visit", [["", doubtText]]));
+  check("lecciones de tema: un mail dudoso parecido a uno cuyo tema se corrigió toma ese tema", retopic.category === "visit" && retopic.topics[0] === "visit" && retopic.reasons.some((r) => /tema una persona/.test(r)), retopic);
+  check("lecciones de tema: sigue dudoso, con la misma confianza y para revisar (nunca más confiado)", retopic.uncertain === doubt.uncertain && retopic.confidence === doubt.confidence && retopic.needsHuman === doubt.needsHuman && retopic.confidence < AUTO_MIN_CONFIDENCE, retopic);
+  check("lecciones de tema: el tema anterior no se pierde (queda detrás)", doubt.topics.every((t) => retopic.topics.includes(t)) && new Set(retopic.topics).size === retopic.topics.length, retopic.topics);
+  check("lecciones de tema: una lección que no se parece no cambia nada", applyMailLessons(doubt, "", doubtText, topicLessons("visit", [["Factura", "Adjunto la factura del mes de octubre"]])) === doubt);
+  check("lecciones de tema: una consulta clara no cambia de tema aunque se le enseñe otro", applyMailLessons(clear, "", "¿Sigue disponible? ¿Cuánto sale?", topicLessons("visit", [["", "¿Sigue disponible? ¿Cuánto sale?"]])) === clear);
+  check("lecciones de tema: un tema inválido se ignora", applyMailLessons(doubt, "", doubtText, topicLessons("spam", [["", doubtText]])) === doubt && applyMailLessons(doubt, "", doubtText, topicLessons("other", [["", doubtText]])) === doubt);
+  check("lecciones de tema: si ya tiene ese tema como principal no cambia", applyMailLessons(doubt, "", doubtText, topicLessons(doubt.topics[0]!, [["", doubtText]])) === doubt);
+  check("lecciones de tema: sólo las de tema (sin 'consulta' ni 'no') también se aplican, y vacías no hacen nada", retopic !== doubt && applyMailLessons(doubt, "", doubtText, { inquiry: [], notInquiry: [], topics: {} }) === doubt);
+
   // Banco de frases: el gancho 'banco' sigue sin disparar financiación aunque haya lecciones.
   check("lecciones (correo): los umbrales protegen (parecido mínimo alto)", LIFT_MIN_SIMILARITY >= 0.6 && DISMISS_MIN_SIMILARITY >= LIFT_MIN_SIMILARITY);
 }

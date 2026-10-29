@@ -29,7 +29,9 @@ const MAIL_LESSON_DAYS = 60;
 /** Una lección con menos palabras que esto no enseña nada. */
 const MIN_TOKENS = 2;
 
-export const MAIL_LESSON_TARGETS = ["inquiry", "not_inquiry"] as const;
+/** "topic:price"…: una persona corrigió el TEMA de un mail ("no era precio, era visita"). */
+export const MAIL_TOPIC_TARGETS = ["topic:availability", "topic:price", "topic:features", "topic:visit", "topic:general"] as const;
+export const MAIL_LESSON_TARGETS = ["inquiry", "not_inquiry", ...MAIL_TOPIC_TARGETS] as const;
 export type MailLessonTarget = (typeof MAIL_LESSON_TARGETS)[number];
 
 export type LessonRow = { id: string; agent: LessonAgent; target: string; text: string; source: LessonSource; agencyScoped: boolean; createdAt: string };
@@ -60,7 +62,8 @@ export async function saveLesson(input: SaveLessonInput): Promise<SaveLessonResu
   const norm = normalizeText(masked);
   if (norm.split(" ").filter(Boolean).length < MIN_TOKENS || norm.length < 6) return { ok: false, reason: "too_short" };
   // Lo de un mail nunca se guarda legible: sólo sus raíces de palabra (ver `MAIL_LESSON_DAYS`).
-  const text = input.source === "mail_rescue" || input.source === "mail_dismiss" ? [...stemSet(masked)].join(" ").slice(0, 400) : masked;
+  const fromMail = input.source === "mail_rescue" || input.source === "mail_dismiss" || input.source === "mail_topic";
+  const text = fromMail ? [...stemSet(masked)].join(" ").slice(0, 400) : masked;
   const agency = input.agent === "mail" && input.agencyId && Types.ObjectId.isValid(input.agencyId) ? new Types.ObjectId(input.agencyId) : null;
   const key = createHash("sha1").update(`${input.agent}:${input.target}:${agency ?? "-"}:${norm}`).digest("hex");
 
@@ -141,20 +144,23 @@ export async function loadAdvisorLessons(): Promise<TaughtExamples> {
   });
 }
 
-export type MailLessonSets = { inquiry: Set<string>[]; notInquiry: Set<string>[] };
+export type MailLessonSets = { inquiry: Set<string>[]; notInquiry: Set<string>[]; /** Por tema ("price"…): mails cuyo tema una persona corrigió. */ topics: Record<string, Set<string>[]> };
 
 /** Lo enseñado al correo para esa inmobiliaria: lo global del admin más lo que sus propias personas marcaron. */
 export async function loadMailLessons(agencyId: string): Promise<MailLessonSets> {
   return memo(`${CACHE_PREFIX}mail:${agencyId}`, CACHE_MS, async () => {
-    const out: MailLessonSets = { inquiry: [], notInquiry: [] };
+    const out: MailLessonSets = { inquiry: [], notInquiry: [], topics: {} };
     try {
       await connectDB();
       const scope = Types.ObjectId.isValid(agencyId) ? [null, new Types.ObjectId(agencyId)] : [null];
       const docs = await AgentLesson.find({ agent: "mail", agencyId: { $in: scope } }).select("target text source").limit(LESSON_CAPS.mailGlobal + LESSON_CAPS.mailAgency).lean();
       for (const d of docs) {
         // Las de un mail ya están guardadas como raíces; las que escribió el admin se convierten a raíces acá.
-        const sets = d.source === "mail_rescue" || d.source === "mail_dismiss" ? new Set(d.text.split(" ").filter(Boolean)) : stemSet(d.text);
-        (d.target === "inquiry" ? out.inquiry : out.notInquiry).push(sets);
+        const sets = d.source === "mail_rescue" || d.source === "mail_dismiss" || d.source === "mail_topic" ? new Set(d.text.split(" ").filter(Boolean)) : stemSet(d.text);
+        if (d.target.startsWith("topic:")) {
+          const topic = d.target.slice(6);
+          (out.topics[topic] ??= []).push(sets);
+        } else (d.target === "inquiry" ? out.inquiry : out.notInquiry).push(sets);
       }
     } catch (err) {
       console.error("loadMailLessons failed:", (err as Error)?.message);
