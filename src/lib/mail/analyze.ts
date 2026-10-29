@@ -5,12 +5,14 @@
  * inmobiliaria.
  */
 import { answerAsks } from "@/lib/agents/knowledge/answers";
+import { uncoveredQuestions } from "@/lib/agents/knowledge/asks";
 import { loadMailLessons } from "@/lib/agents/lessons";
 import { applyMailLessons, type MailLessons } from "./lessons";
 import { classifyMail, SELLER_TOPIC, UNSURE_REASON, type Classification } from "./classify";
 import { isInquiry } from "./constants";
 import { composeReply, type ReplyProperty } from "./compose";
 import { selectForMail, type MailSelection } from "./select";
+import { storedAsks, type StoredAsk } from "./asks-store";
 import type { MailSettingsView } from "./settings";
 import { publicSiteUrl, siteHosts } from "./site";
 
@@ -43,8 +45,10 @@ export type Analysis = {
   siteUrl: string | null;
   /** Redacta la respuesta; `auto` agrega el aviso de que la preparó un asistente. */
   compose: (auto: boolean) => { subject: string; body: string };
-  /** Cuántas preguntas puntuales ("¿tiene pileta?") la publicación no puede contestar porque el dato no está cargado. */
+  /** Cuántas preguntas puntuales ("¿tiene pileta?") la publicación no puede contestar porque el dato no está cargado, más las que el agente no reconoce. */
   unanswered: number;
+  /** Cada pregunta y qué pasó con ella (para guardarla y mostrarla). */
+  asks: StoredAsk[];
 };
 
 /** Enlace público a la ficha de una propiedad, o null si no hay dirección pública configurada. */
@@ -77,9 +81,15 @@ export async function analyzeMail(ctx: AnalyzeCtx, input: AnalyzeInput, opts: An
   const siteUrl = publicSiteUrl();
   const toReply = (f: MailSelection["properties"][number]): ReplyProperty => ({ facts: f, url: propertyUrl(siteUrl, f.slug) });
 
-  // Cada pregunta puntual se contesta con los datos de la propiedad (o se dice que no figuran). Para quien quiere vender no hay nada que contestar.
-  const answers = seller || !isInquiry(classification.category) ? [] : selection.properties.slice(0, 3).map((p) => ({ title: p.title, ...answerAsks(p, selection.asks) }));
-  const unanswered = answers.reduce((n, a) => n + a.missing, 0);
+  // Cada pregunta puntual se contesta con los datos de CADA propiedad que cita (hasta las que se muestran) o se dice que no figuran.
+  // Para quien quiere vender no hay nada que contestar.
+  const shownMax = Math.max(1, Math.min(5, ctx.settings.maxProperties));
+  const answerable = !seller && isInquiry(classification.category);
+  const answers = answerable ? selection.properties.slice(0, shownMax).map((p) => ({ id: p.id, title: p.title, ...answerAsks(p, selection.asks) })) : [];
+  // Preguntas con signo de pregunta que nada de lo que el agente sabe contesta: las revisa una persona (y la respuesta lo dice).
+  const pendingQuestions = answerable ? uncoveredQuestions(input.text) : [];
+  const unanswered = answers.reduce((n, a) => n + a.missing, 0) + pendingQuestions.length;
+  const asks = storedAsks(answers.map((a) => ({ propertyId: a.id, items: a.items })), pendingQuestions);
 
   const compose = (auto: boolean) =>
     composeReply({
@@ -96,7 +106,8 @@ export async function analyzeMail(ctx: AnalyzeCtx, input: AnalyzeInput, opts: An
       search: !seller && selection.search.strength > 0 ? { label: selection.search.label, fallback: selection.fallback } : undefined,
       answers: answers.map((a) => ({ title: a.title, sentences: a.sentences, missing: a.missing })),
       inherited: selection.inherited,
+      pending: pendingQuestions.length,
     });
 
-  return { selection, classification, siteUrl, compose, unanswered };
+  return { selection, classification, siteUrl, compose, unanswered, asks };
 }

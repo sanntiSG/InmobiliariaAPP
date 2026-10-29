@@ -1,5 +1,5 @@
 import { Schema, models, model, type InferSchemaType, type Model } from "mongoose";
-import { MAIL_CATEGORIES, MAIL_MESSAGE_STATUSES } from "@/lib/mail/constants";
+import { ASK_STATES, HOLD_CODES, MAIL_CATEGORIES, MAIL_MESSAGE_STATUSES } from "@/lib/mail/constants";
 
 /**
  * Un mail recibido en el buzón de una inmobiliaria y lo que el agente hizo con él: cómo lo clasificó, el borrador que
@@ -22,6 +22,17 @@ const followUpSchema = new Schema(
     error: { type: String, maxlength: 300 },
   },
   { timestamps: { createdAt: "at", updatedAt: false } }
+);
+
+/** Una pregunta puntual del mail y qué pasó con ella (ver `lib/mail/asks-store.ts`). */
+const askSchema = new Schema(
+  {
+    key: { type: String, required: true, maxlength: 60 },
+    label: { type: String, maxlength: 80, default: "" },
+    state: { type: String, enum: ASK_STATES, required: true },
+    propertyId: { type: Schema.Types.ObjectId, ref: "Property" },
+  },
+  { _id: false }
 );
 
 const mailMessageSchema = new Schema(
@@ -66,6 +77,18 @@ const mailMessageSchema = new Schema(
     humanResolvedBy: { type: Schema.Types.ObjectId, ref: "User" },
     /** Lo que el equipo contestó después de la primera respuesta (máx. 10 por mail). */
     followUps: { type: [followUpSchema], default: [] },
+    /** El agente no estaba seguro de qué preguntaba (antes sólo quedaba escrito en los motivos). */
+    uncertain: { type: Boolean, default: false },
+    /** De qué temas habla (disponibilidad, precio, características, visita, general), el principal primero. */
+    topics: { type: [{ type: String, maxlength: 20 }], default: [] },
+    /** Las preguntas puntuales y qué pasó con cada una: se contestó, el dato no está cargado o la contesta una persona. */
+    asks: { type: [askSchema], default: [] },
+    /** Por qué NO salió sola (vacío si salió sola o si no hubo decisión): ver `HOLD_CODES`. */
+    holdCode: { type: String, enum: HOLD_CODES },
+    /** A qué conversación pertenece (ver `lib/mail/thread.ts`): agrupa los mails de una misma conversación. */
+    threadKey: { type: String, maxlength: 200 },
+    /** Tema que una persona corrigió a mano ("no era precio, era visita"). */
+    correctedTopic: { type: String, maxlength: 20 },
     /** El servidor del remitente no pasó las verificaciones (SPF/DKIM/DMARC): nunca se responde solo. */
     authFailed: { type: Boolean, default: false },
     propertyIds: [{ type: Schema.Types.ObjectId, ref: "Property" }],
@@ -94,6 +117,8 @@ mailMessageSchema.index({ mailboxId: 1, messageId: 1 }, { unique: true });
 mailMessageSchema.index({ agencyId: 1, status: 1, receivedAt: -1 });
 mailMessageSchema.index({ agencyId: 1, "from.email": 1, receivedAt: -1 });
 mailMessageSchema.index({ agencyId: 1, humanState: 1, receivedAt: -1 });
+mailMessageSchema.index({ agencyId: 1, threadKey: 1, receivedAt: -1 });
+mailMessageSchema.index({ agencyId: 1, "asks.state": 1, receivedAt: -1 });
 mailMessageSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 export type MailMessageDoc = InferSchemaType<typeof mailMessageSchema>;

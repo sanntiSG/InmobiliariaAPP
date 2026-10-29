@@ -300,6 +300,34 @@ export const THRESHOLDS = {
   humanTopics: 0.95,
 };
 
+/**
+ * Un banco APARTE del principal (que mide sólo la clasificación y no cambia): mails con VARIAS preguntas, en castellano rioplatense y
+ * con errores de tipeo, y qué preguntas puntuales tiene que reconocer el agente (`asks`, con la clave de `askKey`) y cuántas no sabe
+ * contestar y deja para una persona (`other`).
+ */
+export type AskSample = { t: string; asks: string[]; other: number };
+
+export const ASK_SAMPLES: AskSample[] = [
+  { t: "Hola! Sigue disponible? Cuánto son las expensas? Tiene pileta?", asks: ["expenses", "amenity:pileta"], other: 0 },
+  { t: "Buen día, ¿cuántos dormitorios y baños tiene? ¿Y los metros cubiertos?", asks: ["bedrooms", "bathrooms", "area"], other: 0 },
+  { t: "Hola, quisiera saber si tiene cochera y si aceptan mascotas", asks: ["amenity:cochera", "amenity:mascotas"], other: 0 },
+  { t: "Buenas tardes, ¿tiene parrilla y balcón? ¿Qué antigüedad tiene?", asks: ["amenity:parrilla", "amenity:balcon", "age"], other: 0 },
+  { t: "Consulto: en qué piso queda? tiene ascensor? y cuánto son las expensas?", asks: ["floor", "expenses"], other: 0 },
+  { t: "Hola, ¿tiene recorrido virtual? ¿Y algún video?", asks: ["tour", "video"], other: 0 },
+  { t: "Buenas, ¿cuántos ambientes tiene? ¿Cómo es el proceso de la reserva?", asks: ["rooms"], other: 1 },
+  { t: "Hola, ¿tiene pileta? ¿Qué documentación tengo que presentar para firmar el boleto?", asks: ["amenity:pileta"], other: 1 },
+  { t: "Buen día. ¿Cuánto son las expensas? ¿Aceptan permuta?", asks: ["expenses"], other: 0 },
+  { t: "Hola! tiene pileta? y quincho? cuantos m2 tiene?", asks: ["amenity:pileta", "area"], other: 0 },
+  { t: "Queria saber si el depto tiene balcon y cuantos banos. Gracias!", asks: ["amenity:balcon", "bathrooms"], other: 0 },
+  { t: "Me pasan datos por favor? ¿Cuánto es de expensas?", asks: ["expenses"], other: 0 },
+  { t: "Hola, dónde queda exactamente? ¿Tiene seguridad 24 horas?", asks: ["place", "amenity:seguridad_24h"], other: 0 },
+  { t: "Buenas. ¿Hay alguna feria o evento cerca los fines de semana? ¿Tiene cochera?", asks: ["amenity:cochera"], other: 1 },
+  { t: "Gracias por la info, mañana les aviso.", asks: [], other: 0 },
+];
+
+/** Del banco de arriba: cuántas preguntas anotadas tiene que reconocer el agente, y que cuente bien las que no sabe contestar. */
+export const ASK_THRESHOLDS = { asksRecall: 0.9, otherExact: 0.9 };
+
 export type Outcome = "clear" | "unsure" | "ignored";
 
 /** Corre el clasificador igual que la revisión real (con el catálogo de mentira), sin base de datos. */

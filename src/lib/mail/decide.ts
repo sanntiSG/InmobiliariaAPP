@@ -5,7 +5,7 @@
  * inmobiliaria tiene publicado, si se permite), está en horario, no se pasó de los topes del día y de la persona y no se le
  * respondió ya a ese hilo. Cualquier duda: confirmación, con el motivo en palabras comunes. Función pura.
  */
-import type { MailCategory, MailMode } from "./constants";
+import type { HoldCode, MailCategory, MailMode } from "./constants";
 
 export const AUTO_MIN_CONFIDENCE = 0.75;
 
@@ -74,28 +74,29 @@ export function inSchedule(now: Date, from: string, to: string): boolean {
   return from <= to ? t >= from && t < to : t >= from || t < to;
 }
 
-export type AutoDecision = { auto: boolean; why: string };
+/** `code`: por qué no salió sola (ver `HOLD_CODES`); no existe si sale sola. `why` es la misma explicación en palabras. */
+export type AutoDecision = { auto: boolean; why: string; code?: HoldCode };
 
 export function decideAuto(i: AutoInput): AutoDecision {
-  const hold = (why: string): AutoDecision => ({ auto: false, why });
-  if (i.settings.mode !== "auto") return hold("El agente está en modo confirmación.");
-  if (!i.settings.autoCategories.includes(i.category)) return hold("Este tipo de consulta se confirma siempre.");
-  if (i.confidence < AUTO_MIN_CONFIDENCE) return hold("No estoy del todo seguro de qué pregunta.");
-  if (i.repliedToAuto) return hold("Contestó a un mail automático: posiblemente quiere hablar con una persona.");
-  if (i.humanHard ?? i.needsHuman) return hold("Hay algo que tiene que contestar una persona.");
-  if (i.inherited) return hold("No nombró la propiedad: retomé la de su consulta anterior y conviene que revises que sea esa.");
-  if (i.authFailed) return hold("El remitente no pasó las verificaciones del correo (puede ser falso).");
-  if (i.replyElsewhere) return hold("Pide que se responda a otra dirección distinta de la que escribió.");
+  const hold = (code: HoldCode, why: string): AutoDecision => ({ auto: false, why, code });
+  if (i.settings.mode !== "auto") return hold("confirm_mode", "El agente está en modo confirmación.");
+  if (!i.settings.autoCategories.includes(i.category)) return hold("category_off", "Este tipo de consulta se confirma siempre.");
+  if (i.confidence < AUTO_MIN_CONFIDENCE) return hold("low_confidence", "No estoy del todo seguro de qué pregunta.");
+  if (i.repliedToAuto) return hold("replied_to_auto", "Contestó a un mail automático: posiblemente quiere hablar con una persona.");
+  if (i.humanHard ?? i.needsHuman) return hold("human_hard", "Hay algo que tiene que contestar una persona.");
+  if (i.inherited) return hold("inherited", "No nombró la propiedad: retomé la de su consulta anterior y conviene que revises que sea esa.");
+  if (i.authFailed) return hold("auth_failed", "El remitente no pasó las verificaciones del correo (puede ser falso).");
+  if (i.replyElsewhere) return hold("reply_elsewhere", "Pide que se responda a otra dirección distinta de la que escribió.");
   if (i.availableProperties < 1) {
-    if (i.searchStrength < 1) return hold("No identifiqué de qué propiedad habla.");
-    if (!i.settings.autoSearches) return hold("Pide algo en general, no una propiedad puntual, y las respuestas automáticas a búsquedas están desactivadas.");
-    if (i.searchMatches < 1) return hold("Pide algo que no tengo publicado: te dejo la respuesta para que la veas antes de enviarla.");
+    if (i.searchStrength < 1) return hold("no_property", "No identifiqué de qué propiedad habla.");
+    if (!i.settings.autoSearches) return hold("searches_off", "Pide algo en general, no una propiedad puntual, y las respuestas automáticas a búsquedas están desactivadas.");
+    if (i.searchMatches < 1) return hold("no_match", "Pide algo que no tengo publicado: te dejo la respuesta para que la veas antes de enviarla.");
   }
-  if (i.settings.schedule.enabled && !inSchedule(i.now, i.settings.schedule.from, i.settings.schedule.to)) return hold("Está fuera del horario de respuesta automática.");
-  if (i.sentToday >= i.settings.autoPerDay) return hold("Ya se llegó al tope de respuestas automáticas de hoy.");
+  if (i.settings.schedule.enabled && !inSchedule(i.now, i.settings.schedule.from, i.settings.schedule.to)) return hold("off_schedule", "Está fuera del horario de respuesta automática.");
+  if (i.sentToday >= i.settings.autoPerDay) return hold("daily_cap", "Ya se llegó al tope de respuestas automáticas de hoy.");
   if (i.repliesToSender >= i.settings.autoPerSender) {
-    return hold(`A esta persona ya se le respondió ${i.repliesToSender} ${i.repliesToSender === 1 ? "vez" : "veces"} hoy (el tope es ${i.settings.autoPerSender}).`);
+    return hold("sender_cap", `A esta persona ya se le respondió ${i.repliesToSender} ${i.repliesToSender === 1 ? "vez" : "veces"} hoy (el tope es ${i.settings.autoPerSender}).`);
   }
-  if (i.threadAnswered) return hold("Ya se respondió en esta conversación.");
+  if (i.threadAnswered) return hold("thread_answered", "Ya se respondió en esta conversación.");
   return { auto: true, why: i.availableProperties >= 1 ? "Cumple todas las condiciones para responderse sola." : "Pide algo que tenés publicado y cumple todas las condiciones para responderse sola." };
 }

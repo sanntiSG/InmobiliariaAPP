@@ -21,6 +21,7 @@ import { cleanBody } from "./clean";
 import { openCreds } from "./creds";
 import { MAIL_LIMITS, isInquiry, type MailCategory } from "./constants";
 import { decideAuto } from "./decide";
+import { threadKeyOf } from "./thread";
 import { prefilter, replyAddress } from "./prefilter";
 import { POLL_EVERY_MS } from "./schedule";
 import { loadSettings, type MailSettingsView } from "./settings";
@@ -164,7 +165,7 @@ export async function processMail(ctx: PipelineCtx, mail: FetchedMail, counts: C
   if (repliedToAuto && !isInquiry(analysis.classification.category) && analysis.classification.category === "other" && !isClosingReason(analysis.classification.reasons)) {
     analysis = await analyzeMail(ctx, analyzeInput, { forceInquiry: true });
   }
-  const { selection, classification: cls, compose, unanswered } = analysis;
+  const { selection, classification: cls, compose, unanswered, asks } = analysis;
   // Lo que se descartó por el TEXTO (no por los encabezados de lista o de rebote, que ya se filtraron arriba) lo escribió una
   // persona o lo parece: se guarda 14 días para poder marcarlo "Era una consulta". Antes sólo se guardaba el de "otra cosa", y
   // una consulta real tomada por promoción o basura no se podía rescatar. Las respuestas automáticas y los rebotes, nunca.
@@ -224,6 +225,11 @@ export async function processMail(ctx: PipelineCtx, mail: FetchedMail, counts: C
       needsHuman: cls.needsHuman || repliedToAuto,
       humanTopics: cls.humanTopics.slice(0, 8),
       missingData: unanswered,
+      uncertain: cls.uncertain,
+      topics: cls.topics.slice(0, 5),
+      asks,
+      holdCode: decision.auto ? undefined : decision.code,
+      threadKey: threadKeyOf({ messageId: mail.messageId, inReplyTo: mail.inReplyTo, references: mail.references, fromEmail: mail.from.email, subject: mail.subject }),
       repliedToAuto,
       humanState: pending ? "pending" : "none",
       propertyIds: selection.properties.map((p) => new Types.ObjectId(p.id)),

@@ -36,6 +36,8 @@ export type ComposeInput = {
   answers?: { title: string; sentences: string[]; missing: number }[];
   /** El mail no nombró la propiedad: se retomó la de una conversación anterior con la misma persona. */
   inherited?: boolean;
+  /** Cuántas preguntas hizo que el agente no sabe contestar (las revisa una persona): la respuesta lo dice. */
+  pending?: number;
 };
 
 const FEATURE_ICONS = new Set(["rooms", "bedrooms", "bathrooms", "area", "garage", "age", "floor", "orientation", "amenity"]);
@@ -72,7 +74,8 @@ function propertyBlock(p: ReplyProperty, withDetails: boolean): string {
  * o en viñetas si son varias frases; con varias propiedades, una línea por cada una con su título.
  */
 function answersFor(answers: ComposeInput["answers"], shown: ReplyProperty[], seed: number): { text: string; missing: number } | null {
-  const usable = (answers ?? []).filter((a) => a.sentences.length > 0 && shown.some((s) => s.facts.title === a.title)).slice(0, 3);
+  // Una línea por cada propiedad que se muestra (hasta 5): antes sólo se contestaba para las tres primeras.
+  const usable = (answers ?? []).filter((a) => a.sentences.length > 0 && shown.some((s) => s.facts.title === a.title)).slice(0, 5);
   if (usable.length === 0) return null;
   const missing = usable.reduce((n, a) => n + a.missing, 0);
   if (usable.length === 1) {
@@ -130,7 +133,9 @@ export function composeReply(input: ComposeInput): { subject: string; body: stri
               : answers
                 ? ""
                 : say("general", ["Te cuento sobre la propiedad:", "Estos son los datos que tenemos:", "Esto es lo que tenemos de la propiedad:"]);
-    if (lead) parts.push(lead);
+    // Si además de lo principal preguntó el precio (o si sigue disponible), la apertura lo cubre: no se contesta sólo una de las dos cosas.
+    const second = !input.inherited && !answers && top === "availability" && c.topics.includes("price") ? say("price.also", ["Te paso también el precio y los datos:", "Acá va además el precio y lo principal:", "Y te dejo el precio y los datos principales:"]) : top === "price" && c.topics.includes("availability") && !answers ? say("avail.also", ["Sí, sigue disponible.", "Te confirmo que sigue disponible.", "Y sí, sigue disponible."]) : "";
+    if (lead) parts.push(second ? (top === "price" ? `${second} ${lead}` : `${lead} ${second}`) : lead);
     if (answers) {
       parts.push(answers.text);
       if (answers.missing > 0) {
@@ -220,6 +225,15 @@ export function composeReply(input: ComposeInput): { subject: string; body: stri
       say("ask", [
         "Para ayudarte mejor, ¿nos contás cuál propiedad te interesó o qué estás buscando (zona, tipo de propiedad y presupuesto)? Con eso te enviamos opciones.",
         "Para poder ayudarte, ¿nos contás cuál propiedad te interesó o qué estás buscando (zona, tipo y presupuesto)? Así te mandamos opciones.",
+      ])
+    );
+  }
+
+  if ((input.pending ?? 0) > 0 && !seller) {
+    parts.push(
+      say("pending", [
+        input.pending === 1 ? "Tu otra consulta la revisa una persona del equipo y te responde a la brevedad." : "Tus otras consultas las revisa una persona del equipo y te responden a la brevedad.",
+        input.pending === 1 ? "Lo otro que preguntaste lo ve una persona del equipo y te escribe a la brevedad." : "Lo otro que preguntaste lo ve una persona del equipo y te escribe a la brevedad.",
       ])
     );
   }

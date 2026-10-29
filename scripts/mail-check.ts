@@ -14,7 +14,7 @@ import { getPublicSiteUrl, publicSiteUrl, siteHosts } from "../src/lib/mail/site
 import { assertSafeMailHost, HostError, isPrivateIp } from "../src/lib/mail/hosts";
 import { cleanBody, htmlToText } from "../src/lib/mail/clean";
 import { firstNameOf, prefilter, replyAddress, type MailHeaders } from "../src/lib/mail/prefilter";
-import { classifyMail, needsHardHuman, SOFT_HUMAN_TOPICS } from "../src/lib/mail/classify";
+import { classifyMail, needsHardHuman, SELLER_TOPIC, SOFT_HUMAN_TOPICS } from "../src/lib/mail/classify";
 import { attentionNotice, isClosingReason, needsAttention, quotesAutoFooter, type AttentionInput } from "../src/lib/mail/attention";
 import { cleanFollowUp, followUpStarter, FOLLOWUP_LIMITS } from "../src/lib/mail/followup";
 import { parseSocial, socialLinks, type SocialNetwork } from "../src/lib/validation/social";
@@ -24,11 +24,14 @@ import { composeReply, replySubject, type ComposeInput, type ReplyProperty } fro
 import { AUTO_MIN_CONFIDENCE, argentinaClock, decideAuto, inSchedule, type AutoInput } from "../src/lib/mail/decide";
 import { PRESETS, appPasswordName, presetFor, providerFromEmail, smtpImplicitTls } from "../src/lib/mail/presets";
 import { buildSample } from "../src/lib/mail/preview";
-import { CORPUS, THRESHOLDS, classifySample, runCorpus } from "./mail-corpus";
+import { ASK_SAMPLES, ASK_THRESHOLDS, CORPUS, THRESHOLDS, classifySample, runCorpus } from "./mail-corpus";
 import { propertyUrl } from "../src/lib/mail/analyze";
 import { stripAccents } from "../src/lib/advisor/nlu/normalize";
 import { DISMISS_MIN_SIMILARITY, LIFT_MIN_SIMILARITY, applyMailLessons, mailFingerprint, type MailLessons } from "../src/lib/mail/lessons";
-import { detectAsks, soundsLikeQuestion } from "../src/lib/agents/knowledge/asks";
+import { askKey, askLabel, detectAsks, soundsLikeQuestion, uncoveredQuestions } from "../src/lib/agents/knowledge/asks";
+import { askCounts, MAX_STORED_ASKS, storedAsks } from "../src/lib/mail/asks-store";
+import { normalizeSubject, threadKeyOf } from "../src/lib/mail/thread";
+import { HOLD_CODES, HOLD_LABELS, type HoldCode } from "../src/lib/mail/constants";
 import { answerAsks } from "../src/lib/agents/knowledge/answers";
 import { readRequest } from "../src/lib/mail/signals";
 import type { PropertyFacts } from "../src/lib/agents/knowledge/facts";
@@ -851,6 +854,131 @@ async function hosts() {
   check("mail: sin firma (desactivada) sale como antes: sólo texto", buildOutgoing(body, agency, null, { banner: false }).html === null && buildOutgoing(body, agency, null, { banner: false }).text === body);
   check("mail: el texto del cliente se escapa en el HTML", textToHtml("<b>hola</b> & \"chau\"").includes("&lt;b&gt;hola&lt;/b&gt; &amp; &quot;chau&quot;") && !textToHtml("<img src=x onerror=alert(1)>").includes("<img"));
   check("mail: sin pie automático (confirmada por una persona) no se inventa uno", !buildOutgoing("Hola\n\nChau", agency, null, { banner: true }).text.includes("asistente"));
+}
+
+// ── Preguntas con varias cosas a la vez: qué se reconoce, qué se contesta y qué queda para una persona ───────
+{
+  const keyOf = (text: string) => {
+    const { slots } = readRequest("", text);
+    return soundsLikeQuestion(text) ? detectAsks(stripAccents(text.toLowerCase()), slots.amenities).map(askKey) : [];
+  };
+  let expected = 0;
+  let found = 0;
+  let exact = 0;
+  const lost: unknown[] = [];
+  const wrongOther: unknown[] = [];
+  for (const s of ASK_SAMPLES) {
+    const got = keyOf(s.t);
+    for (const k of s.asks) {
+      expected++;
+      if (got.includes(k)) found++;
+      else lost.push({ t: s.t, falta: k, salio: got });
+    }
+    const other = uncoveredQuestions(s.t).length;
+    if (other === s.other) exact++;
+    else wrongOther.push({ t: s.t, esperaba: s.other, salio: other });
+  }
+  const recall = expected === 0 ? 1 : found / expected;
+  const exactRate = exact / ASK_SAMPLES.length;
+  check(`preguntas (banco aparte, ${ASK_SAMPLES.length} mails): reconoce al menos ${Math.round(ASK_THRESHOLDS.asksRecall * 100)}% de las preguntas anotadas (hoy ${Math.round(recall * 100)}%)`, recall >= ASK_THRESHOLDS.asksRecall, lost);
+  check(`preguntas: cuenta bien las que no sabe contestar en al menos ${Math.round(ASK_THRESHOLDS.otherExact * 100)}% de los mails (hoy ${Math.round(exactRate * 100)}%)`, exactRate >= ASK_THRESHOLDS.otherExact, wrongOther);
+  check("preguntas: claves y etiquetas legibles", askKey({ kind: "amenity", amenity: "pileta" }) === "amenity:pileta" && askKey({ kind: "expenses" }) === "expenses" && askLabel("expenses") === "expensas" && askLabel("amenity:pileta") === "pileta" && askLabel("amenity:seguridad_24h").length > 0 && askLabel("rara") === "rara");
+  check("preguntas desconocidas: las que nada sabe contestar se marcan, acotadas", uncoveredQuestions("Hola, ¿cómo es el proceso de la reserva?").length === 1 && uncoveredQuestions("¿Cómo es el proceso de la reserva? ¿Qué documentación piden para firmar? ¿Cuál es el horario del portero eléctrico? ¿Dónde se paga el sellado del boleto?").length === 3);
+  check("preguntas desconocidas: lo que el agente sabe tratar NO se marca (precio, mascotas, permuta, visita, datos, llamar)", ["¿Cuánto sale por mes?", "¿Aceptan mascotas en el edificio?", "¿Aceptan permuta por un auto?", "¿Cuándo puedo ir a verla este fin de semana?", "Me interesa, ¿me pasan datos por favor?", "Me pueden llamar al 11 5555-1234?", "¿Tiene pileta y parrilla en el jardín?", "¿Qué opciones tienen en dólares?"].every((q) => uncoveredQuestions(q).length === 0));
+  check("preguntas desconocidas: sin signo de pregunta, una frase corta o un saludo no se marcan", uncoveredQuestions("Quisiera saber cómo es el proceso de la reserva").length === 0 && uncoveredQuestions("¿Qué tal?").length === 0 && uncoveredQuestions("Hola, ¿cómo están?").length === 0 && uncoveredQuestions("").length === 0);
+
+  const items = [{ key: "expenses", known: true }, { key: "amenity:pileta", known: false }];
+  const stored = storedAsks([{ propertyId: "p1", items }, { propertyId: "p2", items: [{ key: "expenses", known: false }] }], ["¿Cómo es el proceso de la reserva?"]);
+  check("preguntas guardadas: una por propiedad y pregunta, con su estado, y las desconocidas para una persona", stored.length === 4 && stored[0]!.state === "answered" && stored[1]!.state === "missing" && stored[1]!.label === "pileta" && stored[2]!.propertyId === "p2" && stored[3]!.key === "other" && stored[3]!.state === "human", stored);
+  check("preguntas guardadas: cuenta por estado y se acota", JSON.stringify(askCounts(stored)) === JSON.stringify({ answered: 1, missing: 2, human: 1 }) && storedAsks([{ propertyId: "p", items: Array.from({ length: 40 }, (_, i) => ({ key: `amenity:a${i}`, known: i % 2 === 0 })) }]).length === MAX_STORED_ASKS);
+  check("preguntas guardadas: una pregunta larga se acorta", storedAsks([], ["x".repeat(300)])[0]!.label.length <= 80);
+}
+
+// ── A qué conversación pertenece un mail ──────────────────────────────────────
+{
+  const first = threadKeyOf({ messageId: "<a1@x>", fromEmail: "Ana@Ej.com", subject: "Casa en Tigre" });
+  const reply = threadKeyOf({ messageId: "<a2@x>", inReplyTo: "<a1@x>", references: ["<a1@x>"], fromEmail: "ana@ej.com", subject: "Re: Casa en Tigre" });
+  const later = threadKeyOf({ messageId: "<a3@x>", inReplyTo: "<a2@x>", references: ["<a1@x>", "<a2@x>"], fromEmail: "ana@ej.com", subject: "RE: Re: Casa en Tigre" });
+  check("hilo: un mail y sus respuestas comparten la misma conversación", first === reply && reply === later && first.startsWith("m:"), [first, reply, later]);
+  check("hilo: conversaciones distintas no se mezclan", threadKeyOf({ messageId: "<b1@x>", fromEmail: "ana@ej.com", subject: "Casa en Tigre" }) !== first);
+  const noIds = threadKeyOf({ messageId: "uid:55", fromEmail: "Luis@Ej.com", subject: "Re: FWD: Depto  en Palermo" });
+  check("hilo: sin identificadores se arma con quien escribe y el asunto (sin Re:/Fwd:, en minúsculas)", noIds === "s:luis@ej.com:depto en palermo" && noIds === threadKeyOf({ messageId: "uid:56", fromEmail: "luis@ej.com", subject: "Depto en Palermo" }), noIds);
+  check("hilo: el asunto se normaliza y se acota", normalizeSubject("  RE:  Re: Hola\r\nMundo ") === "hola mundo" && normalizeSubject("x".repeat(500)).length === 80 && normalizeSubject(null) === "");
+  check("hilo: la clave siempre entra en el campo (≤ 200)", threadKeyOf({ messageId: "<" + "m".repeat(500) + ">", fromEmail: "a@b.c" }).length <= 200 && threadKeyOf({ messageId: "uid:1", fromEmail: "a".repeat(180) + "@b.com", subject: "s".repeat(200) }).length <= 200);
+}
+
+// ── Por qué no salió sola: un código por cada motivo ─────────────────────────
+{
+  const okBase: AutoInput = {
+    settings: { mode: "auto", autoCategories: ["availability", "price", "features", "general"], autoPerDay: 20, autoPerSender: 3, autoSearches: true, schedule: { enabled: false, from: "09:00", to: "20:00" } },
+    category: "availability",
+    confidence: 0.9,
+    needsHuman: false,
+    authFailed: false,
+    replyElsewhere: false,
+    availableProperties: 1,
+    searchMatches: 0,
+    searchStrength: 0,
+    sentToday: 0,
+    repliesToSender: 0,
+    threadAnswered: false,
+    now: new Date("2026-10-25T15:00:00Z"),
+  };
+  const code = (patch: Partial<AutoInput>, settings: Partial<AutoInput["settings"]> = {}): HoldCode | undefined => decideAuto({ ...okBase, ...patch, settings: { ...okBase.settings, ...settings } }).code;
+  check("motivo: si sale sola no hay código", decideAuto(okBase).auto && decideAuto(okBase).code === undefined);
+  const expected: [string, HoldCode | undefined][] = [
+    ["confirm_mode", code({}, { mode: "confirm" })],
+    ["category_off", code({ category: "visit" })],
+    ["low_confidence", code({ confidence: 0.5 })],
+    ["replied_to_auto", code({ repliedToAuto: true })],
+    ["human_hard", code({ needsHuman: true })],
+    ["inherited", code({ inherited: true })],
+    ["auth_failed", code({ authFailed: true })],
+    ["reply_elsewhere", code({ replyElsewhere: true })],
+    ["no_property", code({ availableProperties: 0, searchStrength: 0 })],
+    ["searches_off", code({ availableProperties: 0, searchStrength: 2 }, { autoSearches: false })],
+    ["no_match", code({ availableProperties: 0, searchStrength: 2, searchMatches: 0 })],
+    ["off_schedule", code({}, { schedule: { enabled: true, from: "01:00", to: "02:00" } })],
+    ["daily_cap", code({ sentToday: 20 })],
+    ["sender_cap", code({ repliesToSender: 3 })],
+    ["thread_answered", code({ threadAnswered: true })],
+  ];
+  check("motivo: cada retención tiene su código", expected.every(([want, got]) => want === got), expected.filter(([w, g]) => w !== g));
+  check("motivo: todos los códigos están cubiertos y tienen etiqueta en pantalla", expected.length === HOLD_CODES.length && HOLD_CODES.every((c) => HOLD_LABELS[c].length > 0 && expected.some(([w]) => w === c)));
+}
+
+// ── Contestar TODAS las propiedades que cita el mail y cubrir los dos temas ──────────────
+{
+  const f = (over: Partial<PropertyFacts> = {}) => ({ ...(({ id: "a".repeat(24), slug: "casa", title: "Casa", type: "casa", operation: "venta", price: { amount: 100000, currency: "USD", expenses: 0, period: "total" }, amenities: [], city: "Tigre", neighborhood: null, garages: null, rooms: null, bedrooms: null, bathrooms: null, totalArea: null, coveredArea: null, age: null, floor: null, orientation: null, hasTour: false, videoCount: 0, description: "" }) as unknown as PropertyFacts), ...over });
+  const props = ["Uno", "Dos", "Tres", "Cuatro", "Cinco"].map((t, i) => ({ facts: f({ id: String(i).repeat(24), title: `Casa ${t}` }), url: null }));
+  const answers = props.map((p) => ({ title: p.facts.title, sentences: [`Dato de ${p.facts.title}.`], missing: 0 }));
+  const base: ComposeInput = {
+    fromName: "Ana",
+    subject: "Casas",
+    classification: { topics: ["features"], category: "features", needsHuman: false, humanTopics: [] },
+    properties: props,
+    unavailable: false,
+    alternatives: [],
+    settings: { signature: "", greeting: "", closing: "", disclose: true, maxProperties: 5 },
+    agencyName: "Umbral",
+    seed: "s1",
+    auto: false,
+    answers,
+  };
+  const body = composeReply(base).body;
+  check("redacción: contesta para CADA propiedad que se muestra (antes sólo las tres primeras)", ["Uno", "Dos", "Tres", "Cuatro", "Cinco"].every((t) => body.includes(`Dato de Casa ${t}.`)), body);
+  const three = composeReply({ ...base, settings: { ...base.settings, maxProperties: 3 } }).body;
+  check("redacción: respeta el tope de propiedades configurado", three.includes("Dato de Casa Tres.") && !three.includes("Dato de Casa Cuatro."));
+  const both = composeReply({ ...base, answers: [], classification: { topics: ["availability", "price"], category: "availability", needsHuman: false, humanTopics: [] }, properties: [props[0]!] }).body;
+  check("redacción: si pregunta si sigue disponible Y el precio, la apertura cubre las dos cosas", /disponible/.test(both) && /precio/i.test(both), both);
+  const priceFirst = composeReply({ ...base, answers: [], classification: { topics: ["price", "availability"], category: "price", needsHuman: false, humanTopics: [] }, properties: [props[0]!] }).body;
+  check("redacción: si pregunta el precio Y si sigue disponible, también", /disponible/.test(priceFirst) && /precio/i.test(priceFirst), priceFirst);
+  const onlyAvail = composeReply({ ...base, answers: [], classification: { topics: ["availability"], category: "availability", needsHuman: false, humanTopics: [] }, properties: [props[0]!] }).body;
+  check("redacción: con un solo tema la apertura queda como estaba (sin hablar del precio)", /disponible/.test(onlyAvail) && !/Te paso también el precio|Acá va además el precio|Y te dejo el precio/.test(onlyAvail), onlyAvail);
+  const pend = composeReply({ ...base, pending: 1 }).body;
+  const pend2 = composeReply({ ...base, pending: 2 }).body;
+  check("redacción: avisa que lo que no sabe contestar lo revisa una persona (una o varias consultas)", /revisa una persona|lo ve una persona/.test(pend) && /(otras consultas las revisa|otro que preguntaste lo ve)/.test(pend2 + pend2.replace("Lo otro", "otro")) && !/otra consulta|Lo otro/.test(composeReply(base).body), pend);
+  check("redacción: a quien quiere vender no se le dice nada de preguntas pendientes", !/otra consulta|Lo otro que preguntaste/.test(composeReply({ ...base, answers: [], properties: [], pending: 2, classification: { topics: ["general"], category: "general", needsHuman: true, humanTopics: [SELLER_TOPIC] } }).body));
 }
 
 hosts().then(() => {
