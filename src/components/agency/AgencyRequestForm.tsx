@@ -9,6 +9,7 @@ import { agencyRequestSchema } from "@/lib/validation/agency-request";
 import { providerRequestMessage, whatsappUrl } from "@/lib/whatsapp/messages";
 import { useWhatsappLauncher } from "@/lib/whatsapp/useWhatsappLauncher";
 import { brand } from "@/config/brand";
+import { PushActivationCard } from "@/components/push/PushActivationCard";
 
 type Values = { agencyName: string; phone: string; zone: string; message: string; website: string };
 
@@ -113,6 +114,8 @@ export function AgencyRequestForm({
           <MessageCircle className="h-4 w-4" aria-hidden />
           {sent.opened ? "Abrir WhatsApp de nuevo" : "Abrir WhatsApp"}
         </a>
+        {/* Para enterarse de la respuesta sin tener que volver a entrar: la guía se adapta al dispositivo (en iPhone, instalar la app). */}
+        <PushActivationCard context="agency_request" className="mt-2 w-full" />
       </div>
     );
   }

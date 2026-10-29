@@ -13,6 +13,7 @@ import { buttonClasses } from "@/components/ui/Button";
 import { AgencyRequestForm } from "@/components/agency/AgencyRequestForm";
 import { providerQuickMessage, providerRequestMessage, whatsappUrl } from "@/lib/whatsapp/messages";
 import { ContinueAfterApproval } from "@/components/agency/ContinueAfterApproval";
+import { PushActivationCard } from "@/components/push/PushActivationCard";
 import { brand } from "@/config/brand";
 import { formatRelativeTime } from "@/lib/utils/format";
 
@@ -106,6 +107,7 @@ export default async function SolicitarInmobiliariaPage() {
             >
               Enviar mis datos por WhatsApp
             </a>
+            <PushActivationCard context="agency_request" className="w-full" />
           </StatusCard>
         )}
 

@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { BellRing, X } from "lucide-react";
 import { detectDevice, pushStatus } from "@/lib/push/device";
+import { cn } from "@/lib/utils/cn";
 
 const KEY = "push-prompt-dismissed-at";
 const HIDE_DAYS = 14;
@@ -13,8 +15,9 @@ const HIDE_DAYS = 14;
  * puede: explica para qué sirve y lleva a los ajustes. Nunca pide el permiso por su cuenta (eso sólo pasa al tocar "Activar avisos"
  * allá) y "Ahora no" lo oculta. Si el dispositivo no puede recibir avisos o ya los tiene, no se muestra.
  */
-export function PushPrompt() {
+export function PushPrompt({ href = "#avisos", className }: { href?: string; className?: string }) {
   const [show, setShow] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     let alive = true;
@@ -42,7 +45,8 @@ export function PushPrompt() {
     };
   }, []);
 
-  if (!show) return null;
+  // En la propia pantalla de avisos el recordatorio sobra: los ajustes ya están ahí.
+  if (!show || (href.startsWith("/") && pathname.startsWith(href.split("#")[0]!))) return null;
   const dismiss = () => {
     try {
       localStorage.setItem(KEY, String(Date.now()));
@@ -53,7 +57,7 @@ export function PushPrompt() {
   };
 
   return (
-    <aside role="region" aria-label="Avisos en tu dispositivo" className="flex items-start gap-3 rounded-card bg-accent-soft p-4">
+    <aside role="region" aria-label="Avisos en tu dispositivo" className={cn("flex items-start gap-3 rounded-card bg-accent-soft p-4", className)}>
       <span className="grid size-9 shrink-0 place-items-center rounded-full bg-surface text-accent" aria-hidden>
         <BellRing className="h-4 w-4" />
       </span>
@@ -61,7 +65,7 @@ export function PushPrompt() {
         <p className="text-sm font-semibold text-text">¿Querés enterarte sin tener que entrar?</p>
         <p className="mt-0.5 text-sm text-text-muted">Activá los avisos y te llegan a tu pantalla cuando pasa algo que te importa. Podés cambiarlo o apagarlo cuando quieras.</p>
         <div className="mt-2.5 flex flex-wrap gap-2">
-          <Link href="#avisos" onClick={dismiss} className="inline-flex min-h-11 items-center rounded-pill bg-accent px-4 text-sm font-semibold text-accent-contrast transition-transform active:scale-[0.97]">
+          <Link href={href} onClick={dismiss} className="inline-flex min-h-11 items-center rounded-pill bg-accent px-4 text-sm font-semibold text-accent-contrast transition-transform active:scale-[0.97]">
             Ver cómo activarlos
           </Link>
           <button type="button" onClick={dismiss} className="inline-flex min-h-11 items-center rounded-pill px-4 text-sm font-medium text-text-muted transition-colors hover:text-text">

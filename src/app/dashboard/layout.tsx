@@ -11,6 +11,7 @@ import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { maybeAdvanceSocial } from "@/lib/social/engine";
+import { PushPrompt } from "@/components/notifications/PushPrompt";
 
 export default async function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
   const access = await requireDashboardAccess();
@@ -57,6 +58,8 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
         <DashboardNav isAdmin={access.isAdmin} />
         <main className="min-w-0 flex-1">
           {access.isAdmin && <AdminContextBanner agencies={agencies} />}
+          {/* Consultas, clientes y correo le llegan a la inmobiliaria por aviso del dispositivo sólo si lo activó. */}
+          <PushPrompt href="/dashboard/notificaciones" className="mb-4" />
           {children}
         </main>
       </div>

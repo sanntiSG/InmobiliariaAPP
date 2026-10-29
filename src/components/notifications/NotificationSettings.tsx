@@ -3,51 +3,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BellRing, BellOff, Download, Share, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { PushGuide } from "@/components/push/guide/PushGuide";
+import { usePushActivation, type PushBusy } from "@/components/push/usePushActivation";
 import { NOTIFICATION_GROUP_HINTS, NOTIFICATION_GROUP_LABELS, MUTABLE_GROUPS, type NotificationGroup } from "@/config/notifications";
-import { fromB64Url } from "@/lib/push/keys";
-import { IOS_INSTALL_STEPS, detectDevice, pushStatus, unblockSteps, type Device, type PushStatus } from "@/lib/push/device";
+import type { Device, PushStatus } from "@/lib/push/device";
 import { cn } from "@/lib/utils/cn";
 
 type Prefs = { muted: string[]; pushPaused: boolean; devices: { id: string; label: string }[] };
-type InstallEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> };
-
-const SW_URL = "/sw.js";
-
-/** El navegador declara si tiene avisos del dispositivo. */
-const hasPushApis = (): boolean => typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
-
-const isStandalone = (): boolean => window.matchMedia?.("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
 
 /** Sin cuenta no hay avisos: esta pantalla sólo se muestra a quien inició sesión (lo garantiza la página que la usa). */
 export function NotificationSettings({ groups, className }: { groups: NotificationGroup[]; className?: string }) {
-  const [device, setDevice] = useState<Device | null>(null);
-  const [status, setStatus] = useState<PushStatus | null>(null);
-  const [subscribed, setSubscribed] = useState(false);
   const [prefs, setPrefs] = useState<Prefs | null>(null);
-  const [busy, setBusy] = useState<null | "on" | "off" | "test" | "prefs">(null);
-  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
-  const [installEvent, setInstallEvent] = useState<InstallEvent | null>(null);
+  const [prefsBusy, setPrefsBusy] = useState(false);
+  const [prefsMessage, setPrefsMessage] = useState<string | null>(null);
   const alive = useRef(true);
-
-  /** Qué tiene este navegador ahora mismo: soporte, si está instalada, el permiso y si ya está suscripto. */
-  const refresh = useCallback(async () => {
-    const d = detectDevice(navigator.userAgent, { touchPoints: navigator.maxTouchPoints });
-    const supported = hasPushApis();
-    const permission = supported ? (Notification.permission as "default" | "granted" | "denied") : "default";
-    let sub = false;
-    if (supported) {
-      try {
-        const reg = await navigator.serviceWorker.getRegistration(SW_URL);
-        sub = !!(await reg?.pushManager.getSubscription());
-      } catch {
-        sub = false;
-      }
-    }
-    if (!alive.current) return;
-    setDevice(d);
-    setStatus(pushStatus(d, { supported, standalone: isStandalone(), permission }));
-    setSubscribed(sub && permission === "granted");
-  }, []);
 
   const loadPrefs = useCallback(async () => {
     try {
@@ -58,117 +27,34 @@ export function NotificationSettings({ groups, className }: { groups: Notificati
     }
   }, []);
 
+  // Activar, probar y desactivar el dispositivo: la misma lógica que en las demás pantallas (ver `usePushActivation`).
+  const push = usePushActivation({ onChange: loadPrefs });
+
   useEffect(() => {
     alive.current = true;
-    // Sincroniza con lo que declara el navegador (soporte, permiso, suscripción): sólo existe en el cliente.
-    void refresh();
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- idem: espera la respuesta del servidor
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincroniza con lo que guardó el servidor (sólo existe al cargar)
     void loadPrefs();
-    const onInstall = (e: Event) => {
-      e.preventDefault();
-      setInstallEvent(e as InstallEvent);
-    };
-    window.addEventListener("beforeinstallprompt", onInstall);
     return () => {
       alive.current = false;
-      window.removeEventListener("beforeinstallprompt", onInstall);
     };
-  }, [refresh, loadPrefs]);
-
-  async function activate() {
-    setBusy("on");
-    setMessage(null);
-    try {
-      // 1. El permiso se pide recién ahora, después de explicar para qué sirve y de que la persona lo pidiera con un toque.
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted") {
-        await refresh();
-        setMessage({ ok: false, text: permission === "denied" ? "No diste el permiso, así que no vamos a enviarte avisos. Podés cambiarlo cuando quieras." : "No se activó: cerraste el pedido de permiso sin elegir." });
-        return;
-      }
-      // 2. La clave pública del servidor (si este sitio todavía no tiene los avisos activados, se dice con claridad).
-      const key = ((await (await fetch("/api/push/key", { cache: "no-store" })).json()) as { publicKey: string | null }).publicKey;
-      if (!key) {
-        setMessage({ ok: false, text: "Los avisos del dispositivo todavía no están habilitados en este sitio (lo hace quien administra la plataforma). Mientras tanto, los ves en la campana." });
-        return;
-      }
-      // 3. Service worker + suscripción + guardarla en la cuenta.
-      const reg = await navigator.serviceWorker.register(SW_URL, { scope: "/" });
-      await navigator.serviceWorker.ready;
-      const sub = (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: fromB64Url(key) as BufferSource }));
-      const json = sub.toJSON();
-      const res = await fetch("/api/push/subscribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys, touchPoints: navigator.maxTouchPoints }) });
-      if (!res.ok) {
-        await sub.unsubscribe().catch(() => undefined);
-        throw new Error(((await res.json().catch(() => null)) as { error?: string } | null)?.error ?? "No se pudo activar el aviso.");
-      }
-      await refresh();
-      await loadPrefs();
-      setMessage({ ok: true, text: "Listo: los avisos están activados en este dispositivo." });
-    } catch (err) {
-      setMessage({ ok: false, text: err instanceof Error ? err.message : "No se pudo activar el aviso." });
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function deactivate() {
-    setBusy("off");
-    setMessage(null);
-    try {
-      const reg = await navigator.serviceWorker.getRegistration(SW_URL);
-      const sub = await reg?.pushManager.getSubscription();
-      if (sub) {
-        await fetch("/api/push/unsubscribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoint: sub.endpoint }) }).catch(() => undefined);
-        await sub.unsubscribe();
-      }
-      await refresh();
-      await loadPrefs();
-      setMessage({ ok: true, text: "Desactivaste los avisos en este dispositivo. Seguís viéndolos en la campana." });
-    } catch {
-      setMessage({ ok: false, text: "No se pudieron desactivar. Probá de nuevo." });
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function sendTest() {
-    setBusy("test");
-    setMessage(null);
-    try {
-      const res = await fetch("/api/push/test", { method: "POST" });
-      const data = (await res.json().catch(() => null)) as { error?: string; immediate?: boolean } | null;
-      if (!res.ok) throw new Error(data?.error ?? "No se pudo enviar la prueba.");
-      setMessage({ ok: true, text: data?.immediate ? "Te mandamos un aviso de prueba: debería llegar en unos segundos." : "Te mandamos un aviso de prueba: puede tardar hasta unos 5 minutos en llegar." });
-    } catch (err) {
-      setMessage({ ok: false, text: err instanceof Error ? err.message : "No se pudo enviar la prueba." });
-    } finally {
-      setBusy(null);
-    }
-  }
+  }, [loadPrefs]);
 
   async function savePrefs(patch: Partial<Pick<Prefs, "muted" | "pushPaused">>) {
     if (!prefs) return;
     const previous = prefs;
     setPrefs({ ...prefs, ...patch });
-    setBusy("prefs");
+    setPrefsBusy(true);
+    setPrefsMessage(null);
     try {
       const res = await fetch("/api/me/notification-prefs", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
       if (!res.ok) throw new Error();
       setPrefs((await res.json()) as Prefs);
     } catch {
       setPrefs(previous);
-      setMessage({ ok: false, text: "No se pudo guardar el cambio." });
+      setPrefsMessage("No se pudo guardar el cambio.");
     } finally {
-      setBusy(null);
+      setPrefsBusy(false);
     }
-  }
-
-  async function install() {
-    if (!installEvent) return;
-    await installEvent.prompt();
-    setInstallEvent(null);
-    void refresh();
   }
 
   const toggleGroup = (g: NotificationGroup) => {
@@ -176,6 +62,9 @@ export function NotificationSettings({ groups, className }: { groups: Notificati
     const muted = prefs.muted.includes(g) ? prefs.muted.filter((x) => x !== g) : [...prefs.muted, g];
     void savePrefs({ muted });
   };
+
+  const message = push.message ?? (prefsMessage ? { ok: false, text: prefsMessage } : null);
+  const busy: PushBusy | "prefs" = push.busy ?? (prefsBusy ? "prefs" : null);
 
   return (
     <div className={cn("flex flex-col gap-5", className)}>
@@ -192,12 +81,12 @@ export function NotificationSettings({ groups, className }: { groups: Notificati
           </div>
         </div>
 
-        {status === null ? (
+        {push.status === null || push.device === null ? (
           <p className="text-sm text-text-muted" role="status">
             Revisando tu dispositivo…
           </p>
         ) : (
-          <DeviceStatus status={status} device={device!} subscribed={subscribed} busy={busy} onActivate={activate} onDeactivate={deactivate} onTest={sendTest} canInstall={!!installEvent} onInstall={install} />
+          <DeviceStatus status={push.status} device={push.device} subscribed={push.subscribed} busy={busy} onActivate={push.activate} onDeactivate={push.deactivate} onTest={push.sendTest} canInstall={push.canInstall} onInstall={push.install} />
         )}
 
         {message && (
@@ -224,7 +113,7 @@ export function NotificationSettings({ groups, className }: { groups: Notificati
                   <p className="text-sm font-semibold text-text">{NOTIFICATION_GROUP_LABELS[g]}</p>
                   <p className="text-xs text-text-muted">{NOTIFICATION_GROUP_HINTS[g]}</p>
                 </div>
-                <Toggle label={`Recibir avisos de ${NOTIFICATION_GROUP_LABELS[g].toLowerCase()}`} on={on} disabled={!mutable || !prefs || busy === "prefs"} onChange={() => toggleGroup(g)} />
+                <Toggle label={`Recibir avisos de ${NOTIFICATION_GROUP_LABELS[g].toLowerCase()}`} on={on} disabled={!mutable || !prefs || prefsBusy} onChange={() => toggleGroup(g)} />
               </li>
             );
           })}
@@ -233,7 +122,7 @@ export function NotificationSettings({ groups, className }: { groups: Notificati
               <p className="text-sm font-semibold text-text">Pausar los avisos del dispositivo</p>
               <p className="text-xs text-text-muted">Dejás de recibirlos en el celular o la computadora sin tocar lo de arriba. La campana sigue igual.</p>
             </div>
-            <Toggle label="Pausar los avisos del dispositivo" on={!!prefs?.pushPaused} disabled={!prefs || busy === "prefs"} onChange={() => savePrefs({ pushPaused: !prefs?.pushPaused })} />
+            <Toggle label="Pausar los avisos del dispositivo" on={!!prefs?.pushPaused} disabled={!prefs || prefsBusy} onChange={() => savePrefs({ pushPaused: !prefs?.pushPaused })} />
           </li>
         </ul>
         {prefs && prefs.devices.length > 0 && (
@@ -266,17 +155,7 @@ function Toggle({ label, on, disabled, onChange }: { label: string; on: boolean;
   );
 }
 
-function Steps({ items }: { items: readonly string[] }) {
-  return (
-    <ol className="flex list-decimal flex-col gap-1.5 pl-5 text-sm text-text">
-      {items.map((s) => (
-        <li key={s}>{s}</li>
-      ))}
-    </ol>
-  );
-}
-
-/** Lo que le corresponde hacer a esta persona en ESTE dispositivo (sin instrucciones genéricas). */
+/** Lo que le corresponde hacer a esta persona en ESTE dispositivo, con la guía ilustrada paso a paso (sin instrucciones genéricas). */
 function DeviceStatus({
   status,
   device,
@@ -331,27 +210,36 @@ function DeviceStatus({
               </Button>
             )}
           </div>
+          <details className="rounded-media bg-surface-2 px-4 py-3">
+            <summary className="cursor-pointer list-none text-sm font-medium text-text marker:content-none">¿Qué voy a ver en la pantalla?</summary>
+            <PushGuide kind={status.kind} device={device} compact className="mt-3" />
+          </details>
         </div>
       );
     case "denied":
       return (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           <p className="text-sm text-text">Bloqueaste los avisos en este navegador. Para volver a permitirlos:</p>
-          <Steps items={unblockSteps(device)} />
+          <PushGuide kind="denied" device={device} />
         </div>
       );
     case "ios_install":
       return (
-        <div className="flex flex-col gap-2.5">
+        <div className="flex flex-col gap-3">
           <p className="text-sm text-text">En iPhone y iPad los avisos sólo funcionan si agregás la plataforma a tu pantalla de inicio. Es un minuto:</p>
-          <Steps items={IOS_INSTALL_STEPS} />
-          <p className="flex items-center gap-1.5 text-xs text-text-muted">
+          <PushGuide kind="ios_install" device={device} />
+          <p className="flex items-center justify-center gap-1.5 text-xs text-text-muted">
             <Share className="h-3.5 w-3.5" aria-hidden /> Necesitás iOS o iPadOS 16.4 o posterior.
           </p>
         </div>
       );
     case "ios_safari":
-      return <p className="text-sm text-text">En iPhone y iPad los avisos sólo se pueden activar desde Safari. Abrí esta misma dirección en Safari y seguí los pasos que te vamos a mostrar ahí.</p>;
+      return (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-text">En iPhone y iPad los avisos sólo se pueden activar desde Safari. Abrí esta misma dirección en Safari y seguí estos pasos:</p>
+          <PushGuide kind="ios_safari" device={device} />
+        </div>
+      );
     case "ios_old":
       return <p className="text-sm text-text">Este iPhone o iPad tiene una versión de iOS anterior a la 16.4, que no permite avisos del dispositivo. Actualizarlo lo habilita; mientras tanto, los ves en la campana.</p>;
     case "unsupported":

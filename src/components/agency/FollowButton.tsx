@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { BellPlus, BellRing } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { PushActivationCard } from "@/components/push/PushActivationCard";
 
 /**
  * Seguir / dejar de seguir a una inmobiliaria. Optimista: cambia al toque y,
@@ -53,14 +54,18 @@ export function FollowButton({
   }
 
   return (
-    <div className="flex items-center gap-3">
-      <Button variant={following ? "secondary" : "primary"} onClick={toggle} aria-pressed={following}>
-        {following ? <BellRing className="h-4 w-4" aria-hidden /> : <BellPlus className="h-4 w-4" aria-hidden />}
-        {following ? "Siguiendo" : "Seguir"}
-      </Button>
-      <span className="text-sm text-text-muted" aria-live="polite">
-        <span className="font-mono">{followers}</span> {followers === 1 ? "seguidor" : "seguidores"}
-      </span>
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-3">
+        <Button variant={following ? "secondary" : "primary"} onClick={toggle} aria-pressed={following}>
+          {following ? <BellRing className="h-4 w-4" aria-hidden /> : <BellPlus className="h-4 w-4" aria-hidden />}
+          {following ? "Siguiendo" : "Seguir"}
+        </Button>
+        <span className="text-sm text-text-muted" aria-live="polite">
+          <span className="font-mono">{followers}</span> {followers === 1 ? "seguidor" : "seguidores"}
+        </span>
+      </div>
+      {/* Al seguir a una inmobiliaria: invita a activar los avisos del dispositivo (no aparece si ya están activos). */}
+      {following && isAuthenticated && <PushActivationCard context="follow" className="max-w-md" />}
     </div>
   );
 }

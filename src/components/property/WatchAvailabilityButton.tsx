@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { BellRing, BellOff } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { PushActivationCard } from "@/components/push/PushActivationCard";
 
 /**
  * "Avisarme cuando se libere": se activa y se desactiva con un toque. Sin cuenta lleva a ingresar (y vuelve a esta ficha). El aviso
@@ -51,6 +52,7 @@ export function WatchAvailabilityButton({ propertyId, isAuthenticated, initialWa
         {watching ? "Dejar de avisarme" : "Avisarme cuando se libere"}
       </Button>
       {watching && <p className="text-xs text-text-muted">Listo: te avisamos apenas esté disponible.</p>}
+      {watching && <PushActivationCard context="watch" className="mt-2 max-w-md" />}
       {error && (
         <p role="alert" className="text-xs text-danger">
           {error}

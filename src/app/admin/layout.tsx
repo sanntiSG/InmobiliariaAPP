@@ -9,6 +9,7 @@ import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { AdminNav } from "@/components/admin/AdminNav";
+import { PushPrompt } from "@/components/notifications/PushPrompt";
 
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
   const admin = await requireAdminUser();
@@ -37,7 +38,11 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
       </header>
       <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 lg:flex-row">
         <AdminNav pendingRequests={pendingRequests} />
-        <main className="min-w-0 flex-1">{children}</main>
+        <main className="min-w-0 flex-1">
+          {/* Una solicitud nueva le llega al admin por aviso del dispositivo sólo si lo activó: el recordatorio lo lleva a hacerlo. */}
+          <PushPrompt href="/admin/notificaciones" className="mb-4" />
+          {children}
+        </main>
       </div>
     </div>
   );

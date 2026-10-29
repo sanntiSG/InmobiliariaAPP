@@ -13,6 +13,7 @@ import { buildPushPayload, safeHref } from "../src/lib/push/payload";
 import { areValidSubscriptionKeys, isKnownPushEndpoint } from "../src/lib/push/endpoint";
 import { deviceLabel, detectDevice, pushStatus, unblockSteps, IOS_INSTALL_STEPS } from "../src/lib/push/device";
 import { vapidConfig } from "../src/lib/push/vapid";
+import { IOS_LOGIN_NOTE, guideFor } from "../src/lib/push/guide";
 import { withAgencyName, withAgencyParam } from "../src/lib/notifications/agency-link";
 import { confirmTitle } from "../src/lib/mail/attention";
 import { hourKey, mediaFingerprint, newMediaKinds, newMediaMessage, priceChangeMessage, socialDedupeKey, socialMessage, socialPushTag, unavailableMessage, type SocialEvent } from "../src/lib/notifications/social-text";
@@ -106,6 +107,18 @@ async function main() {
   const everything = mediaFingerprint({ images: [{ url: "https://x/a.jpg", providerId: "a" }, { url: "https://x/z.jpg" }], videos: [{ videoId: "v1" }, { videoId: "v2" }], tours: [{ id: "t1" }, { photo360Url: "https://x/360.jpg" }] });
   check("fotos nuevas: sólo avisa lo que se SUMÓ (quitar, reordenar o no cambiar nada no avisa)", newMediaKinds(m0, photoAdded).join() === "photos" && newMediaKinds(m0, removed).length === 0 && newMediaKinds(m0, m0).length === 0 && newMediaKinds(m0, mediaFingerprint({ images: [{ url: "https://x/b.jpg" }, { url: "https://x/a.jpg", providerId: "a" }], videos: [{ videoId: "v1" }], tours: [{ id: "t1" }] })).length === 0 && newMediaKinds(m0, everything).join() === "photos,video,tour");
   check("fotos nuevas: una propiedad sin multimedia no rompe nada y el texto lista lo sumado", newMediaKinds(mediaFingerprint(null), mediaFingerprint(undefined)).length === 0 && newMediaKinds(mediaFingerprint({}), mediaFingerprint({ images: [{ url: "https://x/a.jpg" }] })).join() === "photos" && /fotos nuevas/.test(newMediaMessage(house, ["photos"]).body) && /fotos nuevas, un video nuevo y un recorrido nuevo/.test(newMediaMessage(house, ["photos", "video", "tour"]).body) && newMediaMessage(house, ["video"]).href === "/propiedades/casa-en-tigre");
+
+  // ── Guía gráfica: qué pasos le tocan a cada dispositivo ───────────────────
+  const iphone = detectDevice(UA.iphoneSafari);
+  const android = detectDevice(UA.androidChrome);
+  const pc = detectDevice(UA.winChrome);
+  const iosSteps = guideFor("ios_install", iphone);
+  check("guía iPhone: los 4 pasos de instalar (Safari, Compartir, Agregar a inicio, abrir el ícono), cada uno con su escena", iosSteps.length === 4 && iosSteps.map((x) => x.scene).join() === "ios-safari,ios-share,ios-add,ios-home" && iosSteps.every((x, i) => x.text === IOS_INSTALL_STEPS[i]));
+  check("guía iPhone: avisa que al abrir la app instalada hay que iniciar sesión de nuevo (sólo en el último paso)", iosSteps.filter((x) => x.note).length === 1 && iosSteps[3]!.note === IOS_LOGIN_NOTE && /sesión/.test(IOS_LOGIN_NOTE));
+  check("guía iPhone en otro navegador: los mismos pasos (hay que abrirla en Safari)", guideFor("ios_safari", detectDevice(UA.iphoneChrome)).length === 4);
+  check("guía: pedir el permiso muestra el cuadro de cada plataforma", guideFor("ready", iphone)[0]!.scene === "ios-allow" && guideFor("ready", android)[0]!.scene === "android-allow" && guideFor("granted", pc)[0]!.scene === "desktop-allow" && guideFor("ready", pc).length === 1);
+  check("guía: desbloquear usa los textos de cada plataforma y su ilustración", guideFor("denied", pc).length === 3 && guideFor("denied", pc).every((x) => x.scene === "desktop-unblock") && guideFor("denied", android)[0]!.text.includes("candado") && guideFor("denied", iphone)[0]!.text.includes("Ajustes") && guideFor("denied", iphone).every((x) => x.scene === "ios-unblock"));
+  check("guía: sin soporte o con iOS viejo no hay pasos (se explica en texto)", guideFor("unsupported", pc).length === 0 && guideFor("ios_old", iphone).length === 0);
 
   // ── Servicios de push ─────────────────────────────────────────────────────
   const good = ["https://fcm.googleapis.com/fcm/send/abc", "https://updates.push.services.mozilla.com/wpush/v2/abc", "https://web.push.apple.com/QWxn", "https://wns2-par02p.notify.windows.com/w/?token=x", "https://eu.push.apple.com/x", "https://us-east.push.services.mozilla.com/x"];
