@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Map as MapIcon, X } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { MapFilters } from "@/components/map/MapFilters";
+import { NoResults } from "@/components/filters/NoResults";
 import { FilterPill } from "@/components/ui/FilterPill";
 import { Button, buttonClasses } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -152,7 +153,7 @@ export default function PropiedadesClient({ initialFilters, agencyName }: { init
           className="mb-6"
         />
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
-          <MapFilters value={filters} onChange={setFilters} resultCount={total} className="min-w-0 flex-1" />
+          <MapFilters value={filters} onChange={setFilters} resultCount={loading || failed ? undefined : total} className="min-w-0 flex-1" />
           <div className="flex items-center gap-2">
             <FilterPill onClick={cycleSort}>{SORT_LABELS[sort]}</FilterPill>
           </div>
@@ -195,10 +196,7 @@ export default function PropiedadesClient({ initialFilters, agencyName }: { init
             ))}
           </div>
         ) : items.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-24 text-center text-text-muted">
-            <p className="font-display text-lg font-semibold text-text">No encontramos propiedades</p>
-            <p className="max-w-sm text-sm">Probá ampliar el rango de precio o quitar algún filtro.</p>
-          </div>
+          <NoResults filters={filters} onChange={setFilters} />
         ) : (
           <>
             <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

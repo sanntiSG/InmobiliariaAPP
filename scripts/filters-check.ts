@@ -7,6 +7,7 @@ import { DEFAULT_FILTERS, RECENT_DAYS, activeChips, countActiveFilters, filtersE
 import { buildPropertyQuery } from "../src/lib/db/property-query";
 import { listFiltersSchema, mapFiltersSchema } from "../src/lib/validation/filters";
 import { areaBounds, niceCeil, niceStep, priceBounds } from "../src/lib/filters/bounds";
+import { MAX_RELAX, relaxCandidates } from "../src/lib/filters/relax";
 
 let failed = 0;
 let total = 0;
@@ -222,6 +223,28 @@ const full: PropertyFiltersState = {
   check("precio: sin operación elegida, el máximo de todas", priceBounds(facets, "ARS", "todas")!.max === 250_000_000);
   check("superficie: hasta lo más grande publicado", areaBounds({ maxArea: 780 }).max === 1_000 && areaBounds({ maxArea: 780 }).step >= 5);
   check("superficie: sin datos, un rango razonable", areaBounds(null).max === 500 && areaBounds({ maxArea: 0 }).max === 500);
+}
+
+// ── Sugerencias cuando no hay resultados (qué filtro conviene quitar) ───────
+{
+  check("sugerencias: sin filtros no hay nada que quitar", relaxCandidates(DEFAULT_FILTERS).length === 0);
+
+  const cands = relaxCandidates(full);
+  const chipIds = activeChips(full).map((c) => c.id);
+  check("sugerencias: una por cada etiqueta aplicada (hasta el tope), con su texto", cands.length === Math.min(chipIds.length, MAX_RELAX) && cands.every((c, i) => c.chipId === chipIds[i] && c.label.length > 0), cands.map((c) => c.chipId));
+  const stillThere = cands.filter((c) => activeChips(parseFilters(new URLSearchParams(c.params))).some((x) => x.id === c.chipId));
+  check("sugerencias: cada una quita EXACTAMENTE esa etiqueta (la dirección resultante ya no la tiene)", stillThere.length === 0, stillThere.map((c) => c.chipId));
+  check("sugerencias: cada dirección es válida para la API y arma un filtro de Mongo", cands.every((c) => { const r = listFiltersSchema.safeParse(Object.fromEntries(new URLSearchParams(c.params).entries())); return r.success && typeof buildPropertyQuery(r.data) === "object"; }));
+  check("sugerencias: probar una no cambia el estado de origen", filtersEqual(full, { ...full }) && relaxCandidates(full).length === cands.length);
+
+  // Quitar la operación se lleva el precio (no hay precio sin operación): la sugerencia lo respeta.
+  const opChip = cands.find((c) => c.chipId === "operation");
+  check("sugerencias: sin la operación tampoco queda el precio ni la moneda", !!opChip && !/priceM(in|ax)=|currency=/.test(opChip.params) && !/operation=/.test(opChip.params), opChip);
+  // El texto de búsqueda es un filtro como cualquier otro: se puede quitar desde acá.
+  const qChip = cands.find((c) => c.chipId === "q");
+  check("sugerencias: el texto buscado también se ofrece quitar", !!qChip && !/(^|&)q=/.test(qChip.params) && /^Texto: /.test(qChip.label), qChip);
+  const withAgency = relaxCandidates({ ...DEFAULT_FILTERS, agencyId: "a".repeat(24), types: ["casa"] });
+  check("sugerencias: la inmobiliaria elegida se conserva (no se ofrece quitarla)", withAgency.length === 1 && withAgency.every((c) => c.params.includes(`agencyId=${"a".repeat(24)}`)), withAgency);
 }
 
 console.log(`\n${total - failed}/${total} pruebas correctas`);

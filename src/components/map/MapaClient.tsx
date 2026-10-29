@@ -230,6 +230,10 @@ export default function MapaClient({
       .filter((p) => p.lng >= bbox.west && p.lng <= bbox.east && p.lat >= bbox.south && p.lat <= bbox.north);
   }, [features, viewport]);
 
+  // El centro de lo que se mira (para ofrecer "la zona más cercana donde sí hay" cuando acá no hay resultados) y cómo ir hasta ahí.
+  const center = useMemo(() => ({ lng: (viewport.bbox.west + viewport.bbox.east) / 2, lat: (viewport.bbox.south + viewport.bbox.north) / 2 }), [viewport.bbox]);
+  const flyToZone = useCallback((lng: number, lat: number) => mapInstance?.flyTo({ center: [lng, lat], zoom: 12, duration: 900 }), [mapInstance]);
+
   const visibleProperties = properties.slice(0, MAX_LIST_ITEMS);
   const truncatedCount = properties.length - visibleProperties.length;
 
@@ -273,8 +277,11 @@ export default function MapaClient({
             <MapFilters
               value={filters}
               onChange={setFilters}
-              resultCount={properties.length}
+              // Mientras busca no hay cuenta (un 0 pasajero parecería "sin resultados").
+              resultCount={loading || loadError ? undefined : properties.length}
               listHref={listHref}
+              center={center}
+              onFlyTo={flyToZone}
               onLocationSelect={(result) =>
                 mapInstance?.flyTo({ center: [result.lng, result.lat], zoom: 15, duration: 800 })
               }
@@ -315,6 +322,9 @@ export default function MapaClient({
         hoveredId={hoveredId}
         onHoverChange={setHoveredId}
         map={mapInstance}
+        filters={filters}
+        onFiltersChange={setFilters}
+        center={center}
       />
 
       <MapControls

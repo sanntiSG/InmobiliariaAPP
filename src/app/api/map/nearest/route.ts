@@ -4,6 +4,7 @@ import { z } from "zod";
 import { connectDB } from "@/lib/db/connect";
 import { Property } from "@/lib/db/models/Property";
 import { NEARBY_RADIUS_KM } from "@/config/site";
+import { nearestMatch, type NearestMatch } from "@/lib/map/nearest";
 
 export const dynamic = "force-dynamic";
 
@@ -15,14 +16,7 @@ const querySchema = z.object({
 type NearestResponse = {
   countWithin: number;
   radiusKm: number;
-  nearest: {
-    city: string;
-    neighborhood?: string;
-    lng: number;
-    lat: number;
-    distanceKm: number;
-    count: number;
-  } | null;
+  nearest: NearestMatch | null;
 };
 
 /**
@@ -77,54 +71,6 @@ async function getNearest(lng: number, lat: number): Promise<NearestResponse> {
     return { countWithin, radiusKm: NEARBY_RADIUS_KM, nearest: null };
   }
 
-  // 2) Nada cerca: la propiedad más cercana sin límite de distancia, para
-  // poder ofrecer "ver <ciudad>" con el salto ya armado.
-  const [nearestDoc] = await Property.aggregate([
-    {
-      $geoNear: {
-        near: { type: "Point", coordinates: [lng, lat] },
-        distanceField: "distanceMeters",
-        spherical: true,
-        query: { status: "published" },
-        key: "location",
-      },
-    },
-    { $limit: 1 },
-    { $project: { "address.city": 1, "address.neighborhood": 1, location: 1, distanceMeters: 1 } },
-  ]);
-
-  if (!nearestDoc) {
-    return { countWithin: 0, radiusKm: NEARBY_RADIUS_KM, nearest: null };
-  }
-
-  const [nearLng, nearLat] = nearestDoc.location.coordinates as [number, number];
-
-  // 3) Cuántas hay alrededor de ESA propiedad (para "8 propiedades" en vez
-  // de solo mostrar la más cercana sola).
-  const aroundCount = await Property.aggregate([
-    {
-      $geoNear: {
-        near: { type: "Point", coordinates: [nearLng, nearLat] },
-        distanceField: "distanceMeters",
-        maxDistance: radiusMeters,
-        spherical: true,
-        query: { status: "published" },
-        key: "location",
-      },
-    },
-    { $count: "count" },
-  ]);
-
-  return {
-    countWithin: 0,
-    radiusKm: NEARBY_RADIUS_KM,
-    nearest: {
-      city: nearestDoc.address?.city ?? "",
-      neighborhood: nearestDoc.address?.neighborhood ?? undefined,
-      lng: nearLng,
-      lat: nearLat,
-      distanceKm: Math.round((nearestDoc.distanceMeters / 1000) * 10) / 10,
-      count: aroundCount[0]?.count ?? 1,
-    },
-  };
+  // 2) Nada cerca: la zona más cercana donde sí hay (con el salto ya armado) y cuántas hay alrededor de ella.
+  return { countWithin: 0, radiusKm: NEARBY_RADIUS_KM, nearest: await nearestMatch(lng, lat, { status: "published" }) };
 }

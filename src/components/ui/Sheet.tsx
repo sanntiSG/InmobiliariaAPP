@@ -135,7 +135,7 @@ export function Sheet({ open, onClose, children, title, side = "bottom", size = 
             </IconButton>
           </div>
         )}
-        <div className={cn("min-h-0 overflow-y-auto px-5", side === "right" && "flex-1", footer ? "pb-4" : "pb-6")}>{children}</div>
+        <div className={cn("min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain px-5", side === "right" && "flex-1", footer ? "pb-4" : "pb-6")}>{children}</div>
         {footer && <div className="shrink-0 border-t border-border bg-surface px-5 pb-3 pt-3">{footer}</div>}
       </div>
     </div>,

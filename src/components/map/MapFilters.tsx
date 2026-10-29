@@ -23,6 +23,9 @@ export function MapFilters({
   onLocationSelect,
   /** Si viene, se muestra "Lista" y lleva a esta dirección (el listado con los mismos filtros). */
   listHref,
+  /** Centro del mapa y cómo ir a otra zona: sólo en el mapa; con ellos los resultados vacíos ofrecen "la zona más cercana". */
+  center,
+  onFlyTo,
 }: {
   value: MapFiltersState;
   onChange: (next: MapFiltersState) => void;
@@ -30,6 +33,8 @@ export function MapFilters({
   className?: string;
   onLocationSelect?: (result: GeocodeResult) => void;
   listHref?: string;
+  center?: { lng: number; lat: number } | null;
+  onFlyTo?: (lng: number, lat: number) => void;
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const activeCount = countActiveFilters(value);
@@ -59,7 +64,7 @@ export function MapFilters({
         </Link>
       )}
 
-      <FilterSheet open={sheetOpen} onClose={() => setSheetOpen(false)} value={value} onChange={onChange} resultCount={resultCount} />
+      <FilterSheet open={sheetOpen} onClose={() => setSheetOpen(false)} value={value} onChange={onChange} resultCount={resultCount} center={center} onFlyTo={onFlyTo} />
     </div>
   );
 }

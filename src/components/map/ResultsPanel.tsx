@@ -10,8 +10,9 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { Sheet } from "@/components/ui/Sheet";
 import { Button } from "@/components/ui/Button";
 import { IconButton } from "@/components/ui/IconButton";
-import { MAP_DEFAULTS } from "@/config/site";
+import { NoResults } from "@/components/filters/NoResults";
 import type { PropertyCardData } from "@/components/property/types";
+import type { MapFiltersState } from "@/components/map/types";
 
 type Props = {
   properties: PropertyCardData[];
@@ -24,8 +25,13 @@ type Props = {
   onSelect: (id: string) => void;
   hoveredId: string | null;
   onHoverChange: (id: string | null) => void;
-  /** Instancia del mapa — se usa solo para el botón "volver a donde hay propiedades". */
+  /** Instancia del mapa — se usa para llevarlo a la zona más cercana cuando acá no hay resultados. */
   map: MapLibreMap | null;
+  /** Los filtros de ahora y cómo cambiarlos: los resultados vacíos ofrecen quitar alguno. */
+  filters: MapFiltersState;
+  onFiltersChange: (next: MapFiltersState) => void;
+  /** Centro de lo que se está mirando en el mapa (para buscar "la zona más cercana donde sí hay"). */
+  center: { lng: number; lat: number } | null;
 };
 
 /**
@@ -44,12 +50,18 @@ export function ResultsPanel({
   hoveredId,
   onHoverChange,
   map,
+  filters,
+  onFiltersChange,
+  center,
 }: Props) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const totalCount = properties.length + truncatedCount;
+  // Sin resultados (y sin error ni carga): nunca se muestra "Ver 0 propiedades", que parece un error. Se invita a mirar las opciones.
+  const empty = !loading && !error && totalCount === 0;
 
-  function recenter() {
-    map?.flyTo({ center: MAP_DEFAULTS.center, zoom: MAP_DEFAULTS.zoom, duration: 800 });
+  function flyTo(lng: number, lat: number) {
+    setMobileOpen(false);
+    map?.flyTo({ center: [lng, lat], zoom: 12, duration: 900 });
   }
 
   const list = loading ? (
@@ -68,15 +80,7 @@ export function ResultsPanel({
       <p className="max-w-[220px] text-sm">Revisá tu conexión e intentá de nuevo en un momento.</p>
     </div>
   ) : properties.length === 0 ? (
-    <div className="flex flex-col items-center gap-3 py-16 text-center text-text-muted">
-      <p className="font-display text-base font-semibold text-text">No hay propiedades acá</p>
-      <p className="max-w-[220px] text-sm">
-        Movete por el mapa, probá con otros filtros, o mirá dónde está la mayoría.
-      </p>
-      <Button variant="secondary" size="sm" onClick={recenter}>
-        Ver dónde hay más propiedades
-      </Button>
-    </div>
+    <NoResults filters={filters} onChange={onFiltersChange} center={center} onFlyTo={flyTo} />
   ) : (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-1">
       {properties.map((p, i) => (
@@ -100,7 +104,7 @@ export function ResultsPanel({
 
   return (
     <>
-      <DesktopPanel loading={loading} totalCount={totalCount} list={list} />
+      <DesktopPanel loading={loading} empty={empty} totalCount={totalCount} list={list} />
 
       {/* Mobile: botón flotante + drawer */}
       <div
@@ -108,7 +112,7 @@ export function ResultsPanel({
         className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center pb-[calc(var(--safe-bottom)+16px)] md:hidden"
       >
         <Button onClick={() => setMobileOpen(true)} className="pointer-events-auto shadow-float">
-          {loading ? "Buscando…" : <>Ver <span className="font-mono">{totalCount}</span> {totalCount === 1 ? "propiedad" : "propiedades"}</>}
+          {loading ? "Buscando…" : empty ? "Sin resultados acá" : <>Ver <span className="font-mono">{totalCount}</span> {totalCount === 1 ? "propiedad" : "propiedades"}</>}
         </Button>
       </div>
       <Sheet open={mobileOpen} onClose={() => setMobileOpen(false)} title="Propiedades" side="bottom">
@@ -122,7 +126,7 @@ export function ResultsPanel({
  * Card flotante de escritorio, colapsable a una pill — nunca "aplasta" el
  * mapa como un aside sólido lo haría (ver .impeccable.md, principio 4).
  */
-function DesktopPanel({ loading, totalCount, list }: { loading: boolean; totalCount: number; list: ReactNode }) {
+function DesktopPanel({ loading, empty, totalCount, list }: { loading: boolean; empty: boolean; totalCount: number; list: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -151,7 +155,7 @@ function DesktopPanel({ loading, totalCount, list }: { loading: boolean; totalCo
             className="flex h-12 items-center gap-2 rounded-pill bg-surface px-4 shadow-float transition-[transform,box-shadow] duration-150 [transition-timing-function:var(--ease-out)] hover:shadow-none active:scale-[0.97]"
           >
             <span className="text-sm font-medium text-text">
-              {loading ? "Buscando…" : <><span className="font-mono">{totalCount}</span> {totalCount === 1 ? "propiedad" : "propiedades"}</>}
+              {loading ? "Buscando…" : empty ? "Sin resultados acá" : <><span className="font-mono">{totalCount}</span> {totalCount === 1 ? "propiedad" : "propiedades"}</>}
             </span>
             <ChevronRight className="h-4 w-4" aria-hidden />
           </button>
@@ -159,7 +163,7 @@ function DesktopPanel({ loading, totalCount, list }: { loading: boolean; totalCo
           <div className="flex h-full w-[360px] flex-col overflow-hidden rounded-card bg-surface shadow-float">
             <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
               <span className="text-sm font-medium text-text">
-                {loading ? "Buscando…" : <><span className="font-mono">{totalCount}</span> {totalCount === 1 ? "propiedad" : "propiedades"}</>}
+                {loading ? "Buscando…" : empty ? "Sin resultados acá" : <><span className="font-mono">{totalCount}</span> {totalCount === 1 ? "propiedad" : "propiedades"}</>}
               </span>
               <IconButton variant="ghost" size={30} aria-label="Colapsar panel" onClick={() => setCollapsed(true)}>
                 <ChevronLeft className="h-4 w-4" aria-hidden />

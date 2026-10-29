@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { FilterPill } from "@/components/ui/FilterPill";
 import { RangeSlider } from "@/components/ui/RangeSlider";
 import { Sheet } from "@/components/ui/Sheet";
+import { NoResults } from "@/components/filters/NoResults";
 import { AMENITIES, AMENITY_LABELS, CURRENCIES, OPERATIONS, OPERATION_LABELS, PROPERTY_TYPES, PROPERTY_TYPE_LABELS, type Amenity, type Currency } from "@/config/filters";
 import { areaBounds, priceBounds } from "@/lib/filters/bounds";
 import type { Facets } from "@/lib/filters/facets";
@@ -21,8 +22,11 @@ type Props = {
   onClose: () => void;
   value: PropertyFiltersState;
   onChange: (next: PropertyFiltersState) => void;
-  /** Cuántas propiedades dan los filtros de ahora (para el botón de abajo). */
+  /** Cuántas propiedades dan los filtros de ahora (para el botón de abajo). Sin número = todavía se está buscando. */
   resultCount?: number;
+  /** Sólo en el mapa: el centro de lo que se mira y cómo ir a otra zona, para ofrecer "la zona más cercana donde sí hay". */
+  center?: { lng: number; lat: number } | null;
+  onFlyTo?: (lng: number, lat: number) => void;
 };
 
 // ─── Opciones reales (ciudades, barrios, comodidades, precios) ──────────────────────────────────
@@ -75,14 +79,18 @@ function Section({ title, hint, children }: { title: string; hint?: ReactNode; c
   );
 }
 
-/** "Mínimo de dormitorios": 1+ a 5+, y volver a tocar el elegido lo quita. */
+/**
+ * "Mínimo de dormitorios": 1+ a 5+, y volver a tocar el elegido lo quita. En pantallas angostas (menos de 420 px) la etiqueta va
+ * arriba y los cinco botones se reparten el ancho: antes, etiqueta y botones iban en una sola fila que no se achicaba y, con la
+ * tipografía ancha, se salía del panel y aparecía un desplazamiento horizontal.
+ */
 function MinRow({ label, value, onChange }: { label: string; value: number | null; onChange: (v: number | null) => void }) {
   return (
-    <div className="flex items-center justify-between gap-3">
+    <div className="flex flex-col gap-2 min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between min-[420px]:gap-3">
       <span className="text-sm text-text">{label}</span>
-      <div className="flex gap-1.5" role="group" aria-label={`Mínimo de ${label.toLowerCase()}`}>
+      <div className="grid grid-cols-5 gap-1.5 min-[420px]:flex min-[420px]:shrink-0" role="group" aria-label={`Mínimo de ${label.toLowerCase()}`}>
         {[1, 2, 3, 4, 5].map((n) => (
-          <FilterPill key={n} className={cn(pill, "min-w-10 justify-center px-2.5")} active={value === n} onClick={() => onChange(value === n ? null : n)}>
+          <FilterPill key={n} className={cn(pill, "w-full min-w-0 justify-center px-0 min-[420px]:w-auto min-[420px]:min-w-10 min-[420px]:px-2.5")} active={value === n} onClick={() => onChange(value === n ? null : n)}>
             {n}+
           </FilterPill>
         ))}
@@ -118,12 +126,13 @@ function FreeDatesSection({ from, to, onChange }: { from: string | null; to: str
   const incomplete = (!!draft.from !== !!draft.to) || (!!draft.from && !!draft.to && checkRange(draft) !== null);
   return (
     <Section title="Libre en mis fechas" hint="Sólo alquileres">
-      <div className="grid grid-cols-2 gap-3">
-        <label className="flex flex-col gap-1 text-xs font-medium text-text-muted">
+      {/* Una columna en pantallas angostas: los campos de fecha del celular tienen un ancho mínimo propio y dos juntos se salían. */}
+      <div className="grid grid-cols-1 gap-3 min-[400px]:grid-cols-2">
+        <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-text-muted">
           Desde
           <input type="date" min={today} value={draft.from} onChange={(e) => update({ from: e.target.value, to: draft.to && e.target.value > draft.to ? "" : draft.to })} className={selectCls} />
         </label>
-        <label className="flex flex-col gap-1 text-xs font-medium text-text-muted">
+        <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-text-muted">
           Hasta
           <input type="date" min={draft.from || today} value={draft.to} onChange={(e) => update({ from: draft.from, to: e.target.value })} className={selectCls} />
         </label>
@@ -141,7 +150,7 @@ function FreeDatesSection({ from, to, onChange }: { from: string | null; to: str
  * ver los resultados. Los cambios se aplican en el momento. Las opciones de ubicación, comodidades y precio salen de lo que hay
  * publicado de verdad (`/api/properties/facets`), no de listas escritas a mano.
  */
-export function FilterSheet({ open, onClose, value, onChange, resultCount }: Props) {
+export function FilterSheet({ open, onClose, value, onChange, resultCount, center, onFlyTo }: Props) {
   const wide = useMediaQuery("(min-width: 768px)");
   const { facets, failed } = useFacets(open, value.agencyId);
   const chips = useMemo(() => activeChips(value), [value]);
@@ -180,7 +189,7 @@ export function FilterSheet({ open, onClose, value, onChange, resultCount }: Pro
             Limpiar filtros
           </button>
           <Button size="sm" onClick={onClose}>
-            {resultCount != null ? <>Ver <span className="font-mono">{resultCount}</span> {resultCount === 1 ? "propiedad" : "propiedades"}</> : "Ver resultados"}
+            {resultCount === 0 ? "Cerrar" : resultCount != null ? <>Ver <span className="font-mono">{resultCount}</span> {resultCount === 1 ? "propiedad" : "propiedades"}</> : "Ver resultados"}
           </Button>
         </div>
       }
@@ -202,6 +211,21 @@ export function FilterSheet({ open, onClose, value, onChange, resultCount }: Pro
               </button>
             ))}
           </div>
+        )}
+
+        {/* Sin resultados: en vez de un "Ver 0 propiedades" que parece un error, qué filtro quitar y dónde sí hay. */}
+        {resultCount === 0 && (
+          <NoResults
+            compact
+            filters={value}
+            center={center}
+            onChange={onChange}
+            onFlyTo={(lng, lat) => {
+              onFlyTo?.(lng, lat);
+              onClose();
+            }}
+            className="rounded-card bg-surface-2/60 px-3"
+          />
         )}
 
         <Section title="Operación">
