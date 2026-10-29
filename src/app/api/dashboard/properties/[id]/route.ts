@@ -10,7 +10,8 @@ import { Favorite } from "@/lib/db/models/Favorite";
 import { Like } from "@/lib/db/models/Like";
 import { Comment } from "@/lib/db/models/Comment";
 import { Rating } from "@/lib/db/models/Rating";
-import { createNotificationForMany } from "@/lib/notifications/create";
+import { notifyNewMedia, notifyPriceChange, notifyUnavailable } from "@/lib/notifications/property-events";
+import { mediaFingerprint, newMediaKinds, type UnavailableStatus } from "@/lib/notifications/social-text";
 import { notifyNewPublication } from "@/lib/notifications/new-property";
 import { PropertyDailyStat } from "@/lib/db/models/PropertyDailyStat";
 import { diffProperty, snapshotProperty } from "@/lib/activity/diff";
@@ -18,7 +19,7 @@ import { logActivity, touchAgencyData } from "@/lib/activity/log";
 import { AmbientSelectionError, markAmbientAttached, resolveAmbient, type StoredAmbient } from "@/lib/ambient/attach";
 import { releaseCover } from "@/lib/ambient/server";
 import { AvailabilityWatch } from "@/lib/db/models/AvailabilityWatch";
-import { effectivePeriod } from "@/config/pricing";
+import { effectivePeriod, isRentalOperation } from "@/config/pricing";
 import { notifyPropertyAvailable } from "@/lib/notifications/availability";
 import { normalizeRentalFields } from "@/lib/properties/normalize";
 
@@ -55,6 +56,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     // Foto de cómo estaba antes de editar: la bitácora del asesor compara contra esto.
     const beforeSnapshot = snapshotProperty(property.toObject());
     const previousAgencyId = String(property.agencyId);
+    // Cómo estaba antes, para avisar a quien le importa lo que cambió (precio, que ya no está disponible, fotos nuevas).
+    const previousStatus = property.status;
+    const wasManuallyUnavailable = property.availability?.state === "unavailable";
+    const mediaBefore = mediaFingerprint(property.toObject().media);
 
     if (access.isAdmin && requestedAgencyId && requestedAgencyId !== String(property.agencyId)) {
       const exists = await Agency.exists({ _id: requestedAgencyId });
@@ -69,8 +74,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     // Pasar de "por noche" a "por semana" (o de mes a noche) cambia el monto sin ser una rebaja: sólo se compara dentro del mismo período.
     const samePeriod = norm.price.period === effectivePeriod(property.operation, property.price?.period);
     const priceChanged = data.price.amount !== property.price?.amount || !sameCurrency;
-    // Sólo cuenta como baja si la moneda y el período no cambiaron: pasar de ARS a USD no es una rebaja.
-    const priceDropped = priceChanged && sameCurrency && samePeriod && previousAmount != null && data.price.amount < previousAmount;
+    // Sólo cuenta como baja o suba si la moneda y el período no cambiaron: pasar de ARS a USD no es una rebaja.
+    const priceMoved = priceChanged && sameCurrency && samePeriod && previousAmount != null && data.price.amount !== previousAmount;
     // Un alquiler que no estaba disponible y ahora sí (la inmobiliaria lo liberó): se avisa a quien lo esperaba.
     const wasUnavailable = property.availability?.current === "unavailable";
 
@@ -109,8 +114,25 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (ambient) await markAmbientAttached(ambient.coverId, String(property._id));
     if (previousCoverId && previousCoverId !== ambient?.coverId) after(() => releaseCover(previousCoverId));
 
-    if (priceDropped) {
-      after(() => notifyPriceDrop(property));
+    if (property.status === "published" && priceMoved && previousAmount != null) {
+      const before = { amount: previousAmount, currency: data.price.currency };
+      const next = { amount: data.price.amount, currency: data.price.currency };
+      after(() => notifyPriceChange(property, data.price.amount < previousAmount ? "drop" : "up", before, next, norm.price.period));
+    }
+    if (previousStatus === "published" && !firstPublish) {
+      // Venta: pasó a vendida o reservada. Alquiler: sigue publicada (en rojo) y lo que cambia es su disponibilidad.
+      if (property.status === "sold" || property.status === "reserved" || property.status === "rented") {
+        const status = property.status as UnavailableStatus;
+        after(() => notifyUnavailable(property, status));
+      } else if (property.status === "published" && isRentalOperation(property.operation) && !wasManuallyUnavailable && norm.availability.state === "unavailable") {
+        const status: UnavailableStatus = data.status === "reserved" ? "reserved" : "rented";
+        after(() => notifyUnavailable(property, status));
+      }
+      // Fotos, video o recorrido sumados a una propiedad que ya estaba publicada (quitar no avisa).
+      if (property.status === "published") {
+        const kinds = newMediaKinds(mediaBefore, mediaFingerprint(property.toObject().media));
+        if (kinds.length > 0) after(() => notifyNewMedia(property, kinds));
+      }
     }
     if (firstPublish) {
       after(() => notifyNewPublication(property));
@@ -144,26 +166,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   } catch (err) {
     console.error("PATCH /api/dashboard/properties/[id] failed:", err);
     return NextResponse.json({ error: "No se pudo actualizar la propiedad." }, { status: 503 });
-  }
-}
-
-async function notifyPriceDrop(property: InstanceType<typeof Property>) {
-  try {
-    await connectDB();
-    const [favorites, watchers] = await Promise.all([
-      Favorite.find({ propertyId: property._id }).select("userId").lean(),
-      AvailabilityWatch.find({ propertyId: property._id }).select("userId").lean(),
-    ]);
-    const userIds = [...new Set([...favorites, ...watchers].map((f) => String(f.userId)))];
-    await createNotificationForMany(userIds, {
-      type: "price_drop",
-      title: "Bajó el precio de una propiedad que guardaste",
-      body: property.title,
-      href: `/propiedades/${property.slug}`,
-      propertyId: String(property._id),
-    });
-  } catch (err) {
-    console.error("notifyPriceDrop failed:", err);
   }
 }
 

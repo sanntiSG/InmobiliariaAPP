@@ -6,10 +6,8 @@ import { Property } from "@/lib/db/models/Property";
 import { Comment } from "@/lib/db/models/Comment";
 import { recordEvent } from "@/lib/tracking/record";
 import { rateLimit } from "@/lib/security/rate-limit";
-import { Like } from "@/lib/db/models/Like";
-import { Favorite } from "@/lib/db/models/Favorite";
 import { requireUser } from "@/lib/auth/require-user";
-import { createNotificationForMany } from "@/lib/notifications/create";
+import { notifyComment } from "@/lib/notifications/comment";
 
 const bodySchema = z.object({
   body: z.string().trim().min(1, "Escribí algo").max(1000),
@@ -91,7 +89,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await Property.updateOne({ _id: id }, { $inc: { "stats.comments": 1 } });
     await recordEvent({ type: "comment", userId: user.id, propertyId: id, agencyId: property.agencyId });
 
-    after(() => notifyInterestedUsers(id, user.id, property.title, property.slug));
+    after(() =>
+      notifyComment({
+        propertyId: id,
+        agencyId: String(property.agencyId),
+        commentId: String(comment._id),
+        parentId: parsed.data.parentId ?? null,
+        commenterId: user.id,
+        text: parsed.data.body,
+        title: property.title,
+        slug: property.slug,
+      })
+    );
 
     return NextResponse.json(
       {
@@ -106,28 +115,5 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   } catch (err) {
     console.error("POST /api/properties/[id]/comments failed:", err);
     return NextResponse.json({ error: "No se pudo publicar el comentario." }, { status: 503 });
-  }
-}
-
-/** Avisa a quienes likearon/guardaron la propiedad (menos a quien comentó). */
-async function notifyInterestedUsers(propertyId: string, commenterId: string, title: string, slug: string) {
-  try {
-    await connectDB();
-    const [likes, favorites] = await Promise.all([
-      Like.find({ propertyId }).select("userId").lean(),
-      Favorite.find({ propertyId }).select("userId").lean(),
-    ]);
-    const userIds = [...new Set([...likes, ...favorites].map((d) => String(d.userId)))].filter(
-      (id) => id !== commenterId
-    );
-    await createNotificationForMany(userIds, {
-      type: "activity",
-      title: "Nuevo comentario en una propiedad que seguís",
-      body: title,
-      href: `/propiedades/${slug}`,
-      propertyId,
-    });
-  } catch (err) {
-    console.error("notifyInterestedUsers failed:", err);
   }
 }

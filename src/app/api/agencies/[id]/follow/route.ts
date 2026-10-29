@@ -1,10 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { Types } from "mongoose";
 import { connectDB } from "@/lib/db/connect";
 import { Agency } from "@/lib/db/models/Agency";
 import { AgencyFollow } from "@/lib/db/models/AgencyFollow";
 import { requireUser } from "@/lib/auth/require-user";
 import { rateLimit } from "@/lib/security/rate-limit";
+import { notifyAgencySocial } from "@/lib/notifications/social";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -38,7 +39,11 @@ export async function POST(_req: Request, { params }: Ctx) {
       { $setOnInsert: { userId: auth.user.id, agencyId: auth.id } },
       { upsert: true }
     );
-    if (result.upsertedCount > 0) await Agency.updateOne({ _id: auth.id }, { $inc: { "stats.followers": 1 } });
+    if (result.upsertedCount > 0) {
+      await Agency.updateOne({ _id: auth.id }, { $inc: { "stats.followers": 1 } });
+      // Sólo cuando el seguimiento se crea de verdad (seguir dos veces no avisa dos veces).
+      after(() => notifyAgencySocial({ event: "follower", agencyId: auth.id, actorUserId: auth.user.id }));
+    }
 
     const updated = await Agency.findById(auth.id).select("stats.followers").lean();
     return NextResponse.json({ following: true, followers: updated?.stats?.followers ?? 0 });

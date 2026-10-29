@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { z } from "zod";
 import { Types } from "mongoose";
 import { connectDB } from "@/lib/db/connect";
@@ -7,6 +7,7 @@ import { Rating } from "@/lib/db/models/Rating";
 import { recordEvent } from "@/lib/tracking/record";
 import { requireUser } from "@/lib/auth/require-user";
 import { limitOr429 } from "@/lib/security/rate-limit";
+import { notifyAgencySocial } from "@/lib/notifications/social";
 
 const bodySchema = z.object({ value: z.number().int().min(1).max(5) });
 
@@ -26,7 +27,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   try {
     await connectDB();
-    const property = await Property.findById(id).select("agencyId status");
+    const property = await Property.findById(id).select("agencyId status title");
     if (!property || property.status !== "published") {
       return NextResponse.json({ error: "Propiedad no encontrada" }, { status: 404 });
     }
@@ -56,6 +57,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       agencyId: property.agencyId,
       meta: { value: parsed.data.value },
     });
+
+    // Sólo el primer puntaje de cada persona avisa (la clave lo garantiza): cambiarlo después no repite el aviso.
+    after(() => notifyAgencySocial({ event: "rating", agencyId: String(property.agencyId), propertyId: id, propertyTitle: property.title, stars: parsed.data.value, actorUserId: user.id }));
 
     return NextResponse.json({ myRating: parsed.data.value, ratingAvg, ratingCount });
   } catch (err) {

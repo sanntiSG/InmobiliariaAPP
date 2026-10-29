@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { Types } from "mongoose";
 import { connectDB } from "@/lib/db/connect";
 import { Property } from "@/lib/db/models/Property";
@@ -6,6 +6,7 @@ import { Like } from "@/lib/db/models/Like";
 import { recordEvent } from "@/lib/tracking/record";
 import { requireUser } from "@/lib/auth/require-user";
 import { limitOr429 } from "@/lib/security/rate-limit";
+import { notifyAgencySocial } from "@/lib/notifications/social";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
@@ -20,7 +21,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   try {
     await connectDB();
-    const property = await Property.findById(id).select("agencyId status");
+    const property = await Property.findById(id).select("agencyId status title");
     if (!property || property.status !== "published") {
       return NextResponse.json({ error: "Propiedad no encontrada" }, { status: 404 });
     }
@@ -49,6 +50,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       propertyId: id,
       agencyId: property.agencyId,
     });
+
+    // Sólo al dar el me gusta (no al quitarlo); la clave evita repetir si lo quita y lo vuelve a dar.
+    if (liked) {
+      after(() => notifyAgencySocial({ event: "like", agencyId: String(property.agencyId), propertyId: id, propertyTitle: property.title, actorUserId: user.id }));
+    }
 
     return NextResponse.json({ liked, likes: updated?.stats?.likes ?? 0 });
   } catch (err) {

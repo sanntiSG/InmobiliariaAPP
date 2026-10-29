@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { z } from "zod";
 import { Types } from "mongoose";
 import { connectDB } from "@/lib/db/connect";
@@ -8,6 +8,7 @@ import { auth } from "@/auth";
 import { clientIp, rateLimit } from "@/lib/security/rate-limit";
 import { dayStart, recordEvent } from "@/lib/tracking/record";
 import { readOrMintRid, setRidCookie } from "@/lib/tracking/visitor";
+import { notifyAgencySocial } from "@/lib/notifications/social";
 
 const VIEW_DEDUPE_MS = 30 * 60_000;
 const BOT_RE = /bot|crawl|spider|slurp|preview|facebookexternalhit|headless|lighthouse|monitor/i;
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest) {
 
   try {
     await connectDB();
-    const property = await Property.findById(body.propertyId).select("agencyId status").lean();
+    const property = await Property.findById(body.propertyId).select("agencyId status title").lean();
     if (!property || property.status !== "published") return respond();
 
     const session = await auth().catch(() => null);
@@ -93,6 +94,8 @@ export async function POST(req: NextRequest) {
       await recordEvent({ ...base, type: "contact", meta: { channel: body.channel ?? null } });
     } else if (body.event === "share") {
       await recordEvent({ ...base, type: "share", meta: { method: body.method ?? null } });
+      // Es un evento anónimo y fácil de falsear: se avisa como mucho una vez por hora y propiedad (ver `socialDedupeKey`).
+      after(() => notifyAgencySocial({ event: "share", agencyId: String(property.agencyId), propertyId: String(property._id), propertyTitle: property.title, actorUserId: userId }));
     } else {
       await recordEvent({ ...base, type: "tour_open" });
     }
